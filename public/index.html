@@ -1,0 +1,41 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <title>DeepFake</title>
+    <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+<div id="auth" class="card">
+    <h1>Welcome to DeepFake</h1>
+    <input id="username" placeholder="Username" autocomplete="username"/>
+    <input id="password" type="password" placeholder="Password" autocomplete="current-password"/>
+    <div class="auth-buttons">
+        <button id="login">Login</button>
+        <button id="register">Register</button>
+    </div>
+    <p id="authMsg"></p>
+</div>
+<div id="chat" class="card" style="display:none;">
+    <div class="chat-header">
+        <div class="model-select">
+            <label for="model">Model:</label>
+            <select id="model">
+                <option value="mistral:latest">Mistral</option>
+                <option value="femboy:latest">Femboy</option>
+            </select>
+        </div>
+    </div>
+    <div id="messages"></div>
+    <div class="input-container">
+        <input id="msgInput" placeholder="Type your message..."/>
+        <button id="send"></button>
+    </div>
+    <div class="logout-container">
+        <button id="clearChat">Clear Chat</button>
+        <button id="logout">Logout</button>
+    </div>
+</div>
+<script src="script.js"></script>
+</body>
+</html>
