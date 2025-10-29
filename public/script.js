@@ -103,7 +103,7 @@ function setLoadingState(loading) {
 }
 
 async function checkSession() {
-    const res = await get('/api/session');
+    const res = await get('/session');
     if (res.user) {
         authDiv.style.display = "none";
         chatDiv.style.display = "grid";
@@ -115,7 +115,7 @@ async function checkSession() {
 }
 
 async function loadServerChat() {
-    const res = await get("/api/chat/history");
+    const res = await get("/chat/history");
     if (res.history && res.history.length) {
         messagesDiv.innerHTML = '';
         res.history.forEach(msg => {
@@ -141,7 +141,7 @@ async function handleAuth(endpoint) {
     registerBtn.disabled = true;
     setAuthMessage("Processing...", false);
 
-    const res = await post(`/api/${endpoint}`, {username, password});
+    const res = await post(`/${endpoint}`, {username, password});
 
     loginBtn.disabled = false;
     registerBtn.disabled = false;
@@ -172,7 +172,7 @@ async function sendMessage() {
     const loadingMsg = addMessage('', false, true, false);
     try {
         const model = document.getElementById("model").value;
-        const res = await post("/api/chat", { message: msg, model });
+        const res = await post("/chat", { message: msg, model });
         if (messagesDiv.contains(loadingMsg)) {
             messagesDiv.removeChild(loadingMsg);
         }
@@ -200,7 +200,7 @@ passwordInput.addEventListener("keydown", (e) => {
 });
 
 document.getElementById("logout").onclick = async () => {
-    await post("/api/logout", {});
+    await post("/logout", {});
     chatDiv.style.display = "none";
     authDiv.style.display = "grid";
     clearChatHistory();
@@ -219,7 +219,7 @@ msgInput.addEventListener("keydown", (e) => {
 });
 
 document.getElementById("clearChat").onclick = async () => {
-    await post("/api/chat/clear", {});
+    await post("/chat/clear", {});
     clearChatHistory();
 };
 

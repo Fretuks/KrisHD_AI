@@ -36,7 +36,7 @@ if (!fs.existsSync(DATA_PATH)) fs.writeFileSync(DATA_PATH, "{}");
 const users = JSON.parse(fs.readFileSync(DATA_PATH));
 const saveUsers = () => fs.writeFileSync(DATA_PATH, JSON.stringify(users, null, 2));
 
-app.post("/api/register", async (req, res) => {
+app.post("/register", async (req, res) => {
     const {username, password} = req.body;
     if (users[username]) return res.status(400).json({error: "User already exists"});
     const hashed = await bcrypt.hash(password, 10);
@@ -45,7 +45,7 @@ app.post("/api/register", async (req, res) => {
     res.json({message: "Registration successful"});
 });
 
-app.post("/api/login", async (req, res) => {
+app.post("/login", async (req, res) => {
     const {username, password} = req.body;
     const user = users[username];
     if (!user) return res.status(400).json({error: "User not found"});
@@ -55,7 +55,7 @@ app.post("/api/login", async (req, res) => {
     res.json({message: "Login successful"});
 });
 
-app.post("/api/logout", (req, res) => {
+app.post("/logout", (req, res) => {
     req.session.destroy(() => res.json({message: "Logged out"}));
 });
 
@@ -64,7 +64,7 @@ const requireLogin = (req, res, next) => {
     next();
 };
 
-app.post("/api/chat", requireLogin, async (req, res) => {
+app.post("/chat", requireLogin, async (req, res) => {
     const user = req.session.user;
     const { message, model } = req.body;
     const selectedModel = model || "mistral:latest";
@@ -97,7 +97,7 @@ app.post("/api/chat", requireLogin, async (req, res) => {
 });
 
 async function checkSession() {
-    const res = await get('/api/session');
+    const res = await get('/session');
     if (res.user) {
         authDiv.style.display = "none";
         chatDiv.style.display = "grid";
@@ -108,17 +108,17 @@ async function checkSession() {
     return false;
 }
 
-app.get("/api/session", (req, res) => {
+app.get("/session", (req, res) => {
     if (req.session.user) res.json({user: req.session.user});
     else res.json({user: null});
 });
 
-app.get("/api/chat/history", requireLogin, (req, res) => {
+app.get("/chat/history", requireLogin, (req, res) => {
     const user = req.session.user;
     res.json({history: chats[user] || []});
 });
 
-app.post("/api/chat/clear", requireLogin, (req, res) => {
+app.post("/chat/clear", requireLogin, (req, res) => {
     const user = req.session.user;
     chats[user] = [];
     saveChats();
