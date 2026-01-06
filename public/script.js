@@ -12,6 +12,28 @@ const sendBtn = document.getElementById("send");
 let isProcessing = false;
 let chatHistory = JSON.parse(localStorage.getItem('chatHistory')) || [];
 
+const displayModels = async () => {
+    const select = document.getElementById("model");
+
+    fetch("/models")
+        .then(response => response.json())
+        .then(data => {
+            // Clear loading option
+            select.innerHTML = "";
+
+            data.models.forEach(model => {
+                const option = document.createElement("option");
+                option.value = model.model;
+                option.textContent = model.name;
+                select.appendChild(option);
+            });
+        })
+        .catch(err => {
+            console.error("Failed to load models:", err);
+            select.innerHTML = `<option>Error loading models</option>`;
+        });
+}
+
 async function post(url, data) {
     try {
         const res = await fetch(url, {
@@ -172,7 +194,7 @@ async function sendMessage() {
     const loadingMsg = addMessage('', false, true, false);
     try {
         const model = document.getElementById("model").value;
-        const res = await post("/chat", { message: msg, model });
+        const res = await post("/chat", {message: msg, model});
         if (messagesDiv.contains(loadingMsg)) {
             messagesDiv.removeChild(loadingMsg);
         }
@@ -230,4 +252,5 @@ msgInput.addEventListener('input', function () {
 
 window.addEventListener('load', () => {
     checkSession();
+    displayModels()
 });

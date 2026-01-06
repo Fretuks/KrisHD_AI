@@ -64,37 +64,82 @@ const requireLogin = (req, res, next) => {
     next();
 };
 
+app.get("/models", async (req, res) => {
+    const response = await fetch("https://ai.krishd.ch/api/tags");
+    res.json(await response.json());
+})
+
 app.post("/chat", requireLogin, async (req, res) => {
     const user = req.session.user;
     const { message, model } = req.body;
     const selectedModel = model || "mistral:latest";
+
     try {
         if (!chats[user]) chats[user] = [];
         chats[user].push({ role: "user", content: message });
         if (chats[user].length > 20) chats[user] = chats[user].slice(-20);
+
         const messagesPayload = chats[user].map(m => ({
             role: m.role === "bot" ? "assistant" : "user",
             content: m.content
         }));
+
         const response = await fetch("https://ai.krishd.ch/api/chat", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 model: selectedModel,
                 messages: messagesPayload,
-                stream: false
+                stream: true
             })
         });
-        const data = await response.json();
-        const reply = data?.message?.content || "[No response]";
-        chats[user].push({ role: "bot", content: reply });
+
+        if (!response.ok) {
+            throw new Error(`AI HTTP ${response.status}`);
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+
+        let buffer = "";
+        let fullReply = "";
+
+        while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+
+            let lines = buffer.split("\n");
+            buffer = lines.pop(); // keep incomplete JSON
+
+            for (const line of lines) {
+                if (!line.trim()) continue;
+
+                const json = JSON.parse(line);
+
+                if (json.done) {
+                    break;
+                }
+
+                if (json.message?.content) {
+                    fullReply += json.message.content;
+                }
+            }
+        }
+
+        chats[user].push({ role: "bot", content: fullReply });
         saveChats();
-        res.json({ reply });
+        console.log("Reply length:", fullReply.length);
+
+        res.json({ reply: fullReply });
+
     } catch (err) {
         console.error("AI chat error:", err);
         res.status(500).json({ error: "AI request failed" });
     }
 });
+
 
 async function checkSession() {
     const res = await get('/session');
