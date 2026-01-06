@@ -1,16 +1,53 @@
-﻿import express from "express";
+import express from "express";
 import session from "express-session";
 import bcrypt from "bcrypt";
 import fs from "fs";
 import path from "path";
 import bodyParser from "body-parser";
+import Database from "better-sqlite3";
+import FileStoreFactory from "session-file-store";
 
 const app = express();
 const PORT = 3000;
-const DATA_PATH = "./data/users.json";
-const CHAT_PATH = "./data/chats.json";
+const DB_PATH = "./data/app.db";
 
-import FileStoreFactory from "session-file-store";
+if (!fs.existsSync("./data")) {
+    fs.mkdirSync("./data", {recursive: true});
+}
+
+const db = new Database(DB_PATH);
+db.pragma("journal_mode = WAL");
+db.prepare(`
+    CREATE TABLE IF NOT EXISTS users (
+        username TEXT PRIMARY KEY,
+        password TEXT NOT NULL
+    )
+`).run();
+db.prepare(`
+    CREATE TABLE IF NOT EXISTS chats (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT NOT NULL,
+        role TEXT NOT NULL,
+        content TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+`).run();
+
+const insertUserStmt = db.prepare("INSERT INTO users (username, password) VALUES (?, ?)");
+const getUserStmt = db.prepare("SELECT username, password FROM users WHERE username = ?");
+const insertChatStmt = db.prepare("INSERT INTO chats (username, role, content) VALUES (?, ?, ?)");
+const getChatsStmt = db.prepare(`
+    SELECT role, content FROM chats
+    WHERE username = ?
+    ORDER BY datetime(created_at)
+`);
+const getRecentChatsStmt = db.prepare(`
+    SELECT role, content FROM chats
+    WHERE username = ?
+    ORDER BY datetime(created_at) DESC
+    LIMIT 20
+`);
+const deleteChatsStmt = db.prepare("DELETE FROM chats WHERE username = ?");
 
 const FileStore = FileStoreFactory(session);
 app.use(bodyParser.json());
@@ -29,25 +66,20 @@ app.use(
     })
 );
 
-let chats = JSON.parse(fs.readFileSync(CHAT_PATH));
-const saveChats = () => fs.writeFileSync(CHAT_PATH, JSON.stringify(chats, null, 2));
-
-if (!fs.existsSync(DATA_PATH)) fs.writeFileSync(DATA_PATH, "{}");
-const users = JSON.parse(fs.readFileSync(DATA_PATH));
-const saveUsers = () => fs.writeFileSync(DATA_PATH, JSON.stringify(users, null, 2));
-
 app.post("/register", async (req, res) => {
     const {username, password} = req.body;
-    if (users[username]) return res.status(400).json({error: "User already exists"});
+    const existingUser = getUserStmt.get(username);
+
+    if (existingUser) return res.status(400).json({error: "User already exists"});
+
     const hashed = await bcrypt.hash(password, 10);
-    users[username] = {password: hashed};
-    saveUsers();
+    insertUserStmt.run(username, hashed);
     res.json({message: "Registration successful"});
 });
 
 app.post("/login", async (req, res) => {
     const {username, password} = req.body;
-    const user = users[username];
+    const user = getUserStmt.get(username);
     if (!user) return res.status(400).json({error: "User not found"});
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) return res.status(403).json({error: "Invalid password"});
@@ -67,7 +99,7 @@ const requireLogin = (req, res, next) => {
 app.get("/models", async (req, res) => {
     const response = await fetch("https://ai.krishd.ch/api/tags");
     res.json(await response.json());
-})
+});
 
 app.post("/chat", requireLogin, async (req, res) => {
     const user = req.session.user;
@@ -75,11 +107,13 @@ app.post("/chat", requireLogin, async (req, res) => {
     const selectedModel = model || "mistral:latest";
 
     try {
-        if (!chats[user]) chats[user] = [];
-        chats[user].push({ role: "user", content: message });
-        if (chats[user].length > 20) chats[user] = chats[user].slice(-20);
+        const history = getRecentChatsStmt.all(user);
+        const conversation = [...history].reverse();
+        conversation.push({ role: "user", content: message });
 
-        const messagesPayload = chats[user].map(m => ({
+        insertChatStmt.run(user, "user", message);
+
+        const messagesPayload = conversation.map(m => ({
             role: m.role === "bot" ? "assistant" : "user",
             content: m.content
         }));
@@ -111,7 +145,7 @@ app.post("/chat", requireLogin, async (req, res) => {
             buffer += decoder.decode(value, { stream: true });
 
             let lines = buffer.split("\n");
-            buffer = lines.pop(); // keep incomplete JSON
+            buffer = lines.pop();
 
             for (const line of lines) {
                 if (!line.trim()) continue;
@@ -128,8 +162,7 @@ app.post("/chat", requireLogin, async (req, res) => {
             }
         }
 
-        chats[user].push({ role: "bot", content: fullReply });
-        saveChats();
+        insertChatStmt.run(user, "bot", fullReply);
         console.log("Reply length:", fullReply.length);
 
         res.json({ reply: fullReply });
@@ -140,19 +173,6 @@ app.post("/chat", requireLogin, async (req, res) => {
     }
 });
 
-
-async function checkSession() {
-    const res = await get('/session');
-    if (res.user) {
-        authDiv.style.display = "none";
-        chatDiv.style.display = "grid";
-        loadChatHistory();
-        msgInput.focus();
-        return true;
-    }
-    return false;
-}
-
 app.get("/session", (req, res) => {
     if (req.session.user) res.json({user: req.session.user});
     else res.json({user: null});
@@ -160,13 +180,13 @@ app.get("/session", (req, res) => {
 
 app.get("/chat/history", requireLogin, (req, res) => {
     const user = req.session.user;
-    res.json({history: chats[user] || []});
+    const history = getChatsStmt.all(user);
+    res.json({history});
 });
 
 app.post("/chat/clear", requireLogin, (req, res) => {
     const user = req.session.user;
-    chats[user] = [];
-    saveChats();
+    deleteChatsStmt.run(user);
     res.json({message: "Chat cleared"});
 });
 
