@@ -440,3 +440,54 @@ button:disabled {
     #chat { padding: 12px; }
     #messages { padding: 14px; }
 }
+
+.consent-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 10px 0;
+    font-size: 0.8rem;
+    color: #aaa;
+}
+
+.consent-container input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
+.consent-container label {
+    line-height: 1.3;
+}
+
+.consent-container a {
+    color: #7b87ff;
+    text-decoration: none;
+}
+
+.consent-container a:hover {
+    text-decoration: underline;
+}
+
+/* ===== Legal / Static Pages Fix ===== */
+
+html, body {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+}
+
+/* Force text to stay inside viewport */
+.content {
+    width: 100%;
+    max-width: 100%;
+    padding: 1.5rem;
+    box-sizing: border-box;
+}
+
+/* Prevent long words / links from breaking layout */
+.content * {
+    overflow-wrap: break-word;
+    word-break: break-word;
+}
+
