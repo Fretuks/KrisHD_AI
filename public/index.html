@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8"/>
@@ -6,33 +6,71 @@
     <link rel="stylesheet" href="style.css"/>
 </head>
 <body>
-<div id="auth" class="card">
-    <h1>Welcome to DeepFake</h1>
-    <input id="username" placeholder="Username" autocomplete="username"/>
-    <input id="password" type="password" placeholder="Password" autocomplete="current-password"/>
-    <div class="auth-buttons">
-        <button id="login">Login</button>
-        <button id="register">Register</button>
-    </div>
-    <p id="authMsg"></p>
-</div>
-<div id="chat" class="card" style="display:none;">
-    <div class="chat-header">
-        <div class="model-select">
-            <label for="model">Model:</label>
-            <select id="model">
-                <option disabled selected>Loading models...</option>
-            </select>
+<div class="app-shell">
+    <div id="auth" class="card">
+        <div class="brand">
+            <div class="logo">DF</div>
+            <div>
+                <p class="eyebrow">Secure AI Access</p>
+                <h1>Welcome to DeepFake</h1>
+                <p class="subtitle">Log in to continue your conversation or create an account to get started.</p>
+            </div>
         </div>
+
+        <div class="auth-toggle">
+            <button class="toggle active" data-target="login">Login</button>
+            <button class="toggle" data-target="register">Register</button>
+        </div>
+
+        <div id="loginScreen" class="auth-screen active">
+            <form id="loginForm" class="auth-form">
+                <label class="field">
+                    <span>Username</span>
+                    <input id="loginUsername" placeholder="Enter your username" autocomplete="username"/>
+                </label>
+                <label class="field">
+                    <span>Password</span>
+                    <input id="loginPassword" type="password" placeholder="Enter your password" autocomplete="current-password"/>
+                </label>
+                <button id="loginSubmit" type="submit" class="primary-action">Sign in</button>
+            </form>
+        </div>
+
+        <div id="registerScreen" class="auth-screen">
+            <form id="registerForm" class="auth-form">
+                <label class="field">
+                    <span>Create username</span>
+                    <input id="registerUsername" placeholder="Choose a username" autocomplete="new-username"/>
+                </label>
+                <label class="field">
+                    <span>Create password</span>
+                    <input id="registerPassword" type="password" placeholder="Create a password" autocomplete="new-password"/>
+                </label>
+                <button id="registerSubmit" type="submit" class="primary-action">Create account</button>
+            </form>
+        </div>
+
+        <p id="authMsg" class="status"></p>
     </div>
-    <div id="messages"></div>
-    <div class="input-container">
-        <input id="msgInput" placeholder="Type your message..."/>
-        <button id="send"></button>
-    </div>
-    <div class="logout-container">
-        <button id="clearChat">Clear Chat</button>
-        <button id="logout">Logout</button>
+
+    <div id="chat" class="card" style="display:none;">
+        <div class="chat-header">
+            <div class="model-select">
+                <label for="model">Model:</label>
+                <select id="model">
+                    <option disabled selected>Loading models...</option>
+                </select>
+            </div>
+        </div>
+        <div id="messages"></div>
+        <div class="input-container">
+            <input id="msgInput" placeholder="Type your message..."/>
+            <button id="send"></button>
+        </div>
+        <div class="logout-container">
+            <button id="clearChat">Clear Chat</button>
+            <button id="logout">Logout</button>
+        </div>
     </div>
 </div>
 <script src="script.js"></script>
