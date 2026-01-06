@@ -2,12 +2,19 @@ const authDiv = document.getElementById("auth");
 const chatDiv = document.getElementById("chat");
 const authMsg = document.getElementById("authMsg");
 const messagesDiv = document.getElementById("messages");
-const usernameInput = document.getElementById("username");
-const passwordInput = document.getElementById("password");
-const loginBtn = document.getElementById("login");
-const registerBtn = document.getElementById("register");
+
+const loginForm = document.getElementById("loginForm");
+const registerForm = document.getElementById("registerForm");
+const loginUsernameInput = document.getElementById("loginUsername");
+const loginPasswordInput = document.getElementById("loginPassword");
+const registerUsernameInput = document.getElementById("registerUsername");
+const registerPasswordInput = document.getElementById("registerPassword");
+const loginSubmit = document.getElementById("loginSubmit");
+const registerSubmit = document.getElementById("registerSubmit");
 const msgInput = document.getElementById("msgInput");
 const sendBtn = document.getElementById("send");
+const authScreens = document.querySelectorAll(".auth-screen");
+const toggleButtons = document.querySelectorAll(".auth-toggle .toggle");
 
 let isProcessing = false;
 let chatHistory = JSON.parse(localStorage.getItem('chatHistory')) || [];
@@ -18,7 +25,6 @@ const displayModels = async () => {
     fetch("/models")
         .then(response => response.json())
         .then(data => {
-            // Clear loading option
             select.innerHTML = "";
 
             data.models.forEach(model => {
@@ -56,9 +62,9 @@ async function get(url) {
     }
 }
 
-function setAuthMessage(msg, isError = false) {
+function setAuthMessage(msg, state = "") {
     authMsg.textContent = msg;
-    authMsg.className = isError ? 'error' : 'success';
+    authMsg.className = state ? `status ${state}` : 'status';
 }
 
 function addMessage(content, isUser = false, isLoading = false, saveToHistory = true) {
@@ -76,7 +82,6 @@ function addMessage(content, isUser = false, isLoading = false, saveToHistory = 
     } else {
         msgDiv.textContent = content;
 
-        // Save to history (but not loading messages)
         if (saveToHistory) {
             chatHistory.push({
                 content: content,
@@ -89,7 +94,6 @@ function addMessage(content, isUser = false, isLoading = false, saveToHistory = 
 
     messagesDiv.appendChild(msgDiv);
 
-    // Smooth scroll to bottom
     setTimeout(() => {
         messagesDiv.scrollTop = messagesDiv.scrollHeight;
     }, 100);
@@ -117,11 +121,21 @@ function setLoadingState(loading) {
 
     if (loading) {
         sendBtn.classList.add('loading');
-        msgInput.placeholder = "Verarbeite Antwort...";
+        msgInput.placeholder = "Processing response...";
     } else {
         sendBtn.classList.remove('loading');
         msgInput.placeholder = "Type your message...";
     }
+}
+
+function showAuthScreen(target) {
+    authScreens.forEach(screen => {
+        screen.classList.toggle('active', screen.id === `${target}Screen`);
+    });
+    toggleButtons.forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.target === target);
+    });
+    setAuthMessage('', '');
 }
 
 async function checkSession() {
@@ -152,33 +166,36 @@ async function loadServerChat() {
     }
 }
 
-async function handleAuth(endpoint) {
-    const username = usernameInput.value.trim();
-    const password = passwordInput.value.trim();
+async function handleAuth(endpoint, credentials) {
+    const { username, password } = credentials;
+    const submitBtn = endpoint === "login" ? loginSubmit : registerSubmit;
+
     if (!username || !password) {
-        setAuthMessage("Please enter both username and password.", true);
+        setAuthMessage("Please enter both username and password.", 'error');
         return;
     }
-    loginBtn.disabled = true;
-    registerBtn.disabled = true;
-    setAuthMessage("Processing...", false);
+
+    submitBtn.disabled = true;
+    setAuthMessage("Processing...", '');
 
     const res = await post(`/${endpoint}`, {username, password});
 
-    loginBtn.disabled = false;
-    registerBtn.disabled = false;
+    submitBtn.disabled = false;
 
     if (res.error) {
-        setAuthMessage(res.error, true);
+        setAuthMessage(res.error, 'error');
     } else {
         if (endpoint === "login") {
-            setAuthMessage("Login successful!", false);
+            setAuthMessage("Login successful! Redirecting to chat...", 'success');
             authDiv.style.display = "none";
             chatDiv.style.display = "grid";
             await loadServerChat();
             msgInput.focus();
         } else {
-            setAuthMessage("Registration successful — you can now log in!", false);
+            setAuthMessage("Registration successful — you can now log in!", 'success');
+            showAuthScreen('login');
+            loginUsernameInput.value = username;
+            loginPasswordInput.focus();
         }
     }
 }
@@ -214,11 +231,24 @@ async function sendMessage() {
     }
 }
 
-loginBtn.onclick = () => handleAuth("login");
-registerBtn.onclick = () => handleAuth("register");
+toggleButtons.forEach(btn => {
+    btn.addEventListener('click', () => showAuthScreen(btn.dataset.target));
+});
 
-passwordInput.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") handleAuth("login");
+loginForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    handleAuth("login", {
+        username: loginUsernameInput.value.trim(),
+        password: loginPasswordInput.value.trim()
+    });
+});
+
+registerForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    handleAuth("register", {
+        username: registerUsernameInput.value.trim(),
+        password: registerPasswordInput.value.trim()
+    });
 });
 
 document.getElementById("logout").onclick = async () => {
@@ -226,9 +256,10 @@ document.getElementById("logout").onclick = async () => {
     chatDiv.style.display = "none";
     authDiv.style.display = "grid";
     clearChatHistory();
-    setAuthMessage("Logged out.", false);
-    usernameInput.value = "";
-    passwordInput.value = "";
+    setAuthMessage("Logged out.", 'success');
+    showAuthScreen('login');
+    loginUsernameInput.value = "";
+    loginPasswordInput.value = "";
 };
 
 sendBtn.onclick = sendMessage;
@@ -252,5 +283,5 @@ msgInput.addEventListener('input', function () {
 
 window.addEventListener('load', () => {
     checkSession();
-    displayModels()
+    displayModels();
 });
