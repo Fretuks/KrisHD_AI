@@ -387,6 +387,101 @@ button:disabled {
     background: rgba(255, 255, 255, 0.08);
 }
 
+.persona-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    padding-top: 16px;
+    min-height: 0;
+}
+
+.persona-header {
+    align-items: flex-start;
+}
+
+.persona-header-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.persona-status {
+    text-align: left;
+    margin: 0;
+    padding: 10px 12px;
+    font-size: 13px;
+}
+
+.persona-list {
+    display: grid;
+    gap: 10px;
+    max-height: 200px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.persona-item {
+    background: rgba(15, 15, 35, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 14px;
+    padding: 10px 12px;
+    display: grid;
+    gap: 8px;
+}
+
+.persona-item.active {
+    border-color: rgba(99, 102, 241, 0.6);
+    box-shadow: 0 8px 18px rgba(99, 102, 241, 0.18);
+}
+
+.persona-item h4 {
+    margin: 0;
+    font-size: 0.98rem;
+}
+
+.persona-item p {
+    margin: 0;
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+}
+
+.persona-item-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.persona-item-actions button {
+    padding: 6px 10px;
+    font-size: 12px;
+    border-radius: 10px;
+}
+
+.persona-form {
+    display: grid;
+    gap: 10px;
+    background: rgba(10, 10, 20, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 16px;
+    padding: 12px;
+}
+
+.persona-form.hidden {
+    display: none;
+}
+
+.persona-form h3 {
+    margin: 0;
+    font-size: 1rem;
+}
+
+.persona-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
 .chat-main {
     display: grid;
     grid-template-rows: auto 1fr auto auto;

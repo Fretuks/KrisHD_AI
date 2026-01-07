@@ -147,6 +147,59 @@ db.prepare(`
     ) ON DELETE CASCADE
         )
 `).run();
+db.prepare(`
+    CREATE TABLE IF NOT EXISTS personas
+    (
+        id
+        INTEGER
+        PRIMARY
+        KEY
+        AUTOINCREMENT,
+        username
+        TEXT
+        NOT
+        NULL,
+        name
+        TEXT
+        NOT
+        NULL,
+        pronouns
+        TEXT,
+        appearance
+        TEXT,
+        background
+        TEXT,
+        details
+        TEXT,
+        created_at
+        DATETIME
+        DEFAULT
+        CURRENT_TIMESTAMP,
+        updated_at
+        DATETIME
+        DEFAULT
+        CURRENT_TIMESTAMP
+    )
+`).run();
+db.prepare(`
+    CREATE TABLE IF NOT EXISTS user_settings
+    (
+        username
+        TEXT
+        PRIMARY
+        KEY,
+        active_persona_id
+        INTEGER,
+        FOREIGN
+        KEY
+    (
+        active_persona_id
+    ) REFERENCES personas
+    (
+        id
+    ) ON DELETE SET NULL
+        )
+`).run();
 
 const insertUserStmt = db.prepare("INSERT INTO users (username, password) VALUES (?, ?)");
 const getUserStmt = db.prepare("SELECT username, password FROM users WHERE username = ?");
@@ -218,6 +271,50 @@ const deleteChatMessagesStmt = db.prepare(
     "DELETE FROM chat_messages WHERE chat_id = ?"
 );
 
+const listPersonasStmt = db.prepare(`
+    SELECT id, name, pronouns, appearance, background, details, created_at, updated_at
+    FROM personas
+    WHERE username = ?
+    ORDER BY datetime(updated_at) DESC
+`);
+
+const getPersonaStmt = db.prepare(`
+    SELECT id, name, pronouns, appearance, background, details
+    FROM personas
+    WHERE id = ? AND username = ?
+`);
+
+const insertPersonaStmt = db.prepare(
+    "INSERT INTO personas (username, name, pronouns, appearance, background, details) VALUES (?, ?, ?, ?, ?, ?)"
+);
+
+const updatePersonaStmt = db.prepare(`
+    UPDATE personas
+    SET name = ?, pronouns = ?, appearance = ?, background = ?, details = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ? AND username = ?
+`);
+
+const deletePersonaStmt = db.prepare(
+    "DELETE FROM personas WHERE id = ? AND username = ?"
+);
+
+const getActivePersonaIdStmt = db.prepare(
+    "SELECT active_persona_id FROM user_settings WHERE username = ?"
+);
+
+const setActivePersonaStmt = db.prepare(`
+    INSERT INTO user_settings (username, active_persona_id)
+    VALUES (?, ?)
+    ON CONFLICT(username) DO UPDATE SET active_persona_id = excluded.active_persona_id
+`);
+
+const getActivePersonaStmt = db.prepare(`
+    SELECT p.id, p.name, p.pronouns, p.appearance, p.background, p.details
+    FROM user_settings us
+    JOIN personas p ON p.id = us.active_persona_id
+    WHERE us.username = ?
+`);
+
 const migrationNeeded = db.prepare(
     "SELECT COUNT(*) as count FROM chat_messages"
 ).get();
@@ -279,14 +376,38 @@ app.post("/logout", (req, res) => {
     req.session.destroy(() => res.json({message: "Logged out"}));
 });
 
+const normalizePersonaField = (value) => {
+    const trimmed = (value || "").trim();
+    return trimmed ? trimmed : null;
+};
+
+const buildPersonaPrompt = (persona) => {
+    const lines = [
+        "You are roleplaying with the following persona. Stay in character, be engaging, and align with these details."
+    ];
+    if (persona.name) lines.push(`Name: ${persona.name}`);
+    if (persona.pronouns) lines.push(`Pronouns: ${persona.pronouns}`);
+    if (persona.appearance) lines.push(`Appearance: ${persona.appearance}`);
+    if (persona.background) lines.push(`Background: ${persona.background}`);
+    if (persona.details) lines.push(`Details: ${persona.details}`);
+    return lines.join("\n");
+};
+
 const requireLogin = (req, res, next) => {
     if (!req.session.user) return res.status(403).json({error: "Not logged in"});
     next();
 };
 
 app.get("/models", async (req, res) => {
-    const response = await fetch("https://ai.krishd.ch/api/tags");
-    res.json(await response.json());
+    try {
+        const response = await fetch("https://ai.krishd.ch/api/tags");
+        if (!response.ok) {
+            return res.status(500).json({error: "Failed to load models"});
+        }
+        res.json(await response.json());
+    } catch (error) {
+        res.status(500).json({error: "Failed to load models"});
+    }
 });
 
 app.get("/chats", requireLogin, (req, res) => {
@@ -355,6 +476,93 @@ app.post("/chats/:id/clear", requireLogin, (req, res) => {
     res.json({message: "Chat cleared"});
 });
 
+app.get("/personas", requireLogin, (req, res) => {
+    const user = req.session.user;
+    const personas = listPersonasStmt.all(user);
+    const activePersonaId = getActivePersonaIdStmt.get(user)?.active_persona_id ?? null;
+    res.json({personas, activePersonaId});
+});
+
+app.post("/personas", requireLogin, (req, res) => {
+    const user = req.session.user;
+    const name = (req.body?.name || "").trim();
+    if (!name) {
+        return res.status(400).json({error: "Name is required"});
+    }
+    const pronouns = normalizePersonaField(req.body?.pronouns);
+    const appearance = normalizePersonaField(req.body?.appearance);
+    const background = normalizePersonaField(req.body?.background);
+    const details = normalizePersonaField(req.body?.details);
+    const personaId = insertPersonaStmt.run(
+        user,
+        name,
+        pronouns,
+        appearance,
+        background,
+        details
+    ).lastInsertRowid;
+    const persona = getPersonaStmt.get(personaId, user);
+    res.json({persona});
+});
+
+app.put("/personas/:id", requireLogin, (req, res) => {
+    const user = req.session.user;
+    const personaId = Number(req.params.id);
+    const name = (req.body?.name || "").trim();
+    if (!name) {
+        return res.status(400).json({error: "Name is required"});
+    }
+    const pronouns = normalizePersonaField(req.body?.pronouns);
+    const appearance = normalizePersonaField(req.body?.appearance);
+    const background = normalizePersonaField(req.body?.background);
+    const details = normalizePersonaField(req.body?.details);
+    const result = updatePersonaStmt.run(
+        name,
+        pronouns,
+        appearance,
+        background,
+        details,
+        personaId,
+        user
+    );
+    if (result.changes === 0) {
+        return res.status(404).json({error: "Persona not found"});
+    }
+    const persona = getPersonaStmt.get(personaId, user);
+    res.json({persona});
+});
+
+app.delete("/personas/:id", requireLogin, (req, res) => {
+    const user = req.session.user;
+    const personaId = Number(req.params.id);
+    const activePersonaId = getActivePersonaIdStmt.get(user)?.active_persona_id ?? null;
+    const result = deletePersonaStmt.run(personaId, user);
+    if (result.changes === 0) {
+        return res.status(404).json({error: "Persona not found"});
+    }
+    if (activePersonaId === personaId) {
+        setActivePersonaStmt.run(user, null);
+    }
+    res.json({message: "Persona deleted"});
+});
+
+app.post("/personas/:id/equip", requireLogin, (req, res) => {
+    const user = req.session.user;
+    const personaId = Number(req.params.id);
+    const persona = getPersonaStmt.get(personaId, user);
+    if (!persona) {
+        return res.status(404).json({error: "Persona not found"});
+    }
+    setActivePersonaStmt.run(user, personaId);
+    res.json({activePersonaId: personaId});
+});
+
+app.post("/personas/clear", requireLogin, (req, res) => {
+    const user = req.session.user;
+    setActivePersonaStmt.run(user, null);
+    res.json({activePersonaId: null});
+});
+
 app.post("/chat", requireLogin, async (req, res) => {
     const user = req.session.user;
     const {message, model, chatId} = req.body;
@@ -377,15 +585,25 @@ app.post("/chat", requireLogin, async (req, res) => {
     state.activeRequests++;
 
     try {
+        const activePersona = getActivePersonaStmt.get(user);
         const history = getRecentChatMessagesStmt.all(targetChatId);
         const conversation = [...history].reverse();
         conversation.push({role: "user", content: message});
         insertChatMessageStmt.run(targetChatId, "user", message);
         touchChatSessionStmt.run(targetChatId, user);
-        const messagesPayload = conversation.map(m => ({
-            role: m.role === "bot" ? "assistant" : "user",
-            content: m.content
-        }));
+        const messagesPayload = [];
+        if (activePersona) {
+            messagesPayload.push({
+                role: "system",
+                content: buildPersonaPrompt(activePersona)
+            });
+        }
+        messagesPayload.push(
+            ...conversation.map(m => ({
+                role: m.role === "bot" ? "assistant" : "user",
+                content: m.content
+            }))
+        );
 
         const response = await fetch("https://ai.krishd.ch/api/chat", {
             method: "POST",
