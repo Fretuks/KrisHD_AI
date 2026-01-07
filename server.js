@@ -167,6 +167,12 @@ const listChatSessionsStmt = db.prepare(`
     ORDER BY datetime(updated_at) DESC
 `);
 
+const countChatSessionsStmt = db.prepare(`
+    SELECT COUNT(*) as count
+    FROM chat_sessions
+    WHERE username = ?
+`);
+
 const getChatSessionStmt = db.prepare(
     "SELECT id, title FROM chat_sessions WHERE id = ? AND username = ?"
 );
@@ -291,6 +297,12 @@ app.get("/chats", requireLogin, (req, res) => {
 
 app.post("/chats", requireLogin, (req, res) => {
     const user = req.session.user;
+
+    const sessionCount = countChatSessionsStmt.get(user).count;
+    if (sessionCount >= 10) {
+        return res.status(400).json({error: "Maximum of 10 chats reached. Please delete an old chat to create a new one."});
+    }
+
     const title = (req.body?.title || "New chat").trim() || "New chat";
     const chatId = insertChatSessionStmt.run(user, title).lastInsertRowid;
     res.json({chat: {id: chatId, title}});
@@ -388,31 +400,22 @@ app.post("/chat", requireLogin, async (req, res) => {
         if (!response.ok) {
             throw new Error(`AI HTTP ${response.status}`);
         }
-
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
-
         let buffer = "";
         let fullReply = "";
-
         while (true) {
             const {value, done} = await reader.read();
             if (done) break;
-
             buffer += decoder.decode(value, {stream: true});
-
             let lines = buffer.split("\n");
             buffer = lines.pop();
-
             for (const line of lines) {
                 if (!line.trim()) continue;
-
                 const json = JSON.parse(line);
-
                 if (json.done) {
                     break;
                 }
-
                 if (json.message?.content) {
                     fullReply += json.message.content;
                 }
