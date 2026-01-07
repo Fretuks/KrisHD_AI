@@ -6,13 +6,43 @@ import path from "path";
 import bodyParser from "body-parser";
 import Database from "better-sqlite3";
 import FileStoreFactory from "session-file-store";
+import { exec } from "child_process";
 
+const modelState = new Map();
 const app = express();
 const PORT = 3000;
 const DB_PATH = "./data/app.db";
+const UNLOAD_AFTER_MS = 30 * 1000;
 
 if (!fs.existsSync("./data")) {
     fs.mkdirSync("./data", {recursive: true});
+}
+
+function scheduleModelUnload(model) {
+    if (!modelState.has(model)) {
+        modelState.set(model, { timer: null, activeRequests: 0 });
+    }
+
+    const state = modelState.get(model);
+
+    if (state.timer) {
+        clearTimeout(state.timer);
+    }
+
+    state.timer = setTimeout(() => {
+        if (state.activeRequests > 0) return;
+
+        console.log(`Unloading model: ${model}`);
+
+        exec(`ollama stop ${model}`, (err) => {
+            if (err) {
+                console.error(`Failed to unload ${model}:`, err.message);
+            } else {
+                console.log(`✅ Model unloaded: ${model}`);
+                modelState.delete(model);
+            }
+        });
+    }, UNLOAD_AFTER_MS);
 }
 
 const db = new Database(DB_PATH);
@@ -106,6 +136,12 @@ app.post("/chat", requireLogin, async (req, res) => {
     const { message, model } = req.body;
     const selectedModel = model || "mistral:latest";
 
+    if (!modelState.has(selectedModel)) {
+        modelState.set(selectedModel, { activeRequests: 0, timer: null });
+    }
+    const state = modelState.get(selectedModel);
+    state.activeRequests++;
+
     try {
         const history = getRecentChatsStmt.all(user);
         const conversation = [...history].reverse();
@@ -170,6 +206,12 @@ app.post("/chat", requireLogin, async (req, res) => {
     } catch (err) {
         console.error("AI chat error:", err);
         res.status(500).json({ error: "AI request failed" });
+    } finally {
+        state.activeRequests--;
+
+        if (state.activeRequests === 0) {
+            scheduleModelUnload(selectedModel);
+        }
     }
 });
 
