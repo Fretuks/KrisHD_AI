@@ -28,10 +28,6 @@ const personaPronounsInput = document.getElementById("personaPronouns");
 const personaAppearanceInput = document.getElementById("personaAppearance");
 const personaBackgroundInput = document.getElementById("personaBackground");
 const personaDetailsInput = document.getElementById("personaDetails");
-const personaModal = document.getElementById("personaModal");
-const personaCloseBtn = document.getElementById("personaClose");
-const addCustomFieldBtn = document.getElementById("addCustomField");
-const customFieldsList = document.getElementById("customFieldsList");
 const newPersonaBtn = document.getElementById("newPersona");
 const clearPersonaBtn = document.getElementById("clearPersona");
 const personaCancelBtn = document.getElementById("personaCancel");
@@ -198,7 +194,7 @@ function setActivePersonaStatus() {
 }
 
 function openPersonaForm(persona = null) {
-    personaModal.classList.remove('hidden');
+    personaForm.classList.remove('hidden');
     if (persona) {
         editingPersonaId = persona.id;
         personaFormTitle.textContent = 'Edit persona';
@@ -207,7 +203,6 @@ function openPersonaForm(persona = null) {
         personaAppearanceInput.value = persona.appearance || '';
         personaBackgroundInput.value = persona.background || '';
         personaDetailsInput.value = persona.details || '';
-        renderCustomFields(persona.customFields || []);
     } else {
         editingPersonaId = null;
         personaFormTitle.textContent = 'Create persona';
@@ -216,58 +211,13 @@ function openPersonaForm(persona = null) {
         personaAppearanceInput.value = '';
         personaBackgroundInput.value = '';
         personaDetailsInput.value = '';
-        renderCustomFields([]);
     }
     personaNameInput.focus();
 }
 
 function closePersonaForm() {
-    personaModal.classList.add('hidden');
+    personaForm.classList.add('hidden');
     editingPersonaId = null;
-}
-
-function renderCustomFields(fields) {
-    customFieldsList.innerHTML = '';
-    fields.forEach((field, index) => {
-        addCustomFieldRow(field.label || '', field.value || '', index);
-    });
-}
-
-function addCustomFieldRow(label = '', value = '') {
-    const row = document.createElement('div');
-    row.className = 'custom-field-row';
-
-    const labelInput = document.createElement('input');
-    labelInput.type = 'text';
-    labelInput.placeholder = 'Label';
-    labelInput.value = label;
-
-    const valueInput = document.createElement('input');
-    valueInput.type = 'text';
-    valueInput.placeholder = 'Value';
-    valueInput.value = value;
-
-    const removeBtn = document.createElement('button');
-    removeBtn.type = 'button';
-    removeBtn.textContent = 'Remove';
-    removeBtn.className = 'secondary-action';
-    removeBtn.addEventListener('click', () => row.remove());
-
-    row.appendChild(labelInput);
-    row.appendChild(valueInput);
-    row.appendChild(removeBtn);
-    customFieldsList.appendChild(row);
-}
-
-function collectCustomFields() {
-    const rows = customFieldsList.querySelectorAll('.custom-field-row');
-    return Array.from(rows).map(row => {
-        const [labelInput, valueInput] = row.querySelectorAll('input');
-        return {
-            label: labelInput.value.trim(),
-            value: valueInput.value.trim()
-        };
-    }).filter(field => field.label || field.value);
 }
 
 function renderPersonaList() {
@@ -321,10 +271,7 @@ function renderPersonaList() {
 async function loadPersonas() {
     const res = await get('/personas');
     if (res.error) return;
-    personas = (res.personas || []).map(persona => ({
-        ...persona,
-        customFields: persona.customFields || []
-    }));
+    personas = res.personas || [];
     activePersonaId = res.activePersonaId || null;
     renderPersonaList();
 }
@@ -349,8 +296,7 @@ async function savePersona() {
         pronouns: personaPronounsInput.value.trim(),
         appearance: personaAppearanceInput.value.trim(),
         background: personaBackgroundInput.value.trim(),
-        details: personaDetailsInput.value.trim(),
-        customFields: collectCustomFields()
+        details: personaDetailsInput.value.trim()
     };
     if (!payload.name) return;
     let res;
@@ -373,12 +319,6 @@ async function deletePersona(personaId) {
     if (res.error) return;
     await loadPersonas();
 }
-
-document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && !personaModal.classList.contains('hidden')) {
-        closePersonaForm();
-    }
-});
 
 function setLoadingState(loading) {
     isProcessing = loading;
@@ -649,16 +589,6 @@ msgInput.addEventListener('input', function () {
 newPersonaBtn.addEventListener('click', () => openPersonaForm());
 
 personaCancelBtn.addEventListener('click', () => closePersonaForm());
-
-personaCloseBtn.addEventListener('click', () => closePersonaForm());
-
-personaModal.addEventListener('click', (event) => {
-    if (event.target === personaModal) {
-        closePersonaForm();
-    }
-});
-
-addCustomFieldBtn.addEventListener('click', () => addCustomFieldRow());
 
 clearPersonaBtn.addEventListener('click', () => clearPersona());
 

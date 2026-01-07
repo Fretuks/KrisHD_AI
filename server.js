@@ -171,8 +171,6 @@ db.prepare(`
         TEXT,
         details
         TEXT,
-        custom_fields
-        TEXT,
         created_at
         DATETIME
         DEFAULT
@@ -274,25 +272,25 @@ const deleteChatMessagesStmt = db.prepare(
 );
 
 const listPersonasStmt = db.prepare(`
-    SELECT id, name, pronouns, appearance, background, details, custom_fields, created_at, updated_at
+    SELECT id, name, pronouns, appearance, background, details, created_at, updated_at
     FROM personas
     WHERE username = ?
     ORDER BY datetime(updated_at) DESC
 `);
 
 const getPersonaStmt = db.prepare(`
-    SELECT id, name, pronouns, appearance, background, details, custom_fields
+    SELECT id, name, pronouns, appearance, background, details
     FROM personas
     WHERE id = ? AND username = ?
 `);
 
 const insertPersonaStmt = db.prepare(
-    "INSERT INTO personas (username, name, pronouns, appearance, background, details, custom_fields) VALUES (?, ?, ?, ?, ?, ?, ?)"
+    "INSERT INTO personas (username, name, pronouns, appearance, background, details) VALUES (?, ?, ?, ?, ?, ?)"
 );
 
 const updatePersonaStmt = db.prepare(`
     UPDATE personas
-    SET name = ?, pronouns = ?, appearance = ?, background = ?, details = ?, custom_fields = ?, updated_at = CURRENT_TIMESTAMP
+    SET name = ?, pronouns = ?, appearance = ?, background = ?, details = ?, updated_at = CURRENT_TIMESTAMP
     WHERE id = ? AND username = ?
 `);
 
@@ -311,7 +309,7 @@ const setActivePersonaStmt = db.prepare(`
 `);
 
 const getActivePersonaStmt = db.prepare(`
-    SELECT p.id, p.name, p.pronouns, p.appearance, p.background, p.details, p.custom_fields
+    SELECT p.id, p.name, p.pronouns, p.appearance, p.background, p.details
     FROM user_settings us
     JOIN personas p ON p.id = us.active_persona_id
     WHERE us.username = ?
@@ -389,27 +387,6 @@ const normalizePersonaField = (value) => {
     return trimmed ? trimmed : null;
 };
 
-const normalizeCustomFields = (fields) => {
-    if (!Array.isArray(fields)) return null;
-    const cleaned = fields
-        .map(field => ({
-            label: (field?.label || "").trim(),
-            value: (field?.value || "").trim()
-        }))
-        .filter(field => field.label || field.value);
-    return cleaned.length ? JSON.stringify(cleaned) : null;
-};
-
-const parseCustomFields = (value) => {
-    if (!value) return [];
-    try {
-        const parsed = JSON.parse(value);
-        return Array.isArray(parsed) ? parsed : [];
-    } catch (error) {
-        return [];
-    }
-};
-
 const buildPersonaPrompt = (persona) => {
     const lines = [
         "You are roleplaying with the following persona. Stay in character, be engaging, and align with these details."
@@ -419,10 +396,6 @@ const buildPersonaPrompt = (persona) => {
     if (persona.appearance) lines.push(`Appearance: ${persona.appearance}`);
     if (persona.background) lines.push(`Background: ${persona.background}`);
     if (persona.details) lines.push(`Details: ${persona.details}`);
-    const customFields = parseCustomFields(persona.custom_fields);
-    customFields.forEach(field => {
-        lines.push(`${field.label || "Custom"}: ${field.value}`);
-    });
     return lines.join("\n");
 };
 
@@ -511,10 +484,7 @@ app.post("/chats/:id/clear", requireLogin, (req, res) => {
 
 app.get("/personas", requireLogin, (req, res) => {
     const user = req.session.user;
-    const personas = listPersonasStmt.all(user).map(persona => ({
-        ...persona,
-        customFields: parseCustomFields(persona.custom_fields)
-    }));
+    const personas = listPersonasStmt.all(user);
     const activePersonaId = getActivePersonaIdStmt.get(user)?.active_persona_id ?? null;
     res.json({personas, activePersonaId});
 });
@@ -529,23 +499,16 @@ app.post("/personas", requireLogin, (req, res) => {
     const appearance = normalizePersonaField(req.body?.appearance);
     const background = normalizePersonaField(req.body?.background);
     const details = normalizePersonaField(req.body?.details);
-    const customFields = normalizeCustomFields(req.body?.customFields);
     const personaId = insertPersonaStmt.run(
         user,
         name,
         pronouns,
         appearance,
         background,
-        details,
-        customFields
+        details
     ).lastInsertRowid;
     const persona = getPersonaStmt.get(personaId, user);
-    res.json({
-        persona: {
-            ...persona,
-            customFields: parseCustomFields(persona.custom_fields)
-        }
-    });
+    res.json({persona});
 });
 
 app.put("/personas/:id", requireLogin, (req, res) => {
@@ -559,14 +522,12 @@ app.put("/personas/:id", requireLogin, (req, res) => {
     const appearance = normalizePersonaField(req.body?.appearance);
     const background = normalizePersonaField(req.body?.background);
     const details = normalizePersonaField(req.body?.details);
-    const customFields = normalizeCustomFields(req.body?.customFields);
     const result = updatePersonaStmt.run(
         name,
         pronouns,
         appearance,
         background,
         details,
-        customFields,
         personaId,
         user
     );
@@ -574,12 +535,7 @@ app.put("/personas/:id", requireLogin, (req, res) => {
         return res.status(404).json({error: "Persona not found"});
     }
     const persona = getPersonaStmt.get(personaId, user);
-    res.json({
-        persona: {
-            ...persona,
-            customFields: parseCustomFields(persona.custom_fields)
-        }
-    });
+    res.json({persona});
 });
 
 app.delete("/personas/:id", requireLogin, (req, res) => {

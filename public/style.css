@@ -461,9 +461,14 @@ button:disabled {
 .persona-form {
     display: grid;
     gap: 10px;
-    max-height: 65vh;
-    overflow-y: auto;
-    padding-right: 6px;
+    background: rgba(10, 10, 20, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 16px;
+    padding: 12px;
+}
+
+.persona-form.hidden {
+    display: none;
 }
 
 .persona-form h3 {
@@ -475,83 +480,6 @@ button:disabled {
     display: flex;
     gap: 8px;
     flex-wrap: wrap;
-}
-
-.modal-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(5, 5, 20, 0.75);
-    display: grid;
-    place-items: center;
-    z-index: 1000;
-    padding: 24px;
-}
-
-.modal-overlay.hidden {
-    display: none;
-}
-
-.modal-card {
-    width: min(520px, 92vw);
-    background: rgba(19, 19, 42, 0.96);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 22px;
-    padding: 18px;
-    box-shadow: 0 25px 60px -12px var(--shadow);
-    display: grid;
-    gap: 14px;
-}
-
-.modal-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-}
-
-.modal-header h3 {
-    margin: 0;
-    font-size: 1.2rem;
-}
-
-.custom-fields {
-    display: grid;
-    gap: 10px;
-    background: rgba(10, 10, 20, 0.6);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: 14px;
-    padding: 10px;
-}
-
-.custom-fields-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    font-size: 0.9rem;
-    color: var(--text-secondary);
-}
-
-.custom-fields-list {
-    display: grid;
-    gap: 8px;
-}
-
-.custom-field-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr auto;
-    gap: 8px;
-    align-items: center;
-}
-
-.custom-field-row input {
-    padding: 10px 12px;
-    font-size: 14px;
-}
-
-.custom-field-row button {
-    padding: 8px 10px;
-    font-size: 12px;
-    border-radius: 10px;
 }
 
 .chat-main {
