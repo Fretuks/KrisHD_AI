@@ -32,6 +32,8 @@ const newPersonaBtn = document.getElementById("newPersona");
 const clearPersonaBtn = document.getElementById("clearPersona");
 const personaCancelBtn = document.getElementById("personaCancel");
 const activePersonaStatus = document.getElementById("activePersonaStatus");
+const personaModal = document.getElementById("personaModal");
+const personaCloseBtn = document.getElementById("personaClose");
 
 let isProcessing = false;
 let chatSessions = [];
@@ -194,29 +196,30 @@ function setActivePersonaStatus() {
 }
 
 function openPersonaForm(persona = null) {
-    personaForm.classList.remove('hidden');
+    personaModal.classList.remove("hidden");
     if (persona) {
         editingPersonaId = persona.id;
-        personaFormTitle.textContent = 'Edit persona';
-        personaNameInput.value = persona.name || '';
-        personaPronounsInput.value = persona.pronouns || '';
-        personaAppearanceInput.value = persona.appearance || '';
-        personaBackgroundInput.value = persona.background || '';
-        personaDetailsInput.value = persona.details || '';
+        personaFormTitle.textContent = "Edit persona";
+        personaNameInput.value = persona.name || "";
+        personaPronounsInput.value = persona.pronouns || "";
+        personaAppearanceInput.value = persona.appearance || "";
+        personaBackgroundInput.value = persona.background || "";
+        personaDetailsInput.value = persona.details || "";
     } else {
         editingPersonaId = null;
-        personaFormTitle.textContent = 'Create persona';
-        personaNameInput.value = '';
-        personaPronounsInput.value = '';
-        personaAppearanceInput.value = '';
-        personaBackgroundInput.value = '';
-        personaDetailsInput.value = '';
+        personaFormTitle.textContent = "Create persona";
+        personaNameInput.value = "";
+        personaPronounsInput.value = "";
+        personaAppearanceInput.value = "";
+        personaBackgroundInput.value = "";
+        personaDetailsInput.value = "";
     }
+
     personaNameInput.focus();
 }
 
 function closePersonaForm() {
-    personaForm.classList.add('hidden');
+    personaModal.classList.add("hidden");
     editingPersonaId = null;
 }
 
@@ -588,13 +591,17 @@ msgInput.addEventListener('input', function () {
 
 newPersonaBtn.addEventListener('click', () => openPersonaForm());
 
-personaCancelBtn.addEventListener('click', () => closePersonaForm());
-
 clearPersonaBtn.addEventListener('click', () => clearPersona());
 
 personaForm.addEventListener('submit', (event) => {
     event.preventDefault();
     savePersona();
+});
+
+personaCloseBtn.addEventListener("click", closePersonaForm);
+
+personaModal.addEventListener("click", (e) => {
+    if (e.target === personaModal) closePersonaForm();
 });
 
 window.addEventListener('load', () => {

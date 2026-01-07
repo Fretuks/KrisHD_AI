@@ -906,15 +906,12 @@ button:disabled {
     text-decoration: underline;
 }
 
-/* ===== Legal / Static Pages Fix ===== */
-
 html, body {
     width: 100%;
     max-width: 100%;
     overflow-x: hidden;
 }
 
-/* Force text to stay inside viewport */
 .content {
     width: 100%;
     max-width: 100%;
@@ -922,8 +919,37 @@ html, body {
     box-sizing: border-box;
 }
 
-/* Prevent long words / links from breaking layout */
 .content * {
     overflow-wrap: break-word;
     word-break: break-word;
+}
+
+.hidden { display: none !important; }
+
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    backdrop-filter: blur(8px);
+    display: grid;
+    place-items: center;
+    z-index: 9999;
+    padding: 24px;
+}
+
+.modal-card {
+    width: min(520px, 95vw);
+    background: rgba(19, 19, 42, 0.96);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 20px;
+    box-shadow: 0 25px 60px -12px rgba(0,0,0,0.45);
+    padding: 16px;
+}
+
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
 }

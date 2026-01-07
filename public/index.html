@@ -88,34 +88,6 @@
                     </div>
                     <p id="activePersonaStatus" class="status persona-status">No persona equipped.</p>
                     <div id="personaList" class="persona-list"></div>
-                    <form id="personaForm" class="persona-form hidden">
-                        <h3 id="personaFormTitle">Create persona</h3>
-                        <label class="field">
-                            <span>Name</span>
-                            <input id="personaName" placeholder="Persona name" required/>
-                        </label>
-                        <label class="field">
-                            <span>Pronouns</span>
-                            <input id="personaPronouns" placeholder="e.g. she/her, they/them"/>
-                        </label>
-                        <label class="field">
-                            <span>Appearance</span>
-                            <textarea id="personaAppearance" rows="2" placeholder="Describe their look"></textarea>
-                        </label>
-                        <label class="field">
-                            <span>Background</span>
-                            <textarea id="personaBackground" rows="2" placeholder="Backstory or origins"></textarea>
-                        </label>
-                        <label class="field">
-                            <span>Details</span>
-                            <textarea id="personaDetails" rows="3"
-                                      placeholder="Personality traits, voice, or quirks"></textarea>
-                        </label>
-                        <div class="persona-actions">
-                            <button id="personaSave" type="submit" class="primary-action">Save persona</button>
-                            <button id="personaCancel" type="button" class="secondary-action">Cancel</button>
-                        </div>
-                    </form>
                 </div>
             </aside>
             <section class="chat-main">
@@ -148,7 +120,7 @@
     <div class="modal-card">
         <div class="modal-header">
             <h3 id="personaFormTitle">Create persona</h3>
-            <button id="personaClose" type="button" class="icon-button">Close</button>
+            <button id="personaClose" type="button" class="icon-button">Cancel</button>
         </div>
         <form id="personaForm" class="persona-form">
             <label class="field">
@@ -172,16 +144,8 @@
                 <textarea id="personaDetails" rows="3"
                           placeholder="Personality traits, voice, or quirks"></textarea>
             </label>
-            <div class="custom-fields">
-                <div class="custom-fields-header">
-                    <span>Custom traits</span>
-                    <button id="addCustomField" type="button" class="secondary-action">Add</button>
-                </div>
-                <div id="customFieldsList" class="custom-fields-list"></div>
-            </div>
             <div class="persona-actions">
                 <button id="personaSave" type="submit" class="primary-action">Save persona</button>
-                <button id="personaCancel" type="button" class="secondary-action">Cancel</button>
             </div>
         </form>
     </div>

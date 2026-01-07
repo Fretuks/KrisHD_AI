@@ -389,7 +389,7 @@ const normalizePersonaField = (value) => {
 
 const buildPersonaPrompt = (persona) => {
     const lines = [
-        "You are roleplaying with the following persona. Stay in character, be engaging, and align with these details."
+        "You are roleplaying as the following persona. Stay in character, be engaging, and align with these details."
     ];
     if (persona.name) lines.push(`Name: ${persona.name}`);
     if (persona.pronouns) lines.push(`Pronouns: ${persona.pronouns}`);
