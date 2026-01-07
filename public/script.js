@@ -67,6 +67,16 @@ function setAuthMessage(msg, state = "") {
     authMsg.className = state ? `status ${state}` : 'status';
 }
 
+function setMessageContent(element, content) {
+    if (window.marked && window.DOMPurify) {
+        const rendered = marked.parse(content, { breaks: true });
+        element.innerHTML = DOMPurify.sanitize(rendered);
+        return;
+    }
+
+    element.textContent = content;
+}
+
 function addMessage(content, isUser = false, isLoading = false, saveToHistory = true) {
     const msgDiv = document.createElement('div');
     msgDiv.className = `msg ${isUser ? 'user' : 'bot'}${isLoading ? ' loading' : ''}`;
@@ -80,7 +90,16 @@ function addMessage(content, isUser = false, isLoading = false, saveToHistory = 
             </div>
         `;
     } else {
-        msgDiv.textContent = content;
+        const header = document.createElement('div');
+        header.className = 'msg-header';
+        header.textContent = isUser ? 'You' : 'DeepFake';
+
+        const body = document.createElement('div');
+        body.className = 'msg-content';
+        setMessageContent(body, content);
+
+        msgDiv.appendChild(header);
+        msgDiv.appendChild(body);
 
         if (saveToHistory) {
             chatHistory.push({
@@ -204,7 +223,7 @@ async function sendMessage() {
     if (isProcessing) return;
     const msg = msgInput.value.trim();
     if (!msg) return;
-    addMessage(`You: ${msg}`, true);
+    addMessage(msg, true);
     msgInput.value = "";
     msgInput.style.height = 'auto';
     setLoadingState(true);
@@ -216,7 +235,7 @@ async function sendMessage() {
             messagesDiv.removeChild(loadingMsg);
         }
         if (res.reply) {
-            addMessage(`DeepFake: ${res.reply}`, false);
+            addMessage(res.reply, false);
         } else {
             addMessage(`[Error: ${res.error}]`, false);
         }

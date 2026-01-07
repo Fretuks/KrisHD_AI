@@ -338,9 +338,12 @@ button:disabled {
     overflow-wrap: break-word;
     animation: fadeIn 0.3s ease;
     position: relative;
-    white-space: pre-wrap;
+    white-space: normal;
     margin: 0;
     flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
 }
 
 @keyframes fadeIn {
@@ -375,6 +378,73 @@ button:disabled {
     display: flex;
     align-items: center;
     justify-content: center;
+}
+
+.msg-header {
+    font-size: 0.7rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.msg-content {
+    display: grid;
+    gap: 10px;
+}
+
+.msg-content > * {
+    margin: 0;
+}
+
+.msg-content p {
+    margin: 0;
+}
+
+.msg-content ul,
+.msg-content ol {
+    margin: 0;
+    padding-left: 20px;
+}
+
+.msg-content li {
+    margin: 4px 0;
+}
+
+.msg-content pre {
+    background: rgba(15, 15, 35, 0.9);
+    padding: 12px 14px;
+    border-radius: 12px;
+    overflow-x: auto;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.msg-content code {
+    font-family: "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    background: rgba(255, 255, 255, 0.08);
+    padding: 2px 6px;
+    border-radius: 6px;
+    font-size: 0.9em;
+}
+
+.msg-content pre code {
+    background: transparent;
+    padding: 0;
+}
+
+.msg-content blockquote {
+    margin: 0;
+    padding-left: 14px;
+    border-left: 3px solid rgba(255, 255, 255, 0.2);
+    color: var(--text-secondary);
+}
+
+.msg-content a {
+    color: #93c5fd;
+}
+
+.msg-content a:hover {
+    color: #bfdbfe;
 }
 
 .typing-indicator { display: flex; align-items: center; gap: 6px; height: 16px; }
@@ -490,4 +560,3 @@ html, body {
     overflow-wrap: break-word;
     word-break: break-word;
 }
-
