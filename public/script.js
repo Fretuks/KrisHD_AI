@@ -15,9 +15,15 @@ const msgInput = document.getElementById("msgInput");
 const sendBtn = document.getElementById("send");
 const authScreens = document.querySelectorAll(".auth-screen");
 const toggleButtons = document.querySelectorAll(".auth-toggle .toggle");
+const chatList = document.getElementById("chatList");
+const newChatBtn = document.getElementById("newChat");
+const renameChatBtn = document.getElementById("renameChat");
+const deleteChatBtn = document.getElementById("deleteChat");
+const activeChatTitle = document.getElementById("activeChatTitle");
 
 let isProcessing = false;
-let chatHistory = JSON.parse(localStorage.getItem('chatHistory')) || [];
+let chatSessions = [];
+let activeChatId = null;
 
 const displayModels = async () => {
     const select = document.getElementById("model");
@@ -40,17 +46,21 @@ const displayModels = async () => {
         });
 }
 
-async function post(url, data) {
+async function request(url, data, method = "POST") {
     try {
         const res = await fetch(url, {
-            method: "POST",
+            method,
             headers: {"Content-Type": "application/json"},
-            body: JSON.stringify(data)
+            body: data ? JSON.stringify(data) : undefined
         });
         return await res.json();
     } catch (err) {
         return {error: "Network error — please try again."};
     }
+}
+
+async function post(url, data) {
+    return request(url, data, "POST");
 }
 
 async function get(url) {
@@ -69,50 +79,35 @@ function setAuthMessage(msg, state = "") {
 
 function setMessageContent(element, content) {
     if (window.marked && window.DOMPurify) {
-        const rendered = marked.parse(content, { breaks: true });
+        const rendered = marked.parse(content, {breaks: true});
         element.innerHTML = DOMPurify.sanitize(rendered);
         return;
     }
-
     element.textContent = content;
 }
 
 function addMessage(content, isUser = false, isLoading = false, saveToHistory = true) {
     const msgDiv = document.createElement('div');
     msgDiv.className = `msg ${isUser ? 'user' : 'bot'}${isLoading ? ' loading' : ''}`;
-
     if (isLoading) {
         msgDiv.innerHTML = `
-            <div class="typing-indicator">
-                <div class="typing-dot"></div>
-                <div class="typing-dot"></div>
-                <div class="typing-dot"></div>
-            </div>
-        `;
+             <div class="typing-indicator">
+                 <div class="typing-dot"></div>
+                 <div class="typing-dot"></div>
+                 <div class="typing-dot"></div>
+             </div>
+         `;
     } else {
         const header = document.createElement('div');
         header.className = 'msg-header';
         header.textContent = isUser ? 'You' : 'DeepFake';
-
         const body = document.createElement('div');
         body.className = 'msg-content';
         setMessageContent(body, content);
-
         msgDiv.appendChild(header);
         msgDiv.appendChild(body);
-
-        if (saveToHistory) {
-            chatHistory.push({
-                content: content,
-                isUser: isUser,
-                timestamp: Date.now()
-            });
-            localStorage.setItem('chatHistory', JSON.stringify(chatHistory));
-        }
     }
-
     messagesDiv.appendChild(msgDiv);
-
     setTimeout(() => {
         messagesDiv.scrollTop = messagesDiv.scrollHeight;
     }, 100);
@@ -120,17 +115,57 @@ function addMessage(content, isUser = false, isLoading = false, saveToHistory = 
     return msgDiv;
 }
 
-function loadChatHistory() {
+function clearMessages() {
     messagesDiv.innerHTML = '';
-    chatHistory.forEach(msg => {
-        addMessage(msg.content, msg.isUser, false, false);
-    });
 }
 
-function clearChatHistory() {
-    chatHistory = [];
-    localStorage.removeItem('chatHistory');
-    messagesDiv.innerHTML = '';
+
+function getChatById(chatId) {
+    return chatSessions.find(chat => chat.id === chatId);
+}
+
+function bumpChat(chatId) {
+    const index = chatSessions.findIndex(chat => chat.id === chatId);
+    if (index <= 0) return;
+    const [chat] = chatSessions.splice(index, 1);
+    chatSessions.unshift(chat);
+    renderChatList();
+}
+
+function updateChatActionState() {
+    const hasChat = Boolean(activeChatId);
+    renameChatBtn.disabled = !hasChat;
+    deleteChatBtn.disabled = !hasChat;
+}
+
+
+function renderChatList() {
+    chatList.innerHTML = '';
+    if (!chatSessions.length) {
+        const empty = document.createElement('p');
+        empty.className = 'status';
+        empty.textContent = 'No chats yet. Start a new one!';
+        chatList.appendChild(empty);
+        return;
+    }
+    chatSessions.forEach(chat => {
+        const item = document.createElement('div');
+        item.className = `chat-item${chat.id === activeChatId ? ' active' : ''}`;
+        const title = document.createElement('span');
+        title.textContent = chat.title;
+        const actions = document.createElement('button');
+        actions.type = 'button';
+        actions.textContent = '✕';
+        actions.title = 'Delete chat';
+        actions.addEventListener('click', (event) => {
+            event.stopPropagation();
+            deleteChat(chat.id);
+        });
+        item.appendChild(title);
+        item.appendChild(actions);
+        item.addEventListener('click', () => setActiveChat(chat.id));
+        chatList.appendChild(item);
+    });
 }
 
 function setLoadingState(loading) {
@@ -157,12 +192,96 @@ function showAuthScreen(target) {
     setAuthMessage('', '');
 }
 
+function setActiveChat(chatId) {
+    activeChatId = chatId;
+    const chat = getChatById(chatId);
+    activeChatTitle.textContent = chat ? chat.title : 'New chat';
+    updateChatActionState();
+    renderChatList();
+    if (chatId) {
+        loadChatMessages(chatId);
+    } else {
+        clearMessages();
+    }
+}
+
+
+async function loadChatSessions() {
+    const res = await get('/chats');
+    if (res.error) return;
+    chatSessions = res.chats || [];
+    renderChatList();
+    const activeExists = chatSessions.find(chat => chat.id === activeChatId);
+    if (activeExists) {
+        setActiveChat(activeChatId);
+        return;
+    }
+    if (!chatSessions.length) {
+        await createNewChat();
+        return;
+    }
+    setActiveChat(chatSessions[0].id);
+}
+
+async function loadChatMessages(chatId) {
+    const res = await get(`/chats/${chatId}/messages`);
+    if (res.error) return;
+    clearMessages();
+    (res.messages || []).forEach(msg => {
+        addMessage(msg.content, msg.role === 'user', false, false);
+
+    });
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+}
+
+async function createNewChat() {
+    const res = await post('/chats', {title: 'New chat'});
+    if (res.error || !res.chat) return;
+    chatSessions.unshift(res.chat);
+    setActiveChat(res.chat.id);
+    renderChatList();
+}
+
+async function renameChat(chatId) {
+    const chat = getChatById(chatId);
+    if (!chat) return;
+    const nextTitle = prompt('Rename chat', chat.title);
+    if (!nextTitle) return;
+    const trimmedTitle = nextTitle.trim();
+    if (!trimmedTitle) return;
+    const res = await request(`/chats/${chatId}`, {title: trimmedTitle}, "PUT");
+    if (res.error) return;
+    chat.title = trimmedTitle;
+    activeChatTitle.textContent = trimmedTitle;
+    renderChatList();
+}
+
+
+async function deleteChat(chatId) {
+    const chat = getChatById(chatId);
+    if (!chat) return;
+    const confirmDelete = confirm(`Delete "${chat.title}"? This cannot be undone.`);
+    if (!confirmDelete) return;
+    const res = await request(`/chats/${chatId}`, null, "DELETE");
+    if (res.error) return;
+    chatSessions = chatSessions.filter(item => item.id !== chatId);
+    if (activeChatId === chatId) {
+        if (chatSessions.length) {
+            setActiveChat(chatSessions[0].id);
+        } else {
+            activeChatId = null;
+            await createNewChat();
+        }
+    }
+    renderChatList();
+}
+
 async function checkSession() {
     const res = await get('/session');
     if (res.user) {
         authDiv.style.display = "none";
-        chatDiv.style.display = "grid";
-        loadChatHistory();
+        chatDiv.style.display = "block";
+        await loadChatSessions();
         msgInput.focus();
         return true;
     }
@@ -170,23 +289,11 @@ async function checkSession() {
 }
 
 async function loadServerChat() {
-    const res = await get("/chat/history");
-    if (res.history && res.history.length) {
-        messagesDiv.innerHTML = '';
-        res.history.forEach(msg => {
-            addMessage(
-                msg.content,
-                msg.role === "user",
-                false,
-                false
-            );
-        });
-        messagesDiv.scrollTop = messagesDiv.scrollHeight;
-    }
+    await loadChatSessions();
 }
 
 async function handleAuth(endpoint, credentials) {
-    const { username, password } = credentials;
+    const {username, password} = credentials;
     const submitBtn = endpoint === "login" ? loginSubmit : registerSubmit;
 
     if (!username || !password) {
@@ -207,7 +314,7 @@ async function handleAuth(endpoint, credentials) {
         if (endpoint === "login") {
             setAuthMessage("Login successful! Redirecting to chat...", 'success');
             authDiv.style.display = "none";
-            chatDiv.style.display = "grid";
+            chatDiv.style.display = "block";
             await loadServerChat();
             msgInput.focus();
         } else {
@@ -223,6 +330,17 @@ async function sendMessage() {
     if (isProcessing) return;
     const msg = msgInput.value.trim();
     if (!msg) return;
+    if (!activeChatId) {
+        await createNewChat();
+    }
+    const currentChat = getChatById(activeChatId);
+    if (currentChat && currentChat.title === 'New chat') {
+        const autoTitle = msg.length > 40 ? `${msg.slice(0, 40)}…` : msg;
+        currentChat.title = autoTitle;
+        activeChatTitle.textContent = autoTitle;
+        renderChatList();
+        await request(`/chats/${activeChatId}`, {title: autoTitle}, "PUT");
+    }
     addMessage(msg, true);
     msgInput.value = "";
     msgInput.style.height = 'auto';
@@ -230,12 +348,13 @@ async function sendMessage() {
     const loadingMsg = addMessage('', false, true, false);
     try {
         const model = document.getElementById("model").value;
-        const res = await post("/chat", {message: msg, model});
+        const res = await post("/chat", {message: msg, model, chatId: activeChatId});
         if (messagesDiv.contains(loadingMsg)) {
             messagesDiv.removeChild(loadingMsg);
         }
         if (res.reply) {
             addMessage(res.reply, false);
+            bumpChat(activeChatId);
         } else {
             addMessage(`[Error: ${res.error}]`, false);
         }
@@ -274,7 +393,9 @@ document.getElementById("logout").onclick = async () => {
     await post("/logout", {});
     chatDiv.style.display = "none";
     authDiv.style.display = "grid";
-    clearChatHistory();
+    clearMessages();
+    chatSessions = [];
+    activeChatId = null;
     setAuthMessage("Logged out.", 'success');
     showAuthScreen('login');
     loginUsernameInput.value = "";
@@ -290,15 +411,24 @@ msgInput.addEventListener("keydown", (e) => {
     }
 });
 
-document.getElementById("clearChat").onclick = async () => {
-    await post("/chat/clear", {});
-    clearChatHistory();
-};
+newChatBtn.addEventListener('click', () => createNewChat());
 
-msgInput.addEventListener('input', function () {
-    this.style.height = 'auto';
-    this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+renameChatBtn.addEventListener('click', () => {
+    if (activeChatId) {
+        renameChat(activeChatId);
+    }
 });
+
+deleteChatBtn.addEventListener('click', () => {
+    if (activeChatId) {
+        deleteChat(activeChatId);
+    }
+});
++
+    msgInput.addEventListener('input', function () {
+        this.style.height = 'auto';
+        this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+    });
 
 window.addEventListener('load', () => {
     checkSession();

@@ -11,7 +11,7 @@
         <div class="brand">
             <div class="logo">DF</div>
             <div>
-                <p class="eyebrow">Secure AI Access</p>
+                <p class="eyebrow">Best AI chat in the big 2026</p>
                 <h1>Welcome to DeepFake</h1>
                 <p class="subtitle">Log in to continue your conversation or create an account to get started.</p>
             </div>
@@ -30,7 +30,8 @@
                 </label>
                 <label class="field">
                     <span>Password</span>
-                    <input id="loginPassword" type="password" placeholder="Enter your password" autocomplete="current-password"/>
+                    <input id="loginPassword" type="password" placeholder="Enter your password"
+                           autocomplete="current-password"/>
                 </label>
                 <button id="loginSubmit" type="submit" class="primary-action">Sign in</button>
             </form>
@@ -44,10 +45,11 @@
                 </label>
                 <label class="field">
                     <span>Create password</span>
-                    <input id="registerPassword" type="password" placeholder="Create a password" autocomplete="new-password"/>
+                    <input id="registerPassword" type="password" placeholder="Create a password"
+                           autocomplete="new-password"/>
                 </label>
                 <div class="consent-container">
-                    <input type="checkbox" id="consentCheckbox" required />
+                    <input type="checkbox" id="consentCheckbox" required/>
                     <label for="consentCheckbox">
                         I agree to the
                         <a href="/tos.html" target="_blank">Terms of Service</a> and
@@ -63,22 +65,40 @@
     </div>
 
     <div id="chat" class="card" style="display:none;">
-        <div class="chat-header">
-            <div class="model-select">
-                <label for="model">Model:</label>
-                <select id="model">
-                    <option disabled selected>Loading models...</option>
-                </select>
-            </div>
-        </div>
-        <div id="messages"></div>
-        <div class="input-container">
-            <textarea id="msgInput" placeholder="Type your message..."></textarea>
-            <button id="send"></button>
-        </div>
-        <div class="logout-container">
-            <button id="clearChat">Clear Chat</button>
-            <button id="logout">Logout</button>
+        <div class="chat-layout">
+            <aside class="chat-sidebar">
+                <div class="sidebar-header">
+                    <div>
+                        <p class="eyebrow">Conversations</p>
+                        <h2>Chats</h2>
+                    </div>
+                    <button id="newChat" class="secondary-action">New</button>
+                </div>
+                <div id="chatList" class="chat-list"></div>
+            </aside>
+            <section class="chat-main">
+                <div class="chat-header">
+                    <div class="chat-title">
+                        <h2 id="activeChatTitle">New chat</h2>
+                        <button id="renameChat" class="icon-button" type="button">Rename</button>
+                    </div>
+                    <div class="model-select">
+                        <label for="model">Model:</label>
+                        <select id="model">
+                            <option disabled selected>Loading models...</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="messages"></div>
+                <div class="input-container">
+                    <textarea id="msgInput" placeholder="Type your message..."></textarea>
+                    <button id="send"></button>
+                </div>
+                <div class="logout-container">
+                    <button id="deleteChat" class="danger">Delete Chat</button>
+                    <button id="logout">Logout</button>
+                </div>
+            </section>
         </div>
     </div>
 </div>
