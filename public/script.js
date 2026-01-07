@@ -20,10 +20,25 @@ const newChatBtn = document.getElementById("newChat");
 const renameChatBtn = document.getElementById("renameChat");
 const deleteChatBtn = document.getElementById("deleteChat");
 const activeChatTitle = document.getElementById("activeChatTitle");
+const personaList = document.getElementById("personaList");
+const personaForm = document.getElementById("personaForm");
+const personaFormTitle = document.getElementById("personaFormTitle");
+const personaNameInput = document.getElementById("personaName");
+const personaPronounsInput = document.getElementById("personaPronouns");
+const personaAppearanceInput = document.getElementById("personaAppearance");
+const personaBackgroundInput = document.getElementById("personaBackground");
+const personaDetailsInput = document.getElementById("personaDetails");
+const newPersonaBtn = document.getElementById("newPersona");
+const clearPersonaBtn = document.getElementById("clearPersona");
+const personaCancelBtn = document.getElementById("personaCancel");
+const activePersonaStatus = document.getElementById("activePersonaStatus");
 
 let isProcessing = false;
 let chatSessions = [];
 let activeChatId = null;
+let personas = [];
+let activePersonaId = null;
+let editingPersonaId = null;
 
 const displayModels = async () => {
     const select = document.getElementById("model");
@@ -168,6 +183,143 @@ function renderChatList() {
     });
 }
 
+function setActivePersonaStatus() {
+    const activePersona = personas.find(persona => persona.id === activePersonaId);
+    if (activePersona) {
+        activePersonaStatus.textContent = `Equipped: ${activePersona.name}`;
+    } else {
+        activePersonaStatus.textContent = 'No persona equipped.';
+    }
+    clearPersonaBtn.disabled = !activePersonaId;
+}
+
+function openPersonaForm(persona = null) {
+    personaForm.classList.remove('hidden');
+    if (persona) {
+        editingPersonaId = persona.id;
+        personaFormTitle.textContent = 'Edit persona';
+        personaNameInput.value = persona.name || '';
+        personaPronounsInput.value = persona.pronouns || '';
+        personaAppearanceInput.value = persona.appearance || '';
+        personaBackgroundInput.value = persona.background || '';
+        personaDetailsInput.value = persona.details || '';
+    } else {
+        editingPersonaId = null;
+        personaFormTitle.textContent = 'Create persona';
+        personaNameInput.value = '';
+        personaPronounsInput.value = '';
+        personaAppearanceInput.value = '';
+        personaBackgroundInput.value = '';
+        personaDetailsInput.value = '';
+    }
+    personaNameInput.focus();
+}
+
+function closePersonaForm() {
+    personaForm.classList.add('hidden');
+    editingPersonaId = null;
+}
+
+function renderPersonaList() {
+    personaList.innerHTML = '';
+    if (!personas.length) {
+        const empty = document.createElement('p');
+        empty.className = 'status persona-status';
+        empty.textContent = 'No personas yet. Create one to get started.';
+        personaList.appendChild(empty);
+        setActivePersonaStatus();
+        return;
+    }
+    personas.forEach(persona => {
+        const item = document.createElement('div');
+        item.className = `persona-item${persona.id === activePersonaId ? ' active' : ''}`;
+        const title = document.createElement('h4');
+        title.textContent = persona.name;
+        const meta = document.createElement('p');
+        meta.textContent = persona.pronouns ? `Pronouns: ${persona.pronouns}` : 'Pronouns: —';
+        const actions = document.createElement('div');
+        actions.className = 'persona-item-actions';
+
+        const equipBtn = document.createElement('button');
+        equipBtn.type = 'button';
+        equipBtn.textContent = persona.id === activePersonaId ? 'Equipped' : 'Equip';
+        equipBtn.disabled = persona.id === activePersonaId;
+        equipBtn.addEventListener('click', () => equipPersona(persona.id));
+
+        const editBtn = document.createElement('button');
+        editBtn.type = 'button';
+        editBtn.textContent = 'Edit';
+        editBtn.addEventListener('click', () => openPersonaForm(persona));
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.type = 'button';
+        deleteBtn.textContent = 'Delete';
+        deleteBtn.addEventListener('click', () => deletePersona(persona.id));
+
+        actions.appendChild(equipBtn);
+        actions.appendChild(editBtn);
+        actions.appendChild(deleteBtn);
+
+        item.appendChild(title);
+        item.appendChild(meta);
+        item.appendChild(actions);
+        personaList.appendChild(item);
+    });
+    setActivePersonaStatus();
+}
+
+async function loadPersonas() {
+    const res = await get('/personas');
+    if (res.error) return;
+    personas = res.personas || [];
+    activePersonaId = res.activePersonaId || null;
+    renderPersonaList();
+}
+
+async function equipPersona(personaId) {
+    const res = await post(`/personas/${personaId}/equip`, {});
+    if (res.error) return;
+    activePersonaId = personaId;
+    renderPersonaList();
+}
+
+async function clearPersona() {
+    const res = await post('/personas/clear', {});
+    if (res.error) return;
+    activePersonaId = null;
+    renderPersonaList();
+}
+
+async function savePersona() {
+    const payload = {
+        name: personaNameInput.value.trim(),
+        pronouns: personaPronounsInput.value.trim(),
+        appearance: personaAppearanceInput.value.trim(),
+        background: personaBackgroundInput.value.trim(),
+        details: personaDetailsInput.value.trim()
+    };
+    if (!payload.name) return;
+    let res;
+    if (editingPersonaId) {
+        res = await request(`/personas/${editingPersonaId}`, payload, "PUT");
+    } else {
+        res = await post('/personas', payload);
+    }
+    if (res.error) return;
+    await loadPersonas();
+    closePersonaForm();
+}
+
+async function deletePersona(personaId) {
+    const persona = personas.find(item => item.id === personaId);
+    if (!persona) return;
+    const confirmDelete = confirm(`Delete persona "${persona.name}"?`);
+    if (!confirmDelete) return;
+    const res = await request(`/personas/${personaId}`, null, "DELETE");
+    if (res.error) return;
+    await loadPersonas();
+}
+
 function setLoadingState(loading) {
     isProcessing = loading;
     sendBtn.disabled = loading;
@@ -282,6 +434,7 @@ async function checkSession() {
         authDiv.style.display = "none";
         chatDiv.style.display = "block";
         await loadChatSessions();
+        await loadPersonas();
         msgInput.focus();
         return true;
     }
@@ -290,6 +443,7 @@ async function checkSession() {
 
 async function loadServerChat() {
     await loadChatSessions();
+    await loadPersonas();
 }
 
 async function handleAuth(endpoint, credentials) {
@@ -396,6 +550,8 @@ document.getElementById("logout").onclick = async () => {
     clearMessages();
     chatSessions = [];
     activeChatId = null;
+    personas = [];
+    activePersonaId = null;
     setAuthMessage("Logged out.", 'success');
     showAuthScreen('login');
     loginUsernameInput.value = "";
@@ -424,11 +580,22 @@ deleteChatBtn.addEventListener('click', () => {
         deleteChat(activeChatId);
     }
 });
-+
-    msgInput.addEventListener('input', function () {
-        this.style.height = 'auto';
-        this.style.height = Math.min(this.scrollHeight, 120) + 'px';
-    });
+
+msgInput.addEventListener('input', function () {
+    this.style.height = 'auto';
+    this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+});
+
+newPersonaBtn.addEventListener('click', () => openPersonaForm());
+
+personaCancelBtn.addEventListener('click', () => closePersonaForm());
+
+clearPersonaBtn.addEventListener('click', () => clearPersona());
+
+personaForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    savePersona();
+});
 
 window.addEventListener('load', () => {
     checkSession();
