@@ -334,6 +334,12 @@ if (legacyChatsExist && migrationNeeded.count === 0) {
     });
 }
 
+const personaColumns = db.prepare("PRAGMA table_info(personas)").all();
+const hasCustomFields = personaColumns.some(column => column.name === "custom_fields");
+if (!hasCustomFields) {
+    db.prepare("ALTER TABLE personas ADD COLUMN custom_fields TEXT").run();
+}
+
 const FileStore = FileStoreFactory(session);
 app.use(bodyParser.json());
 app.use(express.static("public"));
