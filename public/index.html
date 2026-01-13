@@ -75,20 +75,6 @@
                     <button id="newChat" class="secondary-action">New</button>
                 </div>
                 <div id="chatList" class="chat-list"></div>
-                <div class="persona-panel">
-                    <div class="sidebar-header persona-header">
-                        <div>
-                            <p class="eyebrow">Roleplay</p>
-                            <h2>Personas</h2>
-                        </div>
-                        <div class="persona-header-actions">
-                            <button id="newPersona" class="secondary-action" type="button">New</button>
-                            <button id="clearPersona" class="secondary-action" type="button">Clear</button>
-                        </div>
-                    </div>
-                    <p id="activePersonaStatus" class="status persona-status">No persona equipped.</p>
-                    <div id="personaList" class="persona-list"></div>
-                </div>
             </aside>
             <section class="chat-main">
                 <div class="chat-header">
@@ -96,11 +82,49 @@
                         <h2 id="activeChatTitle">New chat</h2>
                         <button id="renameChat" class="icon-button" type="button">Rename</button>
                     </div>
-                    <div class="model-select">
-                        <label for="model">Model:</label>
-                        <select id="model">
-                            <option disabled selected>Loading models...</option>
-                        </select>
+                    <div class="chat-header-actions">
+                        <div class="model-select">
+                            <label for="model">Model:</label>
+                            <select id="model">
+                                <option disabled selected>Loading models...</option>
+                            </select>
+                        </div>
+                        <div class="persona-menu">
+                            <button id="personaMenuButton" class="secondary-action" type="button"
+                                    aria-expanded="false" aria-controls="personaPopover">
+                                Personas
+                            </button>
+                            <div id="personaPopover" class="persona-popover hidden" role="dialog">
+                                <div class="persona-section">
+                                    <div class="persona-section-header">
+                                        <div>
+                                            <p class="eyebrow">Roleplay</p>
+                                            <h2>AI Persona</h2>
+                                        </div>
+                                        <div class="persona-section-actions">
+                                            <button id="newPersona" class="secondary-action" type="button">New AI</button>
+                                            <button id="clearPersona" class="secondary-action" type="button">Clear</button>
+                                        </div>
+                                    </div>
+                                    <p id="activePersonaStatus" class="status persona-status">No persona equipped.</p>
+                                    <div id="personaList" class="persona-list"></div>
+                                </div>
+                                <div class="persona-section">
+                                    <div class="persona-section-header">
+                                        <div>
+                                            <p class="eyebrow">Roleplay</p>
+                                            <h2>Your Persona</h2>
+                                        </div>
+                                        <div class="persona-section-actions">
+                                            <button id="newUserPersona" class="secondary-action" type="button">New you</button>
+                                            <button id="clearUserPersona" class="secondary-action" type="button">Clear</button>
+                                        </div>
+                                    </div>
+                                    <p id="activeUserPersonaStatus" class="status persona-status">No user persona set.</p>
+                                    <div id="userPersonaList" class="persona-list"></div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div id="messages"></div>
@@ -123,6 +147,13 @@
             <button id="personaClose" type="button" class="icon-button">Cancel</button>
         </div>
         <form id="personaForm" class="persona-form">
+            <label class="field">
+                <span>Persona for</span>
+                <select id="personaType">
+                    <option value="assistant">AI persona</option>
+                    <option value="user">Your persona</option>
+                </select>
+            </label>
             <label class="field">
                 <span>Name</span>
                 <input id="personaName" placeholder="Persona name" required/>

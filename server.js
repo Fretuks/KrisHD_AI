@@ -171,6 +171,10 @@ db.prepare(`
         TEXT,
         details
         TEXT,
+        persona_type
+        TEXT
+        DEFAULT
+        'assistant',
         created_at
         DATETIME
         DEFAULT
@@ -190,10 +194,20 @@ db.prepare(`
         KEY,
         active_persona_id
         INTEGER,
+        active_user_persona_id
+        INTEGER,
         FOREIGN
         KEY
     (
         active_persona_id
+    ) REFERENCES personas
+    (
+        id
+    ) ON DELETE SET NULL,
+        FOREIGN
+        KEY
+    (
+        active_user_persona_id
     ) REFERENCES personas
     (
         id
@@ -271,21 +285,21 @@ const deleteChatMessagesStmt = db.prepare(
     "DELETE FROM chat_messages WHERE chat_id = ?"
 );
 
-const listPersonasStmt = db.prepare(`
-    SELECT id, name, pronouns, appearance, background, details, created_at, updated_at
+const listPersonasByTypeStmt = db.prepare(`
+    SELECT id, name, pronouns, appearance, background, details, persona_type, created_at, updated_at
     FROM personas
-    WHERE username = ?
+    WHERE username = ? AND persona_type = ?
     ORDER BY datetime(updated_at) DESC
 `);
 
 const getPersonaStmt = db.prepare(`
-    SELECT id, name, pronouns, appearance, background, details
+    SELECT id, name, pronouns, appearance, background, details, persona_type
     FROM personas
     WHERE id = ? AND username = ?
 `);
 
 const insertPersonaStmt = db.prepare(
-    "INSERT INTO personas (username, name, pronouns, appearance, background, details) VALUES (?, ?, ?, ?, ?, ?)"
+    "INSERT INTO personas (username, name, pronouns, appearance, background, details, persona_type) VALUES (?, ?, ?, ?, ?, ?, ?)"
 );
 
 const updatePersonaStmt = db.prepare(`
@@ -299,7 +313,7 @@ const deletePersonaStmt = db.prepare(
 );
 
 const getActivePersonaIdStmt = db.prepare(
-    "SELECT active_persona_id FROM user_settings WHERE username = ?"
+    "SELECT active_persona_id, active_user_persona_id FROM user_settings WHERE username = ?"
 );
 
 const setActivePersonaStmt = db.prepare(`
@@ -308,10 +322,23 @@ const setActivePersonaStmt = db.prepare(`
     ON CONFLICT(username) DO UPDATE SET active_persona_id = excluded.active_persona_id
 `);
 
+const setActiveUserPersonaStmt = db.prepare(`
+    INSERT INTO user_settings (username, active_user_persona_id)
+    VALUES (?, ?)
+    ON CONFLICT(username) DO UPDATE SET active_user_persona_id = excluded.active_user_persona_id
+`);
+
 const getActivePersonaStmt = db.prepare(`
     SELECT p.id, p.name, p.pronouns, p.appearance, p.background, p.details
     FROM user_settings us
     JOIN personas p ON p.id = us.active_persona_id
+    WHERE us.username = ?
+`);
+
+const getActiveUserPersonaStmt = db.prepare(`
+    SELECT p.id, p.name, p.pronouns, p.appearance, p.background, p.details
+    FROM user_settings us
+    JOIN personas p ON p.id = us.active_user_persona_id
     WHERE us.username = ?
 `);
 
@@ -338,6 +365,16 @@ const personaColumns = db.prepare("PRAGMA table_info(personas)").all();
 const hasCustomFields = personaColumns.some(column => column.name === "custom_fields");
 if (!hasCustomFields) {
     db.prepare("ALTER TABLE personas ADD COLUMN custom_fields TEXT").run();
+}
+const hasPersonaType = personaColumns.some(column => column.name === "persona_type");
+if (!hasPersonaType) {
+    db.prepare("ALTER TABLE personas ADD COLUMN persona_type TEXT DEFAULT 'assistant'").run();
+}
+
+const userSettingsColumns = db.prepare("PRAGMA table_info(user_settings)").all();
+const hasActiveUserPersona = userSettingsColumns.some(column => column.name === "active_user_persona_id");
+if (!hasActiveUserPersona) {
+    db.prepare("ALTER TABLE user_settings ADD COLUMN active_user_persona_id INTEGER").run();
 }
 
 const FileStore = FileStoreFactory(session);
@@ -390,6 +427,18 @@ const normalizePersonaField = (value) => {
 const buildPersonaPrompt = (persona) => {
     const lines = [
         "You are roleplaying as the following persona. Stay in character, be engaging, and align with these details."
+    ];
+    if (persona.name) lines.push(`Name: ${persona.name}`);
+    if (persona.pronouns) lines.push(`Pronouns: ${persona.pronouns}`);
+    if (persona.appearance) lines.push(`Appearance: ${persona.appearance}`);
+    if (persona.background) lines.push(`Background: ${persona.background}`);
+    if (persona.details) lines.push(`Details: ${persona.details}`);
+    return lines.join("\n");
+};
+
+const buildUserPersonaPrompt = (persona) => {
+    const lines = [
+        "The user is roleplaying as the following persona. Keep this context in mind when responding."
     ];
     if (persona.name) lines.push(`Name: ${persona.name}`);
     if (persona.pronouns) lines.push(`Pronouns: ${persona.pronouns}`);
@@ -484,9 +533,15 @@ app.post("/chats/:id/clear", requireLogin, (req, res) => {
 
 app.get("/personas", requireLogin, (req, res) => {
     const user = req.session.user;
-    const personas = listPersonasStmt.all(user);
-    const activePersonaId = getActivePersonaIdStmt.get(user)?.active_persona_id ?? null;
-    res.json({personas, activePersonaId});
+    const assistantPersonas = listPersonasByTypeStmt.all(user, "assistant");
+    const userPersonas = listPersonasByTypeStmt.all(user, "user");
+    const activePersonas = getActivePersonaIdStmt.get(user) || {};
+    res.json({
+        assistantPersonas,
+        userPersonas,
+        activePersonaId: activePersonas.active_persona_id ?? null,
+        activeUserPersonaId: activePersonas.active_user_persona_id ?? null
+    });
 });
 
 app.post("/personas", requireLogin, (req, res) => {
@@ -494,6 +549,10 @@ app.post("/personas", requireLogin, (req, res) => {
     const name = (req.body?.name || "").trim();
     if (!name) {
         return res.status(400).json({error: "Name is required"});
+    }
+    const personaType = (req.body?.personaType || "assistant").trim();
+    if (!["assistant", "user"].includes(personaType)) {
+        return res.status(400).json({error: "Invalid persona type"});
     }
     const pronouns = normalizePersonaField(req.body?.pronouns);
     const appearance = normalizePersonaField(req.body?.appearance);
@@ -505,7 +564,8 @@ app.post("/personas", requireLogin, (req, res) => {
         pronouns,
         appearance,
         background,
-        details
+        details,
+        personaType
     ).lastInsertRowid;
     const persona = getPersonaStmt.get(personaId, user);
     res.json({persona});
@@ -541,13 +601,16 @@ app.put("/personas/:id", requireLogin, (req, res) => {
 app.delete("/personas/:id", requireLogin, (req, res) => {
     const user = req.session.user;
     const personaId = Number(req.params.id);
-    const activePersonaId = getActivePersonaIdStmt.get(user)?.active_persona_id ?? null;
+    const activePersonas = getActivePersonaIdStmt.get(user) || {};
     const result = deletePersonaStmt.run(personaId, user);
     if (result.changes === 0) {
         return res.status(404).json({error: "Persona not found"});
     }
-    if (activePersonaId === personaId) {
+    if (activePersonas.active_persona_id === personaId) {
         setActivePersonaStmt.run(user, null);
+    }
+    if (activePersonas.active_user_persona_id === personaId) {
+        setActiveUserPersonaStmt.run(user, null);
     }
     res.json({message: "Persona deleted"});
 });
@@ -556,17 +619,34 @@ app.post("/personas/:id/equip", requireLogin, (req, res) => {
     const user = req.session.user;
     const personaId = Number(req.params.id);
     const persona = getPersonaStmt.get(personaId, user);
-    if (!persona) {
+    if (!persona || persona.persona_type !== "assistant") {
         return res.status(404).json({error: "Persona not found"});
     }
     setActivePersonaStmt.run(user, personaId);
     res.json({activePersonaId: personaId});
 });
 
+app.post("/personas/:id/equip-user", requireLogin, (req, res) => {
+    const user = req.session.user;
+    const personaId = Number(req.params.id);
+    const persona = getPersonaStmt.get(personaId, user);
+    if (!persona || persona.persona_type !== "user") {
+        return res.status(404).json({error: "Persona not found"});
+    }
+    setActiveUserPersonaStmt.run(user, personaId);
+    res.json({activeUserPersonaId: personaId});
+});
+
 app.post("/personas/clear", requireLogin, (req, res) => {
     const user = req.session.user;
     setActivePersonaStmt.run(user, null);
     res.json({activePersonaId: null});
+});
+
+app.post("/personas/user/clear", requireLogin, (req, res) => {
+    const user = req.session.user;
+    setActiveUserPersonaStmt.run(user, null);
+    res.json({activeUserPersonaId: null});
 });
 
 app.post("/chat", requireLogin, async (req, res) => {
@@ -592,6 +672,7 @@ app.post("/chat", requireLogin, async (req, res) => {
 
     try {
         const activePersona = getActivePersonaStmt.get(user);
+        const activeUserPersona = getActiveUserPersonaStmt.get(user);
         const history = getRecentChatMessagesStmt.all(targetChatId);
         const conversation = [...history].reverse();
         conversation.push({role: "user", content: message});
@@ -602,6 +683,12 @@ app.post("/chat", requireLogin, async (req, res) => {
             messagesPayload.push({
                 role: "system",
                 content: buildPersonaPrompt(activePersona)
+            });
+        }
+        if (activeUserPersona) {
+            messagesPayload.push({
+                role: "system",
+                content: buildUserPersonaPrompt(activeUserPersona)
             });
         }
         messagesPayload.push(
