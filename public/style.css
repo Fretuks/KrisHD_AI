@@ -176,7 +176,7 @@ h1 {
     letter-spacing: 0.01em;
 }
 
-input, textarea {
+input, textarea, select {
     width: 100%;
     margin: 0;
     padding: 14px 16px;
@@ -196,7 +196,7 @@ input::placeholder, textarea::placeholder {
     color: var(--text-muted);
 }
 
-input:focus, textarea:focus {
+input:focus, textarea:focus, select:focus {
     border-color: var(--accent);
     background: rgba(10, 10, 20, 1);
     transform: translateY(-1px);
@@ -385,25 +385,6 @@ button:disabled {
 .chat-item button:hover {
     color: var(--text-primary);
     background: rgba(255, 255, 255, 0.08);
-}
-
-.persona-panel {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
-    padding-top: 16px;
-    min-height: 0;
-}
-
-.persona-header {
-    align-items: flex-start;
-}
-
-.persona-header-actions {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
 }
 
 .persona-status {
@@ -763,6 +744,14 @@ button:disabled {
     gap: 12px;
 }
 
+.chat-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
 .chat-title {
     display: flex;
     align-items: center;
@@ -807,6 +796,54 @@ button:disabled {
     font-size: 14px;
     outline: none;
     transition: all 0.2s ease;
+}
+
+.persona-menu {
+    position: relative;
+}
+
+.persona-popover {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 10px);
+    width: min(520px, 80vw);
+    background: rgba(19, 19, 42, 0.98);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 18px;
+    box-shadow: 0 24px 50px -18px rgba(0, 0, 0, 0.55);
+    padding: 14px;
+    display: grid;
+    gap: 16px;
+    z-index: 30;
+}
+
+.persona-section {
+    display: grid;
+    gap: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    padding-top: 12px;
+}
+
+.persona-section:first-child {
+    border-top: none;
+    padding-top: 0;
+}
+
+.persona-section-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.persona-section-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.persona-popover .persona-list {
+    max-height: 220px;
 }
 
 .model-select select:hover, .model-select select:focus {

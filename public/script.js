@@ -21,26 +21,36 @@ const renameChatBtn = document.getElementById("renameChat");
 const deleteChatBtn = document.getElementById("deleteChat");
 const activeChatTitle = document.getElementById("activeChatTitle");
 const personaList = document.getElementById("personaList");
+const userPersonaList = document.getElementById("userPersonaList");
 const personaForm = document.getElementById("personaForm");
 const personaFormTitle = document.getElementById("personaFormTitle");
+const personaTypeSelect = document.getElementById("personaType");
 const personaNameInput = document.getElementById("personaName");
 const personaPronounsInput = document.getElementById("personaPronouns");
 const personaAppearanceInput = document.getElementById("personaAppearance");
 const personaBackgroundInput = document.getElementById("personaBackground");
 const personaDetailsInput = document.getElementById("personaDetails");
 const newPersonaBtn = document.getElementById("newPersona");
+const newUserPersonaBtn = document.getElementById("newUserPersona");
 const clearPersonaBtn = document.getElementById("clearPersona");
+const clearUserPersonaBtn = document.getElementById("clearUserPersona");
 const personaCancelBtn = document.getElementById("personaCancel");
 const activePersonaStatus = document.getElementById("activePersonaStatus");
+const activeUserPersonaStatus = document.getElementById("activeUserPersonaStatus");
 const personaModal = document.getElementById("personaModal");
 const personaCloseBtn = document.getElementById("personaClose");
+const personaMenuButton = document.getElementById("personaMenuButton");
+const personaPopover = document.getElementById("personaPopover");
 
 let isProcessing = false;
 let chatSessions = [];
 let activeChatId = null;
-let personas = [];
+let assistantPersonas = [];
+let userPersonas = [];
 let activePersonaId = null;
+let activeUserPersonaId = null;
 let editingPersonaId = null;
+let editingPersonaType = "assistant";
 
 const displayModels = async () => {
     const select = document.getElementById("model");
@@ -185,21 +195,43 @@ function renderChatList() {
     });
 }
 
-function setActivePersonaStatus() {
-    const activePersona = personas.find(persona => persona.id === activePersonaId);
+function updateActivePersonaStatus(personaItems, activeId, statusElement, emptyMessage, activePrefix) {
+    const activePersona = personaItems.find(persona => persona.id === activeId);
     if (activePersona) {
-        activePersonaStatus.textContent = `Equipped: ${activePersona.name}`;
+        statusElement.textContent = `${activePrefix}: ${activePersona.name}`;
     } else {
-        activePersonaStatus.textContent = 'No persona equipped.';
+        statusElement.textContent = emptyMessage;
     }
-    clearPersonaBtn.disabled = !activePersonaId;
 }
 
-function openPersonaForm(persona = null) {
+function setActivePersonaStatus() {
+    updateActivePersonaStatus(
+        assistantPersonas,
+        activePersonaId,
+        activePersonaStatus,
+        'No persona equipped.',
+        'AI equipped'
+    );
+    updateActivePersonaStatus(
+        userPersonas,
+        activeUserPersonaId,
+        activeUserPersonaStatus,
+        'No user persona set.',
+        'You are'
+    );
+    clearPersonaBtn.disabled = !activePersonaId;
+    clearUserPersonaBtn.disabled = !activeUserPersonaId;
+}
+
+function openPersonaForm(persona = null, personaType = "assistant") {
+    closePersonaPopover();
     personaModal.classList.remove("hidden");
     if (persona) {
         editingPersonaId = persona.id;
-        personaFormTitle.textContent = "Edit persona";
+        editingPersonaType = persona.persona_type || "assistant";
+        personaFormTitle.textContent = `Edit ${editingPersonaType === "user" ? "your persona" : "AI persona"}`;
+        personaTypeSelect.value = editingPersonaType;
+        personaTypeSelect.disabled = true;
         personaNameInput.value = persona.name || "";
         personaPronounsInput.value = persona.pronouns || "";
         personaAppearanceInput.value = persona.appearance || "";
@@ -207,7 +239,10 @@ function openPersonaForm(persona = null) {
         personaDetailsInput.value = persona.details || "";
     } else {
         editingPersonaId = null;
-        personaFormTitle.textContent = "Create persona";
+        editingPersonaType = personaType;
+        personaFormTitle.textContent = `Create ${personaType === "user" ? "your persona" : "AI persona"}`;
+        personaTypeSelect.value = personaType;
+        personaTypeSelect.disabled = false;
         personaNameInput.value = "";
         personaPronounsInput.value = "";
         personaAppearanceInput.value = "";
@@ -221,21 +256,23 @@ function openPersonaForm(persona = null) {
 function closePersonaForm() {
     personaModal.classList.add("hidden");
     editingPersonaId = null;
+    editingPersonaType = "assistant";
+    personaTypeSelect.disabled = false;
 }
 
-function renderPersonaList() {
-    personaList.innerHTML = '';
-    if (!personas.length) {
+function renderPersonaList(personaItems, activeId, listElement, personaType) {
+    listElement.innerHTML = '';
+    if (!personaItems.length) {
         const empty = document.createElement('p');
         empty.className = 'status persona-status';
         empty.textContent = 'No personas yet. Create one to get started.';
-        personaList.appendChild(empty);
+        listElement.appendChild(empty);
         setActivePersonaStatus();
         return;
     }
-    personas.forEach(persona => {
+    personaItems.forEach(persona => {
         const item = document.createElement('div');
-        item.className = `persona-item${persona.id === activePersonaId ? ' active' : ''}`;
+        item.className = `persona-item${persona.id === activeId ? ' active' : ''}`;
         const title = document.createElement('h4');
         title.textContent = persona.name;
         const meta = document.createElement('p');
@@ -245,9 +282,9 @@ function renderPersonaList() {
 
         const equipBtn = document.createElement('button');
         equipBtn.type = 'button';
-        equipBtn.textContent = persona.id === activePersonaId ? 'Equipped' : 'Equip';
-        equipBtn.disabled = persona.id === activePersonaId;
-        equipBtn.addEventListener('click', () => equipPersona(persona.id));
+        equipBtn.textContent = persona.id === activeId ? 'Equipped' : 'Equip';
+        equipBtn.disabled = persona.id === activeId;
+        equipBtn.addEventListener('click', () => equipPersona(persona.id, personaType));
 
         const editBtn = document.createElement('button');
         editBtn.type = 'button';
@@ -266,7 +303,7 @@ function renderPersonaList() {
         item.appendChild(title);
         item.appendChild(meta);
         item.appendChild(actions);
-        personaList.appendChild(item);
+        listElement.appendChild(item);
     });
     setActivePersonaStatus();
 }
@@ -274,27 +311,45 @@ function renderPersonaList() {
 async function loadPersonas() {
     const res = await get('/personas');
     if (res.error) return;
-    personas = res.personas || [];
+    assistantPersonas = res.assistantPersonas || [];
+    userPersonas = res.userPersonas || [];
     activePersonaId = res.activePersonaId || null;
-    renderPersonaList();
+    activeUserPersonaId = res.activeUserPersonaId || null;
+    renderPersonaList(assistantPersonas, activePersonaId, personaList, "assistant");
+    renderPersonaList(userPersonas, activeUserPersonaId, userPersonaList, "user");
 }
 
-async function equipPersona(personaId) {
-    const res = await post(`/personas/${personaId}/equip`, {});
+async function equipPersona(personaId, personaType) {
+    const endpoint = personaType === "user"
+        ? `/personas/${personaId}/equip-user`
+        : `/personas/${personaId}/equip`;
+    const res = await post(endpoint, {});
     if (res.error) return;
-    activePersonaId = personaId;
-    renderPersonaList();
+    if (personaType === "user") {
+        activeUserPersonaId = personaId;
+    } else {
+        activePersonaId = personaId;
+    }
+    renderPersonaList(assistantPersonas, activePersonaId, personaList, "assistant");
+    renderPersonaList(userPersonas, activeUserPersonaId, userPersonaList, "user");
 }
 
-async function clearPersona() {
-    const res = await post('/personas/clear', {});
+async function clearPersona(personaType) {
+    const endpoint = personaType === "user" ? '/personas/user/clear' : '/personas/clear';
+    const res = await post(endpoint, {});
     if (res.error) return;
-    activePersonaId = null;
-    renderPersonaList();
+    if (personaType === "user") {
+        activeUserPersonaId = null;
+    } else {
+        activePersonaId = null;
+    }
+    renderPersonaList(assistantPersonas, activePersonaId, personaList, "assistant");
+    renderPersonaList(userPersonas, activeUserPersonaId, userPersonaList, "user");
 }
 
 async function savePersona() {
     const payload = {
+        personaType: personaTypeSelect.value,
         name: personaNameInput.value.trim(),
         pronouns: personaPronounsInput.value.trim(),
         appearance: personaAppearanceInput.value.trim(),
@@ -314,7 +369,8 @@ async function savePersona() {
 }
 
 async function deletePersona(personaId) {
-    const persona = personas.find(item => item.id === personaId);
+    const persona = assistantPersonas.find(item => item.id === personaId)
+        || userPersonas.find(item => item.id === personaId);
     if (!persona) return;
     const confirmDelete = confirm(`Delete persona "${persona.name}"?`);
     if (!confirmDelete) return;
@@ -553,8 +609,10 @@ document.getElementById("logout").onclick = async () => {
     clearMessages();
     chatSessions = [];
     activeChatId = null;
-    personas = [];
+    assistantPersonas = [];
+    userPersonas = [];
     activePersonaId = null;
+    activeUserPersonaId = null;
     setAuthMessage("Logged out.", 'success');
     showAuthScreen('login');
     loginUsernameInput.value = "";
@@ -591,7 +649,11 @@ msgInput.addEventListener('input', function () {
 
 newPersonaBtn.addEventListener('click', () => openPersonaForm());
 
-clearPersonaBtn.addEventListener('click', () => clearPersona());
+newUserPersonaBtn.addEventListener('click', () => openPersonaForm(null, "user"));
+
+clearPersonaBtn.addEventListener('click', () => clearPersona("assistant"));
+
+clearUserPersonaBtn.addEventListener('click', () => clearPersona("user"));
 
 personaForm.addEventListener('submit', (event) => {
     event.preventDefault();
@@ -602,6 +664,38 @@ personaCloseBtn.addEventListener("click", closePersonaForm);
 
 personaModal.addEventListener("click", (e) => {
     if (e.target === personaModal) closePersonaForm();
+});
+
+function closePersonaPopover() {
+    personaPopover.classList.add("hidden");
+    personaMenuButton.setAttribute("aria-expanded", "false");
+}
+
+function togglePersonaPopover(event) {
+    event.stopPropagation();
+    const isHidden = personaPopover.classList.contains("hidden");
+    if (isHidden) {
+        personaPopover.classList.remove("hidden");
+        personaMenuButton.setAttribute("aria-expanded", "true");
+    } else {
+        closePersonaPopover();
+    }
+}
+
+personaMenuButton.addEventListener("click", togglePersonaPopover);
+
+personaPopover.addEventListener("click", (event) => {
+    event.stopPropagation();
+});
+
+document.addEventListener("click", () => {
+    closePersonaPopover();
+});
+
+document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+        closePersonaPopover();
+    }
 });
 
 window.addEventListener('load', () => {
