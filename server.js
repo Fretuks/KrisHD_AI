@@ -43,7 +43,7 @@ function scheduleModelUnload(model) {
             if (err) {
                 console.error(`Failed to unload ${model}:`, err.message);
             } else {
-                console.log(`✅ Model unloaded: ${model}`);
+                console.log(`Model unloaded: ${model}`);
                 modelState.delete(model);
             }
         });
