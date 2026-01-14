@@ -7,6 +7,17 @@ import bodyParser from "body-parser";
 import Database from "better-sqlite3";
 import FileStoreFactory from "session-file-store";
 import {exec} from "child_process";
+import {performance} from "perf_hooks";
+
+let last = performance.now();
+setInterval(() => {
+    const now = performance.now();
+    const drift = now - last - 1000;
+    last = now;
+    if (drift > 50) {
+        console.log("EVENT LOOP LAG", Math.round(drift), "ms", new Date().toISOString());
+    }
+}, 1000);
 
 const modelState = new Map();
 const app = express();
@@ -14,6 +25,18 @@ const PORT = 3000;
 const DB_PATH = "./data/app.db";
 const SESSIONS_DIR = path.resolve("sessions");
 const UNLOAD_AFTER_MS = 30 * 1000;
+let modelsCache = null;
+let modelsCacheAt = 0;
+const MODELS_TTL_MS = 5 * 60 * 1000;
+
+app.use((req, res, next) => {
+    const start = Date.now();
+    res.on("finish", () => {
+        const ms = Date.now() - start;
+        if (ms > 50) console.log("SLOW REQ", ms + "ms", req.method, req.url);
+    });
+    next();
+});
 
 if (!fs.existsSync("./data")) {
     fs.mkdirSync("./data", {recursive: true});
@@ -57,212 +80,212 @@ db.prepare(`
     CREATE TABLE IF NOT EXISTS users
     (
         username
-        TEXT
-        PRIMARY
-        KEY,
+            TEXT
+            PRIMARY
+                KEY,
         password
-        TEXT
-        NOT
-        NULL
+            TEXT
+            NOT
+                NULL
     )
 `).run();
 db.prepare(`
     CREATE TABLE IF NOT EXISTS chats
     (
         id
-        INTEGER
-        PRIMARY
-        KEY
-        AUTOINCREMENT,
+            INTEGER
+            PRIMARY
+                KEY
+            AUTOINCREMENT,
         username
-        TEXT
-        NOT
-        NULL,
+            TEXT
+            NOT
+                NULL,
         role
-        TEXT
-        NOT
-        NULL,
+            TEXT
+            NOT
+                NULL,
         content
-        TEXT
-        NOT
-        NULL,
+            TEXT
+            NOT
+                NULL,
         created_at
-        DATETIME
-        DEFAULT
-        CURRENT_TIMESTAMP
+            DATETIME
+            DEFAULT
+                CURRENT_TIMESTAMP
     )
 `).run();
 db.prepare(`
     CREATE TABLE IF NOT EXISTS chat_sessions
     (
         id
-        INTEGER
-        PRIMARY
-        KEY
-        AUTOINCREMENT,
+            INTEGER
+            PRIMARY
+                KEY
+            AUTOINCREMENT,
         username
-        TEXT
-        NOT
-        NULL,
+            TEXT
+            NOT
+                NULL,
         title
-        TEXT
-        NOT
-        NULL,
+            TEXT
+            NOT
+                NULL,
         created_at
-        DATETIME
-        DEFAULT
-        CURRENT_TIMESTAMP,
+            DATETIME
+            DEFAULT
+                CURRENT_TIMESTAMP,
         updated_at
-        DATETIME
-        DEFAULT
-        CURRENT_TIMESTAMP
+            DATETIME
+            DEFAULT
+                CURRENT_TIMESTAMP
     )
 `).run();
 db.prepare(`
     CREATE TABLE IF NOT EXISTS chat_messages
     (
         id
-        INTEGER
-        PRIMARY
-        KEY
-        AUTOINCREMENT,
+            INTEGER
+            PRIMARY
+                KEY
+            AUTOINCREMENT,
         chat_id
-        INTEGER
-        NOT
-        NULL,
+            INTEGER
+            NOT
+                NULL,
         role
-        TEXT
-        NOT
-        NULL,
+            TEXT
+            NOT
+                NULL,
         content
-        TEXT
-        NOT
-        NULL,
+            TEXT
+            NOT
+                NULL,
         created_at
-        DATETIME
-        DEFAULT
-        CURRENT_TIMESTAMP,
+            DATETIME
+            DEFAULT
+                CURRENT_TIMESTAMP,
         FOREIGN
-        KEY
-    (
-        chat_id
-    ) REFERENCES chat_sessions
-    (
-        id
-    ) ON DELETE CASCADE
-        )
+            KEY
+            (
+             chat_id
+                ) REFERENCES chat_sessions
+            (
+             id
+                ) ON DELETE CASCADE
+    )
 `).run();
 db.prepare(`
     CREATE TABLE IF NOT EXISTS personas
     (
         id
-        INTEGER
-        PRIMARY
-        KEY
-        AUTOINCREMENT,
+            INTEGER
+            PRIMARY
+                KEY
+            AUTOINCREMENT,
         username
-        TEXT
-        NOT
-        NULL,
+            TEXT
+            NOT
+                NULL,
         name
-        TEXT
-        NOT
-        NULL,
+            TEXT
+            NOT
+                NULL,
         pronouns
-        TEXT,
+            TEXT,
         appearance
-        TEXT,
+            TEXT,
         background
-        TEXT,
+            TEXT,
         details
-        TEXT,
+            TEXT,
         persona_type
-        TEXT
-        DEFAULT
-        'assistant',
+            TEXT
+            DEFAULT
+                'assistant',
         created_at
-        DATETIME
-        DEFAULT
-        CURRENT_TIMESTAMP,
+            DATETIME
+            DEFAULT
+                CURRENT_TIMESTAMP,
         updated_at
-        DATETIME
-        DEFAULT
-        CURRENT_TIMESTAMP
+            DATETIME
+            DEFAULT
+                CURRENT_TIMESTAMP
     )
 `).run();
 db.prepare(`
     CREATE TABLE IF NOT EXISTS user_settings
     (
         username
-        TEXT
-        PRIMARY
-        KEY,
+            TEXT
+            PRIMARY
+                KEY,
         active_persona_id
-        INTEGER,
+            INTEGER,
         active_user_persona_id
-        INTEGER,
+            INTEGER,
         FOREIGN
-        KEY
-    (
-        active_persona_id
-    ) REFERENCES personas
-    (
-        id
-    ) ON DELETE SET NULL,
+            KEY
+            (
+             active_persona_id
+                ) REFERENCES personas
+            (
+             id
+                ) ON DELETE SET NULL,
         FOREIGN
-        KEY
-    (
-        active_user_persona_id
-    ) REFERENCES personas
-    (
-        id
-    ) ON DELETE SET NULL
-        )
+            KEY
+            (
+             active_user_persona_id
+                ) REFERENCES personas
+            (
+             id
+                ) ON DELETE SET NULL
+    )
 `).run();
 db.prepare(`
     CREATE TABLE IF NOT EXISTS persona_market
     (
         id
-        INTEGER
-        PRIMARY
-        KEY
-        AUTOINCREMENT,
+            INTEGER
+            PRIMARY
+                KEY
+            AUTOINCREMENT,
         persona_id
-        INTEGER,
+            INTEGER,
         creator_username
-        TEXT
-        NOT
-        NULL,
+            TEXT
+            NOT
+                NULL,
         name
-        TEXT
-        NOT
-        NULL,
+            TEXT
+            NOT
+                NULL,
         pronouns
-        TEXT,
+            TEXT,
         appearance
-        TEXT,
+            TEXT,
         background
-        TEXT,
+            TEXT,
         details
-        TEXT,
+            TEXT,
         persona_type
-        TEXT
-        DEFAULT
-        'assistant',
+            TEXT
+            DEFAULT
+                'assistant',
         created_at
-        DATETIME
-        DEFAULT
-        CURRENT_TIMESTAMP,
+            DATETIME
+            DEFAULT
+                CURRENT_TIMESTAMP,
         updated_at
-        DATETIME
-        DEFAULT
-        CURRENT_TIMESTAMP,
+            DATETIME
+            DEFAULT
+                CURRENT_TIMESTAMP,
         UNIQUE
-    (
-        persona_id,
-        creator_username
+            (
+             persona_id,
+             creator_username
+                )
     )
-        )
 `).run();
 
 const insertUserStmt = db.prepare("INSERT INTO users (username, password) VALUES (?, ?)");
@@ -273,7 +296,6 @@ const getLegacyChatsStmt = db.prepare(`
     WHERE username = ?
     ORDER BY datetime(created_at)
 `);
-const deleteLegacyChatsStmt = db.prepare("DELETE FROM chats WHERE username = ?");
 const insertChatSessionStmt = db.prepare(
     "INSERT INTO chat_sessions (username, title) VALUES (?, ?)"
 );
@@ -306,10 +328,6 @@ const deleteChatSessionStmt = db.prepare(
     "DELETE FROM chat_sessions WHERE id = ? AND username = ?"
 );
 
-const deleteAllChatSessionsStmt = db.prepare(
-    "DELETE FROM chat_sessions WHERE username = ?"
-);
-
 const insertChatMessageStmt = db.prepare(
     "INSERT INTO chat_messages (chat_id, role, content) VALUES (?, ?, ?)"
 );
@@ -326,7 +344,8 @@ const getRecentChatMessagesStmt = db.prepare(`
                     SELECT role, content
                     FROM chat_messages
                     WHERE chat_id = ?
-                    ORDER BY datetime(created_at) DESC LIMIT 20
+                    ORDER BY datetime(created_at) DESC
+                    LIMIT 20
         `
     )
 ;
@@ -336,16 +355,26 @@ const deleteChatMessagesStmt = db.prepare(
 );
 
 const listPersonasByTypeStmt = db.prepare(`
-    SELECT id, name, pronouns, appearance, background, details, persona_type, created_at, updated_at
+    SELECT id,
+           name,
+           pronouns,
+           appearance,
+           background,
+           details,
+           persona_type,
+           created_at,
+           updated_at
     FROM personas
-    WHERE username = ? AND persona_type = ?
+    WHERE username = ?
+      AND persona_type = ?
     ORDER BY datetime(updated_at) DESC
 `);
 
 const getPersonaStmt = db.prepare(`
     SELECT id, name, pronouns, appearance, background, details, persona_type
     FROM personas
-    WHERE id = ? AND username = ?
+    WHERE id = ?
+      AND username = ?
 `);
 
 const insertPersonaStmt = db.prepare(
@@ -354,8 +383,14 @@ const insertPersonaStmt = db.prepare(
 
 const updatePersonaStmt = db.prepare(`
     UPDATE personas
-    SET name = ?, pronouns = ?, appearance = ?, background = ?, details = ?, updated_at = CURRENT_TIMESTAMP
-    WHERE id = ? AND username = ?
+    SET name       = ?,
+        pronouns   = ?,
+        appearance = ?,
+        background = ?,
+        details    = ?,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+      AND username = ?
 `);
 
 const deletePersonaStmt = db.prepare(
@@ -381,46 +416,73 @@ const setActiveUserPersonaStmt = db.prepare(`
 const getActivePersonaStmt = db.prepare(`
     SELECT p.id, p.name, p.pronouns, p.appearance, p.background, p.details
     FROM user_settings us
-    JOIN personas p ON p.id = us.active_persona_id
+             JOIN personas p ON p.id = us.active_persona_id
     WHERE us.username = ?
 `);
 
 const getActiveUserPersonaStmt = db.prepare(`
     SELECT p.id, p.name, p.pronouns, p.appearance, p.background, p.details
     FROM user_settings us
-    JOIN personas p ON p.id = us.active_user_persona_id
+             JOIN personas p ON p.id = us.active_user_persona_id
     WHERE us.username = ?
 `);
 
 const listMarketPersonasStmt = db.prepare(`
-    SELECT id, persona_id, creator_username, name, pronouns, appearance, background, details, persona_type, created_at, updated_at
+    SELECT id,
+           persona_id,
+           creator_username,
+           name,
+           pronouns,
+           appearance,
+           background,
+           details,
+           persona_type,
+           created_at,
+           updated_at
     FROM persona_market
     ORDER BY datetime(updated_at) DESC
 `);
 
 const getMarketPersonaStmt = db.prepare(`
-    SELECT id, persona_id, creator_username, name, pronouns, appearance, background, details, persona_type
+    SELECT id,
+           persona_id,
+           creator_username,
+           name,
+           pronouns,
+           appearance,
+           background,
+           details,
+           persona_type
     FROM persona_market
     WHERE id = ?
 `);
 
 const getMarketPersonaByPersonaIdStmt = db.prepare(`
-    SELECT id, persona_id, creator_username, name, pronouns, appearance, background, details, persona_type
+    SELECT id,
+           persona_id,
+           creator_username,
+           name,
+           pronouns,
+           appearance,
+           background,
+           details,
+           persona_type
     FROM persona_market
-    WHERE persona_id = ? AND creator_username = ?
+    WHERE persona_id = ?
+      AND creator_username = ?
 `);
 
 const upsertMarketPersonaStmt = db.prepare(`
-    INSERT INTO persona_market (persona_id, creator_username, name, pronouns, appearance, background, details, persona_type)
+    INSERT INTO persona_market (persona_id, creator_username, name, pronouns, appearance, background, details,
+                                persona_type)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(persona_id, creator_username) DO UPDATE SET
-        name = excluded.name,
-        pronouns = excluded.pronouns,
-        appearance = excluded.appearance,
-        background = excluded.background,
-        details = excluded.details,
-        persona_type = excluded.persona_type,
-        updated_at = CURRENT_TIMESTAMP
+    ON CONFLICT(persona_id, creator_username) DO UPDATE SET name         = excluded.name,
+                                                            pronouns     = excluded.pronouns,
+                                                            appearance   = excluded.appearance,
+                                                            background   = excluded.background,
+                                                            details      = excluded.details,
+                                                            persona_type = excluded.persona_type,
+                                                            updated_at   = CURRENT_TIMESTAMP
 `);
 
 const listPublishedPersonaIdsStmt = db.prepare(`
@@ -475,7 +537,10 @@ app.use(bodyParser.json());
 app.use(express.static("public"));
 app.use(
     session({
-        store: new FileStore({path: SESSIONS_DIR}),
+        store: new FileStore({
+            path: SESSIONS_DIR,
+            reapInterval: 3600
+        }),
         secret: "-secret-key-here-",
         resave: false,
         saveUninitialized: false,
@@ -548,12 +613,18 @@ const requireLogin = (req, res, next) => {
 
 app.get("/models", async (req, res) => {
     try {
-        const response = await fetch("https://ai.krishd.ch/api/tags");
-        if (!response.ok) {
-            return res.status(500).json({error: "Failed to load models"});
+        if (modelsCache && (Date.now() - modelsCacheAt) < MODELS_TTL_MS) {
+            return res.json(modelsCache);
         }
-        res.json(await response.json());
-    } catch (error) {
+        const controller = new AbortController();
+        const t = setTimeout(() => controller.abort(), 4000);
+        const response = await fetch("https://ai.krishd.ch/api/tags", {signal: controller.signal});
+        clearTimeout(t);
+        if (!response.ok) return res.status(500).json({error: "Failed to load models"});
+        modelsCache = await response.json();
+        modelsCacheAt = Date.now();
+        res.json(modelsCache);
+    } catch (e) {
         res.status(500).json({error: "Failed to load models"});
     }
 });
