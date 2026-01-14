@@ -3,7 +3,18 @@ const marketUserPersonaList = document.getElementById("marketUserPersonaList");
 const refreshMarketBtn = document.getElementById("refreshMarket");
 const marketStatus = document.getElementById("marketStatus");
 const marketSearchInput = document.getElementById("marketSearch");
+const marketPreviewModal = document.getElementById("marketPreviewModal");
+const marketPreviewName = document.getElementById("marketPreviewName");
+const marketPreviewMeta = document.getElementById("marketPreviewMeta");
+const marketPreviewPronouns = document.getElementById("marketPreviewPronouns");
+const marketPreviewAppearance = document.getElementById("marketPreviewAppearance");
+const marketPreviewBackground = document.getElementById("marketPreviewBackground");
+const marketPreviewDetails = document.getElementById("marketPreviewDetails");
+const marketPreviewConfirm = document.getElementById("marketPreviewConfirm");
+const marketPreviewCancel = document.getElementById("marketPreviewCancel");
+const marketPreviewClose = document.getElementById("marketPreviewClose");
 let allMarketPersonas = [];
+let pendingMarketPersona = null;
 
 async function request(url, data, method = "POST") {
     try {
@@ -81,8 +92,8 @@ function renderMarketList(personaItems, listElement, personaType) {
 
         const getBtn = document.createElement("button");
         getBtn.type = "button";
-        getBtn.textContent = personaType === "assistant" ? "Get & equip as AI" : "Get & equip as You";
-        getBtn.addEventListener("click", () => collectMarketPersona(persona.id, persona.persona_type));
+        getBtn.textContent = "View details";
+        getBtn.addEventListener("click", () => openMarketPreview(persona));
 
         actions.appendChild(getBtn);
         item.appendChild(titleRow);
@@ -90,6 +101,30 @@ function renderMarketList(personaItems, listElement, personaType) {
         item.appendChild(actions);
         listElement.appendChild(item);
     });
+}
+
+function formatPersonaField(value) {
+    return value && value.trim() ? value.trim() : "Not provided.";
+}
+
+function openMarketPreview(persona) {
+    if (!marketPreviewModal) return;
+    pendingMarketPersona = persona;
+    marketPreviewName.textContent = persona.name;
+    marketPreviewMeta.textContent = buildPersonaMeta(persona);
+    marketPreviewPronouns.textContent = formatPersonaField(persona.pronouns);
+    marketPreviewAppearance.textContent = formatPersonaField(persona.appearance);
+    marketPreviewBackground.textContent = formatPersonaField(persona.background);
+    marketPreviewDetails.textContent = formatPersonaField(persona.details);
+    marketPreviewConfirm.textContent =
+        persona.persona_type === "assistant" ? "Get & equip as AI" : "Get & equip as You";
+    marketPreviewModal.classList.remove("hidden");
+}
+
+function closeMarketPreview() {
+    if (!marketPreviewModal) return;
+    marketPreviewModal.classList.add("hidden");
+    pendingMarketPersona = null;
 }
 
 function filterMarketPersonas() {
@@ -158,6 +193,31 @@ if (refreshMarketBtn) {
 
 if (marketSearchInput) {
     marketSearchInput.addEventListener("input", () => applyMarketFilter());
+}
+
+if (marketPreviewCancel) {
+    marketPreviewCancel.addEventListener("click", closeMarketPreview);
+}
+
+if (marketPreviewClose) {
+    marketPreviewClose.addEventListener("click", closeMarketPreview);
+}
+
+if (marketPreviewModal) {
+    marketPreviewModal.addEventListener("click", (event) => {
+        if (event.target === marketPreviewModal) {
+            closeMarketPreview();
+        }
+    });
+}
+
+if (marketPreviewConfirm) {
+    marketPreviewConfirm.addEventListener("click", async () => {
+        if (!pendingMarketPersona) return;
+        const {id, persona_type} = pendingMarketPersona;
+        closeMarketPreview();
+        await collectMarketPersona(id, persona_type);
+    });
 }
 
 window.addEventListener("load", () => {
