@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <title>Persona Market</title>
+    <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+<div class="market-shell card">
+    <header class="market-header">
+        <div>
+            <p class="eyebrow">Community</p>
+            <h1>Persona Market</h1>
+            <p class="subtitle">Browse shared personas and choose who should embody them.</p>
+        </div>
+        <div class="market-header-actions">
+            <button id="refreshMarket" class="secondary-action" type="button">Refresh listings</button>
+            <a href="/" class="secondary-action">Back to chat</a>
+        </div>
+    </header>
+    <p id="marketStatus" class="status persona-status">Loading market personas...</p>
+    <div class="persona-market-columns market-page-columns">
+        <div class="persona-market-column">
+            <h3>AI personas</h3>
+            <p class="persona-guidance">These shape how the assistant speaks and behaves.</p>
+            <div id="marketPersonaList" class="persona-list"></div>
+        </div>
+        <div class="persona-market-column">
+            <h3>User personas</h3>
+            <p class="persona-guidance">These describe how the assistant should portray you.</p>
+            <div id="marketUserPersonaList" class="persona-list"></div>
+        </div>
+    </div>
+</div>
+<script src="market.js" defer></script>
+</body>
+</html>

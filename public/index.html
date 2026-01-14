@@ -89,6 +89,7 @@
                                 <option disabled selected>Loading models...</option>
                             </select>
                         </div>
+                        <a href="/market.html" class="secondary-action market-link">Persona Market</a>
                         <div class="persona-menu">
                             <button id="personaMenuButton" class="secondary-action" type="button"
                                     aria-expanded="false" aria-controls="personaPopover">
@@ -100,6 +101,7 @@
                                         <div>
                                             <p class="eyebrow">Roleplay</p>
                                             <h2>AI Persona</h2>
+                                            <p class="persona-guidance">Controls how the assistant sounds and behaves.</p>
                                         </div>
                                         <div class="persona-section-actions">
                                             <button id="newPersona" class="secondary-action" type="button">New AI</button>
@@ -114,6 +116,7 @@
                                         <div>
                                             <p class="eyebrow">Roleplay</p>
                                             <h2>Your Persona</h2>
+                                            <p class="persona-guidance">Defines how the assistant should portray you.</p>
                                         </div>
                                         <div class="persona-section-actions">
                                             <button id="newUserPersona" class="secondary-action" type="button">New you</button>
@@ -122,27 +125,6 @@
                                     </div>
                                     <p id="activeUserPersonaStatus" class="status persona-status">No user persona set.</p>
                                     <div id="userPersonaList" class="persona-list"></div>
-                                </div>
-                                <div class="persona-section">
-                                    <div class="persona-section-header">
-                                        <div>
-                                            <p class="eyebrow">Community</p>
-                                            <h2>Persona Market</h2>
-                                        </div>
-                                        <div class="persona-section-actions">
-                                            <button id="refreshMarket" class="secondary-action" type="button">Refresh</button>
-                                        </div>
-                                    </div>
-                                    <div class="persona-market-columns">
-                                        <div class="persona-market-column">
-                                            <h3>AI personas</h3>
-                                            <div id="marketPersonaList" class="persona-list"></div>
-                                        </div>
-                                        <div class="persona-market-column">
-                                            <h3>User personas</h3>
-                                            <div id="marketUserPersonaList" class="persona-list"></div>
-                                        </div>
-                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -175,6 +157,7 @@
                     <option value="user">Your persona</option>
                 </select>
             </label>
+            <p class="persona-helper">AI personas shape how the assistant speaks. Your persona describes how you should be portrayed.</p>
             <label class="field">
                 <span>Name</span>
                 <input id="personaName" placeholder="Persona name" required/>
