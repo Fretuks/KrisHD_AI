@@ -2,6 +2,8 @@ const marketPersonaList = document.getElementById("marketPersonaList");
 const marketUserPersonaList = document.getElementById("marketUserPersonaList");
 const refreshMarketBtn = document.getElementById("refreshMarket");
 const marketStatus = document.getElementById("marketStatus");
+const marketSearchInput = document.getElementById("marketSearch");
+let allMarketPersonas = [];
 
 async function request(url, data, method = "POST") {
     try {
@@ -37,7 +39,9 @@ function setMarketStatus(message, state = "") {
 
 function buildPersonaMeta(persona) {
     const pronouns = persona.pronouns ? `Pronouns: ${persona.pronouns}` : "Pronouns: —";
-    return `By ${persona.creator_username} • ${pronouns}`;
+    const usageCount = Number(persona.usage_count || 0);
+    const usageLabel = `Used ${usageCount} ${usageCount === 1 ? "time" : "times"}`;
+    return `By ${persona.creator_username} • ${pronouns} • ${usageLabel}`;
 }
 
 function renderMarketList(personaItems, listElement, personaType) {
@@ -88,6 +92,35 @@ function renderMarketList(personaItems, listElement, personaType) {
     });
 }
 
+function filterMarketPersonas() {
+    const query = marketSearchInput?.value.trim().toLowerCase() || "";
+    if (!query) return allMarketPersonas;
+    return allMarketPersonas.filter(persona => {
+        const fields = [
+            persona.name,
+            persona.creator_username,
+            persona.pronouns,
+            persona.appearance,
+            persona.background,
+            persona.details
+        ];
+        return fields.some(field => field && field.toLowerCase().includes(query));
+    });
+}
+
+function applyMarketFilter() {
+    const filtered = filterMarketPersonas();
+    const assistantMarket = filtered.filter(persona => persona.persona_type === "assistant");
+    const userMarket = filtered.filter(persona => persona.persona_type === "user");
+    renderMarketList(assistantMarket, marketPersonaList, "assistant");
+    renderMarketList(userMarket, marketUserPersonaList, "user");
+    if (marketSearchInput?.value.trim() && !filtered.length) {
+        setMarketStatus("No personas match your search.", "error");
+        return;
+    }
+    setMarketStatus("Choose an AI persona or a user persona to equip.");
+}
+
 async function loadMarketPersonas() {
     setMarketStatus("Loading market personas...");
     const res = await get("/personas/market");
@@ -95,12 +128,8 @@ async function loadMarketPersonas() {
         setMarketStatus(res.error, "error");
         return;
     }
-    const marketPersonas = res.personas || [];
-    const assistantMarket = marketPersonas.filter(persona => persona.persona_type === "assistant");
-    const userMarket = marketPersonas.filter(persona => persona.persona_type === "user");
-    renderMarketList(assistantMarket, marketPersonaList, "assistant");
-    renderMarketList(userMarket, marketUserPersonaList, "user");
-    setMarketStatus("Choose an AI persona or a user persona to equip.");
+    allMarketPersonas = res.personas || [];
+    applyMarketFilter();
 }
 
 async function collectMarketPersona(marketId, personaType) {
@@ -114,6 +143,7 @@ async function collectMarketPersona(marketId, personaType) {
         setMarketStatus(res.error, "error");
         return;
     }
+    await loadMarketPersonas();
     setMarketStatus(
         personaType === "assistant"
             ? "AI persona equipped. Head back to chat to use it."
@@ -124,6 +154,10 @@ async function collectMarketPersona(marketId, personaType) {
 
 if (refreshMarketBtn) {
     refreshMarketBtn.addEventListener("click", () => loadMarketPersonas());
+}
+
+if (marketSearchInput) {
+    marketSearchInput.addEventListener("input", () => applyMarketFilter());
 }
 
 window.addEventListener("load", () => {

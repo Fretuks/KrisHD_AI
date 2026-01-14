@@ -203,6 +203,10 @@ db.prepare(`
             TEXT
             DEFAULT
                 'assistant',
+        source_market_id
+            INTEGER,
+        source_creator_username
+            TEXT,
         created_at
             DATETIME
             DEFAULT
@@ -272,6 +276,10 @@ db.prepare(`
             TEXT
             DEFAULT
                 'assistant',
+        usage_count
+            INTEGER
+            DEFAULT
+                0,
         created_at
             DATETIME
             DEFAULT
@@ -362,6 +370,8 @@ const listPersonasByTypeStmt = db.prepare(`
            background,
            details,
            persona_type,
+           source_market_id,
+           source_creator_username,
            created_at,
            updated_at
     FROM personas
@@ -377,9 +387,35 @@ const getPersonaStmt = db.prepare(`
       AND username = ?
 `);
 
+const getPersonaForPublishStmt = db.prepare(`
+    SELECT id,
+           name,
+           pronouns,
+           appearance,
+           background,
+           details,
+           persona_type,
+           source_market_id,
+           source_creator_username
+    FROM personas
+    WHERE id = ?
+      AND username = ?
+`);
+
 const insertPersonaStmt = db.prepare(
     "INSERT INTO personas (username, name, pronouns, appearance, background, details, persona_type) VALUES (?, ?, ?, ?, ?, ?, ?)"
 );
+
+const insertMarketPersonaStmt = db.prepare(
+    "INSERT INTO personas (username, name, pronouns, appearance, background, details, persona_type, source_market_id, source_creator_username) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+);
+
+const getPersonaBySourceMarketStmt = db.prepare(`
+    SELECT id
+    FROM personas
+    WHERE username = ?
+      AND source_market_id = ?
+`);
 
 const updatePersonaStmt = db.prepare(`
     UPDATE personas
@@ -437,6 +473,7 @@ const listMarketPersonasStmt = db.prepare(`
            background,
            details,
            persona_type,
+           usage_count,
            created_at,
            updated_at
     FROM persona_market
@@ -452,7 +489,8 @@ const getMarketPersonaStmt = db.prepare(`
            appearance,
            background,
            details,
-           persona_type
+           persona_type,
+           usage_count
     FROM persona_market
     WHERE id = ?
 `);
@@ -491,6 +529,12 @@ const listPublishedPersonaIdsStmt = db.prepare(`
     WHERE creator_username = ?
 `);
 
+const incrementMarketUsageCountStmt = db.prepare(`
+    UPDATE persona_market
+    SET usage_count = usage_count + 1
+    WHERE id = ?
+`);
+
 const migrationNeeded = db.prepare(
     "SELECT COUNT(*) as count FROM chat_messages"
 ).get();
@@ -519,6 +563,14 @@ const hasPersonaType = personaColumns.some(column => column.name === "persona_ty
 if (!hasPersonaType) {
     db.prepare("ALTER TABLE personas ADD COLUMN persona_type TEXT DEFAULT 'assistant'").run();
 }
+const hasSourceMarketId = personaColumns.some(column => column.name === "source_market_id");
+if (!hasSourceMarketId) {
+    db.prepare("ALTER TABLE personas ADD COLUMN source_market_id INTEGER").run();
+}
+const hasSourceCreatorUsername = personaColumns.some(column => column.name === "source_creator_username");
+if (!hasSourceCreatorUsername) {
+    db.prepare("ALTER TABLE personas ADD COLUMN source_creator_username TEXT").run();
+}
 
 const userSettingsColumns = db.prepare("PRAGMA table_info(user_settings)").all();
 const hasActiveUserPersona = userSettingsColumns.some(column => column.name === "active_user_persona_id");
@@ -531,6 +583,11 @@ const hasPersonaIdColumn = marketColumns.some(column => column.name === "persona
 if (!hasPersonaIdColumn) {
     db.prepare("ALTER TABLE persona_market ADD COLUMN persona_id INTEGER").run();
 }
+const hasUsageCount = marketColumns.some(column => column.name === "usage_count");
+if (!hasUsageCount) {
+    db.prepare("ALTER TABLE persona_market ADD COLUMN usage_count INTEGER DEFAULT 0").run();
+}
+db.prepare("UPDATE persona_market SET usage_count = 0 WHERE usage_count IS NULL").run();
 
 const FileStore = FileStoreFactory(session);
 app.use(bodyParser.json());
@@ -823,9 +880,12 @@ app.get("/personas/market", requireLogin, (req, res) => {
 app.post("/personas/:id/publish", requireLogin, (req, res) => {
     const user = req.session.user;
     const personaId = Number(req.params.id);
-    const persona = getPersonaStmt.get(personaId, user);
+    const persona = getPersonaForPublishStmt.get(personaId, user);
     if (!persona) {
         return res.status(404).json({error: "Persona not found"});
+    }
+    if (persona.source_market_id) {
+        return res.status(403).json({error: "Collected personas cannot be published."});
     }
     upsertMarketPersonaStmt.run(
         personaId,
@@ -848,15 +908,25 @@ app.post("/personas/market/:id/collect", requireLogin, (req, res) => {
     if (!marketPersona) {
         return res.status(404).json({error: "Market persona not found"});
     }
-    const personaId = insertPersonaStmt.run(
+    if (marketPersona.creator_username === user) {
+        return res.status(400).json({error: "You already own this persona."});
+    }
+    const existingPersona = getPersonaBySourceMarketStmt.get(user, marketId);
+    if (existingPersona) {
+        return res.status(400).json({error: "You already collected this persona."});
+    }
+    const personaId = insertMarketPersonaStmt.run(
         user,
         marketPersona.name,
         marketPersona.pronouns,
         marketPersona.appearance,
         marketPersona.background,
         marketPersona.details,
-        marketPersona.persona_type
+        marketPersona.persona_type,
+        marketId,
+        marketPersona.creator_username
     ).lastInsertRowid;
+    incrementMarketUsageCountStmt.run(marketId);
     let activePersonaId = null;
     let activeUserPersonaId = null;
     if (req.body?.equip) {
