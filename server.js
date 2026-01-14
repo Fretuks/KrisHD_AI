@@ -529,6 +529,12 @@ const listPublishedPersonaIdsStmt = db.prepare(`
     WHERE creator_username = ?
 `);
 
+const deleteMarketPersonaByPersonaIdStmt = db.prepare(`
+    DELETE FROM persona_market
+    WHERE persona_id = ?
+      AND creator_username = ?
+`);
+
 const incrementMarketUsageCountStmt = db.prepare(`
     UPDATE persona_market
     SET usage_count = usage_count + 1
@@ -849,6 +855,7 @@ app.delete("/personas/:id", requireLogin, (req, res) => {
     if (activePersonas.active_user_persona_id === personaId) {
         setActiveUserPersonaStmt.run(user, null);
     }
+    deleteMarketPersonaByPersonaIdStmt.run(personaId, user);
     res.json({message: "Persona deleted"});
 });
 
@@ -913,6 +920,23 @@ app.post("/personas/:id/publish", requireLogin, (req, res) => {
     );
     const marketPersona = getMarketPersonaByPersonaIdStmt.get(personaId, user);
     res.json({persona: marketPersona});
+});
+
+app.post("/personas/:id/unpublish", requireLogin, (req, res) => {
+    const user = req.session.user;
+    const personaId = Number(req.params.id);
+    const persona = getPersonaForPublishStmt.get(personaId, user);
+    if (!persona) {
+        return res.status(404).json({error: "Persona not found"});
+    }
+    if (persona.source_market_id) {
+        return res.status(403).json({error: "Collected personas cannot be unpublished."});
+    }
+    const result = deleteMarketPersonaByPersonaIdStmt.run(personaId, user);
+    if (result.changes === 0) {
+        return res.status(404).json({error: "Persona is not published."});
+    }
+    res.json({message: "Persona unpublished"});
 });
 
 app.post("/personas/market/:id/collect", requireLogin, (req, res) => {

@@ -992,6 +992,16 @@ a.secondary-action {
         grid-template-columns: 1fr;
     }
 
+    .chat-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .chat-header-actions {
+        width: 100%;
+        justify-content: flex-start;
+    }
+
     .chat-sidebar {
         order: 2;
     }
@@ -1020,6 +1030,35 @@ a.secondary-action {
     h1 {
         font-size: 1.6rem;
     }
+
+    .persona-popover {
+        width: 95vw;
+        right: auto;
+        left: 0;
+    }
+
+    .persona-item-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .market-shell {
+        padding: 20px;
+    }
+
+    .market-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .market-header-actions {
+        width: 100%;
+        justify-content: flex-start;
+    }
+
+    .market-search {
+        max-width: none;
+    }
 }
 
 @media (max-width: 480px) {
@@ -1038,6 +1077,15 @@ a.secondary-action {
 
     #messages {
         padding: 14px;
+    }
+
+    .market-preview-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .market-preview-details {
+        grid-template-columns: 1fr;
     }
 }
 
@@ -1107,6 +1155,44 @@ html, body {
     border-radius: 20px;
     box-shadow: 0 25px 60px -12px rgba(0,0,0,0.45);
     padding: 16px;
+}
+
+.market-preview-card {
+    width: min(640px, 95vw);
+    display: grid;
+    gap: 12px;
+}
+
+.market-preview-body {
+    display: grid;
+    gap: 12px;
+}
+
+.market-preview-details {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+}
+
+.market-preview-details h4 {
+    margin: 0 0 4px;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.market-preview-details p {
+    margin: 0;
+    font-size: 0.9rem;
+    color: var(--text-primary);
+}
+
+.market-preview-actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
 }
 
 .modal-header {

@@ -306,6 +306,14 @@ function renderPersonaList(personaItems, activeId, listElement, personaType) {
         publishBtn.textContent = isPublished ? 'Update listing' : 'Publish';
         publishBtn.addEventListener('click', () => publishPersona(persona.id));
 
+        if (isPublished) {
+            const unpublishBtn = document.createElement('button');
+            unpublishBtn.type = 'button';
+            unpublishBtn.textContent = 'Unpublish';
+            unpublishBtn.addEventListener('click', () => unpublishPersona(persona.id));
+            actions.appendChild(unpublishBtn);
+        }
+
         const deleteBtn = document.createElement('button');
         deleteBtn.type = 'button';
         deleteBtn.textContent = 'Delete';
@@ -398,6 +406,12 @@ async function deletePersona(personaId) {
 
 async function publishPersona(personaId) {
     const res = await post(`/personas/${personaId}/publish`, {});
+    if (res.error) return;
+    await loadPersonas();
+}
+
+async function unpublishPersona(personaId) {
+    const res = await post(`/personas/${personaId}/unpublish`, {});
     if (res.error) return;
     await loadPersonas();
 }

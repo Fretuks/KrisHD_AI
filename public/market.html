@@ -37,6 +37,42 @@
         </div>
     </div>
 </div>
+<div id="marketPreviewModal" class="modal-overlay hidden">
+    <div class="modal-card market-preview-card">
+        <div class="modal-header">
+            <div>
+                <p class="eyebrow">Persona preview</p>
+                <h3 id="marketPreviewName">Persona details</h3>
+            </div>
+            <button id="marketPreviewClose" type="button" class="icon-button">Close</button>
+        </div>
+        <div class="market-preview-body">
+            <p id="marketPreviewMeta" class="persona-guidance"></p>
+            <div class="market-preview-details">
+                <div>
+                    <h4>Pronouns</h4>
+                    <p id="marketPreviewPronouns"></p>
+                </div>
+                <div>
+                    <h4>Appearance</h4>
+                    <p id="marketPreviewAppearance"></p>
+                </div>
+                <div>
+                    <h4>Background</h4>
+                    <p id="marketPreviewBackground"></p>
+                </div>
+                <div>
+                    <h4>Details</h4>
+                    <p id="marketPreviewDetails"></p>
+                </div>
+            </div>
+        </div>
+        <div class="market-preview-actions">
+            <button id="marketPreviewConfirm" type="button" class="primary-action">Take persona</button>
+            <button id="marketPreviewCancel" type="button" class="secondary-action">Cancel</button>
+        </div>
+    </div>
+</div>
 <script src="market.js" defer></script>
 </body>
 </html>
