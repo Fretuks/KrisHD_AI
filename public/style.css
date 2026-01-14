@@ -324,6 +324,13 @@ button:disabled {
     border-radius: 12px;
 }
 
+a.secondary-action {
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
 .chat-list {
     display: flex;
     flex-direction: column;
@@ -411,6 +418,36 @@ button:disabled {
     gap: 8px;
 }
 
+.persona-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.persona-role-tag {
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 4px 8px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: var(--text-secondary);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.persona-role-tag.ai {
+    border-color: rgba(99, 102, 241, 0.6);
+    color: #c7d2fe;
+    background: rgba(99, 102, 241, 0.15);
+}
+
+.persona-role-tag.user {
+    border-color: rgba(34, 197, 94, 0.6);
+    color: #bbf7d0;
+    background: rgba(34, 197, 94, 0.15);
+}
+
 .persona-item.active {
     border-color: rgba(99, 102, 241, 0.6);
     box-shadow: 0 8px 18px rgba(99, 102, 241, 0.18);
@@ -446,6 +483,13 @@ button:disabled {
     border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: 16px;
     padding: 12px;
+}
+
+.persona-helper {
+    margin: 0;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    line-height: 1.4;
 }
 
 .persona-form.hidden {
@@ -836,6 +880,13 @@ button:disabled {
     gap: 12px;
 }
 
+.persona-guidance {
+    margin: 4px 0 0;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    line-height: 1.4;
+}
+
 .persona-section-actions {
     display: flex;
     gap: 8px;
@@ -856,6 +907,42 @@ button:disabled {
 
 .persona-popover .persona-list {
     max-height: 220px;
+}
+
+.market-shell {
+    width: min(980px, 95vw);
+    padding: 28px;
+    display: grid;
+    gap: 18px;
+}
+
+.market-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.market-header h1 {
+    margin: 4px 0;
+}
+
+.market-header-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.market-page-columns .persona-list {
+    max-height: 360px;
+}
+
+.market-link {
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
 }
 
 .model-select select:hover, .model-select select:focus {
