@@ -12,10 +12,15 @@ const modelState = new Map();
 const app = express();
 const PORT = 3000;
 const DB_PATH = "./data/app.db";
+const SESSIONS_DIR = path.resolve("sessions");
 const UNLOAD_AFTER_MS = 30 * 1000;
 
 if (!fs.existsSync("./data")) {
     fs.mkdirSync("./data", {recursive: true});
+}
+
+if (!fs.existsSync(SESSIONS_DIR)) {
+    fs.mkdirSync(SESSIONS_DIR, {recursive: true});
 }
 
 function scheduleModelUnload(model) {
@@ -470,7 +475,7 @@ app.use(bodyParser.json());
 app.use(express.static("public"));
 app.use(
     session({
-        store: new FileStore({path: "./sessions"}),
+        store: new FileStore({path: SESSIONS_DIR}),
         secret: "-secret-key-here-",
         resave: false,
         saveUninitialized: false,
