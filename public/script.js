@@ -41,6 +41,9 @@ const personaModal = document.getElementById("personaModal");
 const personaCloseBtn = document.getElementById("personaClose");
 const personaMenuButton = document.getElementById("personaMenuButton");
 const personaPopover = document.getElementById("personaPopover");
+const marketPersonaList = document.getElementById("marketPersonaList");
+const marketUserPersonaList = document.getElementById("marketUserPersonaList");
+const refreshMarketBtn = document.getElementById("refreshMarket");
 
 let isProcessing = false;
 let chatSessions = [];
@@ -51,6 +54,8 @@ let activePersonaId = null;
 let activeUserPersonaId = null;
 let editingPersonaId = null;
 let editingPersonaType = "assistant";
+let marketPersonas = [];
+let publishedPersonaIds = new Set();
 
 const displayModels = async () => {
     const select = document.getElementById("model");
@@ -291,6 +296,12 @@ function renderPersonaList(personaItems, activeId, listElement, personaType) {
         editBtn.textContent = 'Edit';
         editBtn.addEventListener('click', () => openPersonaForm(persona));
 
+        const publishBtn = document.createElement('button');
+        publishBtn.type = 'button';
+        const isPublished = publishedPersonaIds.has(persona.id);
+        publishBtn.textContent = isPublished ? 'Update listing' : 'Publish';
+        publishBtn.addEventListener('click', () => publishPersona(persona.id));
+
         const deleteBtn = document.createElement('button');
         deleteBtn.type = 'button';
         deleteBtn.textContent = 'Delete';
@@ -298,6 +309,7 @@ function renderPersonaList(personaItems, activeId, listElement, personaType) {
 
         actions.appendChild(equipBtn);
         actions.appendChild(editBtn);
+        actions.appendChild(publishBtn);
         actions.appendChild(deleteBtn);
 
         item.appendChild(title);
@@ -315,8 +327,52 @@ async function loadPersonas() {
     userPersonas = res.userPersonas || [];
     activePersonaId = res.activePersonaId || null;
     activeUserPersonaId = res.activeUserPersonaId || null;
+    publishedPersonaIds = new Set(res.publishedPersonaIds || []);
     renderPersonaList(assistantPersonas, activePersonaId, personaList, "assistant");
     renderPersonaList(userPersonas, activeUserPersonaId, userPersonaList, "user");
+}
+
+function renderMarketList(personaItems, listElement) {
+    listElement.innerHTML = '';
+    if (!personaItems.length) {
+        const empty = document.createElement('p');
+        empty.className = 'status persona-status';
+        empty.textContent = 'No market personas yet. Be the first to publish!';
+        listElement.appendChild(empty);
+        return;
+    }
+    personaItems.forEach(persona => {
+        const item = document.createElement('div');
+        item.className = 'persona-item';
+        const title = document.createElement('h4');
+        title.textContent = persona.name;
+        const meta = document.createElement('p');
+        const pronouns = persona.pronouns ? `Pronouns: ${persona.pronouns}` : 'Pronouns: —';
+        meta.textContent = `By ${persona.creator_username} • ${pronouns}`;
+        const actions = document.createElement('div');
+        actions.className = 'persona-item-actions';
+
+        const getBtn = document.createElement('button');
+        getBtn.type = 'button';
+        getBtn.textContent = 'Get & equip';
+        getBtn.addEventListener('click', () => collectMarketPersona(persona.id, persona.persona_type));
+
+        actions.appendChild(getBtn);
+        item.appendChild(title);
+        item.appendChild(meta);
+        item.appendChild(actions);
+        listElement.appendChild(item);
+    });
+}
+
+async function loadMarketPersonas() {
+    const res = await get('/personas/market');
+    if (res.error) return;
+    marketPersonas = res.personas || [];
+    const assistantMarket = marketPersonas.filter(persona => persona.persona_type === 'assistant');
+    const userMarket = marketPersonas.filter(persona => persona.persona_type === 'user');
+    renderMarketList(assistantMarket, marketPersonaList);
+    renderMarketList(userMarket, marketUserPersonaList);
 }
 
 async function equipPersona(personaId, personaType) {
@@ -376,6 +432,24 @@ async function deletePersona(personaId) {
     if (!confirmDelete) return;
     const res = await request(`/personas/${personaId}`, null, "DELETE");
     if (res.error) return;
+    await loadPersonas();
+}
+
+async function publishPersona(personaId) {
+    const res = await post(`/personas/${personaId}/publish`, {});
+    if (res.error) return;
+    await loadPersonas();
+    await loadMarketPersonas();
+}
+
+async function collectMarketPersona(marketId, personaType) {
+    const res = await post(`/personas/market/${marketId}/collect`, {equip: true});
+    if (res.error) return;
+    if (personaType === "user") {
+        activeUserPersonaId = res.activeUserPersonaId || res.persona?.id || null;
+    } else {
+        activePersonaId = res.activePersonaId || res.persona?.id || null;
+    }
     await loadPersonas();
 }
 
@@ -494,6 +568,7 @@ async function checkSession() {
         chatDiv.style.display = "block";
         await loadChatSessions();
         await loadPersonas();
+        await loadMarketPersonas();
         msgInput.focus();
         return true;
     }
@@ -503,6 +578,7 @@ async function checkSession() {
 async function loadServerChat() {
     await loadChatSessions();
     await loadPersonas();
+    await loadMarketPersonas();
 }
 
 async function handleAuth(endpoint, credentials) {
@@ -613,6 +689,8 @@ document.getElementById("logout").onclick = async () => {
     userPersonas = [];
     activePersonaId = null;
     activeUserPersonaId = null;
+    marketPersonas = [];
+    publishedPersonaIds = new Set();
     setAuthMessage("Logged out.", 'success');
     showAuthScreen('login');
     loginUsernameInput.value = "";
@@ -654,6 +732,8 @@ newUserPersonaBtn.addEventListener('click', () => openPersonaForm(null, "user"))
 clearPersonaBtn.addEventListener('click', () => clearPersona("assistant"));
 
 clearUserPersonaBtn.addEventListener('click', () => clearPersona("user"));
+
+refreshMarketBtn.addEventListener('click', () => loadMarketPersonas());
 
 personaForm.addEventListener('submit', (event) => {
     event.preventDefault();

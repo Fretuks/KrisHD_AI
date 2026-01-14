@@ -842,6 +842,18 @@ button:disabled {
     flex-wrap: wrap;
 }
 
+.persona-market-columns {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 12px;
+}
+
+.persona-market-column h3 {
+    margin: 0 0 6px;
+    font-size: 0.95rem;
+    color: var(--text-secondary);
+}
+
 .persona-popover .persona-list {
     max-height: 220px;
 }

@@ -214,6 +214,51 @@ db.prepare(`
     ) ON DELETE SET NULL
         )
 `).run();
+db.prepare(`
+    CREATE TABLE IF NOT EXISTS persona_market
+    (
+        id
+        INTEGER
+        PRIMARY
+        KEY
+        AUTOINCREMENT,
+        persona_id
+        INTEGER,
+        creator_username
+        TEXT
+        NOT
+        NULL,
+        name
+        TEXT
+        NOT
+        NULL,
+        pronouns
+        TEXT,
+        appearance
+        TEXT,
+        background
+        TEXT,
+        details
+        TEXT,
+        persona_type
+        TEXT
+        DEFAULT
+        'assistant',
+        created_at
+        DATETIME
+        DEFAULT
+        CURRENT_TIMESTAMP,
+        updated_at
+        DATETIME
+        DEFAULT
+        CURRENT_TIMESTAMP,
+        UNIQUE
+    (
+        persona_id,
+        creator_username
+    )
+        )
+`).run();
 
 const insertUserStmt = db.prepare("INSERT INTO users (username, password) VALUES (?, ?)");
 const getUserStmt = db.prepare("SELECT username, password FROM users WHERE username = ?");
@@ -342,6 +387,43 @@ const getActiveUserPersonaStmt = db.prepare(`
     WHERE us.username = ?
 `);
 
+const listMarketPersonasStmt = db.prepare(`
+    SELECT id, persona_id, creator_username, name, pronouns, appearance, background, details, persona_type, created_at, updated_at
+    FROM persona_market
+    ORDER BY datetime(updated_at) DESC
+`);
+
+const getMarketPersonaStmt = db.prepare(`
+    SELECT id, persona_id, creator_username, name, pronouns, appearance, background, details, persona_type
+    FROM persona_market
+    WHERE id = ?
+`);
+
+const getMarketPersonaByPersonaIdStmt = db.prepare(`
+    SELECT id, persona_id, creator_username, name, pronouns, appearance, background, details, persona_type
+    FROM persona_market
+    WHERE persona_id = ? AND creator_username = ?
+`);
+
+const upsertMarketPersonaStmt = db.prepare(`
+    INSERT INTO persona_market (persona_id, creator_username, name, pronouns, appearance, background, details, persona_type)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(persona_id, creator_username) DO UPDATE SET
+        name = excluded.name,
+        pronouns = excluded.pronouns,
+        appearance = excluded.appearance,
+        background = excluded.background,
+        details = excluded.details,
+        persona_type = excluded.persona_type,
+        updated_at = CURRENT_TIMESTAMP
+`);
+
+const listPublishedPersonaIdsStmt = db.prepare(`
+    SELECT persona_id
+    FROM persona_market
+    WHERE creator_username = ?
+`);
+
 const migrationNeeded = db.prepare(
     "SELECT COUNT(*) as count FROM chat_messages"
 ).get();
@@ -375,6 +457,12 @@ const userSettingsColumns = db.prepare("PRAGMA table_info(user_settings)").all()
 const hasActiveUserPersona = userSettingsColumns.some(column => column.name === "active_user_persona_id");
 if (!hasActiveUserPersona) {
     db.prepare("ALTER TABLE user_settings ADD COLUMN active_user_persona_id INTEGER").run();
+}
+
+const marketColumns = db.prepare("PRAGMA table_info(persona_market)").all();
+const hasPersonaIdColumn = marketColumns.some(column => column.name === "persona_id");
+if (!hasPersonaIdColumn) {
+    db.prepare("ALTER TABLE persona_market ADD COLUMN persona_id INTEGER").run();
 }
 
 const FileStore = FileStoreFactory(session);
@@ -536,11 +624,13 @@ app.get("/personas", requireLogin, (req, res) => {
     const assistantPersonas = listPersonasByTypeStmt.all(user, "assistant");
     const userPersonas = listPersonasByTypeStmt.all(user, "user");
     const activePersonas = getActivePersonaIdStmt.get(user) || {};
+    const publishedPersonaIds = listPublishedPersonaIdsStmt.all(user).map(row => row.persona_id);
     res.json({
         assistantPersonas,
         userPersonas,
         activePersonaId: activePersonas.active_persona_id ?? null,
-        activeUserPersonaId: activePersonas.active_user_persona_id ?? null
+        activeUserPersonaId: activePersonas.active_user_persona_id ?? null,
+        publishedPersonaIds
     });
 });
 
@@ -647,6 +737,63 @@ app.post("/personas/user/clear", requireLogin, (req, res) => {
     const user = req.session.user;
     setActiveUserPersonaStmt.run(user, null);
     res.json({activeUserPersonaId: null});
+});
+
+app.get("/personas/market", requireLogin, (req, res) => {
+    const personas = listMarketPersonasStmt.all();
+    res.json({personas});
+});
+
+app.post("/personas/:id/publish", requireLogin, (req, res) => {
+    const user = req.session.user;
+    const personaId = Number(req.params.id);
+    const persona = getPersonaStmt.get(personaId, user);
+    if (!persona) {
+        return res.status(404).json({error: "Persona not found"});
+    }
+    upsertMarketPersonaStmt.run(
+        personaId,
+        user,
+        persona.name,
+        persona.pronouns,
+        persona.appearance,
+        persona.background,
+        persona.details,
+        persona.persona_type
+    );
+    const marketPersona = getMarketPersonaByPersonaIdStmt.get(personaId, user);
+    res.json({persona: marketPersona});
+});
+
+app.post("/personas/market/:id/collect", requireLogin, (req, res) => {
+    const user = req.session.user;
+    const marketId = Number(req.params.id);
+    const marketPersona = getMarketPersonaStmt.get(marketId);
+    if (!marketPersona) {
+        return res.status(404).json({error: "Market persona not found"});
+    }
+    const personaId = insertPersonaStmt.run(
+        user,
+        marketPersona.name,
+        marketPersona.pronouns,
+        marketPersona.appearance,
+        marketPersona.background,
+        marketPersona.details,
+        marketPersona.persona_type
+    ).lastInsertRowid;
+    let activePersonaId = null;
+    let activeUserPersonaId = null;
+    if (req.body?.equip) {
+        if (marketPersona.persona_type === "user") {
+            setActiveUserPersonaStmt.run(user, personaId);
+            activeUserPersonaId = personaId;
+        } else {
+            setActivePersonaStmt.run(user, personaId);
+            activePersonaId = personaId;
+        }
+    }
+    const persona = getPersonaStmt.get(personaId, user);
+    res.json({persona, activePersonaId, activeUserPersonaId});
 });
 
 app.post("/chat", requireLogin, async (req, res) => {
