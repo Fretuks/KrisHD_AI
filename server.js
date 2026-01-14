@@ -641,25 +641,39 @@ const normalizePersonaField = (value) => {
 
 const buildPersonaPrompt = (persona) => {
     const lines = [
-        "You are roleplaying as the following persona. Stay in character, be engaging, and align with these details."
+        "SYSTEM ROLE:",
+        "You are the AI assistant in this conversation.",
+        "You must speak, think, and respond AS the persona described below.",
+        "Do NOT describe or roleplay as the user.",
+        "Do NOT switch roles or perspectives.",
+        "Always respond in-character, using first-person language where appropriate.",
+        "",
+        "ASSISTANT PERSONA:"
     ];
     if (persona.name) lines.push(`Name: ${persona.name}`);
     if (persona.pronouns) lines.push(`Pronouns: ${persona.pronouns}`);
     if (persona.appearance) lines.push(`Appearance: ${persona.appearance}`);
     if (persona.background) lines.push(`Background: ${persona.background}`);
-    if (persona.details) lines.push(`Details: ${persona.details}`);
+    if (persona.details) lines.push(`Additional Traits: ${persona.details}`);
     return lines.join("\n");
 };
 
 const buildUserPersonaPrompt = (persona) => {
     const lines = [
-        "The user is roleplaying as the following persona. Keep this context in mind when responding."
+        "USER CONTEXT:",
+        "The human user is roleplaying as the persona below.",
+        "This information is for context only.",
+        "Do NOT speak as this character.",
+        "Do NOT narrate their thoughts unless they explicitly do so.",
+        "Respond TO this persona, not AS them.",
+        "",
+        "USER PERSONA:"
     ];
     if (persona.name) lines.push(`Name: ${persona.name}`);
     if (persona.pronouns) lines.push(`Pronouns: ${persona.pronouns}`);
     if (persona.appearance) lines.push(`Appearance: ${persona.appearance}`);
     if (persona.background) lines.push(`Background: ${persona.background}`);
-    if (persona.details) lines.push(`Details: ${persona.details}`);
+    if (persona.details) lines.push(`Additional Traits: ${persona.details}`);
     return lines.join("\n");
 };
 
