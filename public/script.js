@@ -70,7 +70,6 @@ function addMessage(content, isUser = false, isLoading = false) {
                 </div>
                 <div class="loading-copy">
                     <strong>Thinking</strong>
-                    <span>Building a response</span>
                 </div>
             </div>`;
     } else {
