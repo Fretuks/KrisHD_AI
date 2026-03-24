@@ -334,8 +334,7 @@ h2 {
 .subtitle,
 .persona-guidance,
 .persona-helper,
-.composer-hint,
-.empty-state p:last-child {
+.composer-hint {
     margin: 0;
     color: var(--text-soft);
     line-height: 1.6;
@@ -390,7 +389,6 @@ h2 {
 .input-shell,
 .chat-sidebar,
 .messages-panel,
-.empty-state,
 .persona-popover,
 .modal-card,
 .market-shell {
@@ -758,7 +756,6 @@ select:focus {
 
 .workspace-overview,
 .messages-panel,
-.empty-state,
 .input-shell {
     border-radius: var(--radius-lg);
     padding: 14px;
@@ -861,18 +858,6 @@ select:focus {
     gap: 12px;
     background: rgba(252, 248, 240, 0.52);
     min-height: 0;
-}
-
-.empty-state {
-    display: none;
-    align-content: center;
-    justify-items: start;
-    gap: 8px;
-    background: rgba(250, 244, 235, 0.75);
-}
-
-.empty-state.visible {
-    display: grid;
 }
 
 .msg {
@@ -1175,22 +1160,83 @@ select:focus {
     display: grid;
     place-items: center;
     padding: 24px;
-    background: rgba(24, 32, 31, 0.16);
-    backdrop-filter: blur(4px);
+    background: rgba(12, 16, 18, 0.3);
+    backdrop-filter: blur(10px);
     z-index: 50;
+    overflow: auto;
 }
 
 .modal-card {
-    width: min(560px, 95vw);
+    width: min(760px, 95vw);
+    max-height: calc(100vh - 48px);
     border-radius: var(--radius-lg);
-    padding: 18px;
+    padding: 20px;
+    overflow: auto;
 }
 
 .persona-form {
     display: grid;
-    gap: 12px;
+    gap: 18px;
+    padding: 0;
+    border: none;
+    background: transparent;
+}
+
+.persona-modal-card {
+    display: grid;
+    gap: 18px;
+}
+
+.persona-modal-heading {
+    display: grid;
+    gap: 4px;
+}
+
+.persona-form-intro {
+    padding: 16px 18px;
+    border-radius: 16px;
+    background: rgba(24, 32, 31, 0.04);
+    border: 1px solid rgba(24, 32, 31, 0.08);
+}
+
+.persona-form > .status {
+    margin: 0;
+}
+
+.persona-form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.field-wide {
+    grid-column: 1 / -1;
+}
+
+.persona-form .field,
+.persona-form .field-wide {
     padding: 14px;
     border-radius: var(--radius-md);
+    background: rgba(24, 32, 31, 0.03);
+    border: 1px solid rgba(24, 32, 31, 0.06);
+}
+
+.persona-form .field textarea {
+    min-height: 112px;
+}
+
+.persona-actions {
+    display: flex;
+    justify-content: flex-end;
+    position: sticky;
+    bottom: 0;
+    padding-top: 10px;
+    background: inherit;
+}
+
+.persona-actions .primary-action {
+    width: auto;
+    min-width: 180px;
 }
 
 .market-shell {
@@ -1432,7 +1478,9 @@ body[data-theme="fakegpt"] .chat-item button,
 body[data-theme="fakegpt"] .session-chip,
 body[data-theme="fakegpt"] .settings-nav,
 body[data-theme="fakegpt"] .settings-nav-item:not(.active),
-body[data-theme="fakegpt"] .settings-theme-note {
+body[data-theme="fakegpt"] .settings-theme-note,
+body[data-theme="fakegpt"] .persona-form-intro,
+body[data-theme="fakegpt"] .persona-form .field {
     background: rgba(18, 24, 21, 0.96);
     color: #d7fff3;
     border: 1px solid rgba(36, 255, 180, 0.16);
@@ -1515,7 +1563,9 @@ body[data-theme="fraud"] .icon-button,
 body[data-theme="fraud"] .session-chip,
 body[data-theme="fraud"] .settings-nav,
 body[data-theme="fraud"] .settings-nav-item:not(.active),
-body[data-theme="fraud"] .settings-theme-note {
+body[data-theme="fraud"] .settings-theme-note,
+body[data-theme="fraud"] .persona-form-intro,
+body[data-theme="fraud"] .persona-form .field {
     background: rgba(255, 249, 242, 0.88);
     color: #4b3d31;
     border: 1px solid rgba(84, 62, 43, 0.08);
@@ -1628,7 +1678,9 @@ body[data-theme="slopilot"] .session-chip {
 
 body[data-theme="slopilot"] .settings-nav,
 body[data-theme="slopilot"] .settings-nav-item:not(.active),
-body[data-theme="slopilot"] .settings-theme-note {
+body[data-theme="slopilot"] .settings-theme-note,
+body[data-theme="slopilot"] .persona-form-intro,
+body[data-theme="slopilot"] .persona-form .field {
     background: #ffffff;
     border-color: rgba(13, 104, 255, 0.12);
 }
@@ -1714,7 +1766,9 @@ body[data-theme="confusity"] .session-chip {
 
 body[data-theme="confusity"] .settings-nav,
 body[data-theme="confusity"] .settings-nav-item:not(.active),
-body[data-theme="confusity"] .settings-theme-note {
+body[data-theme="confusity"] .settings-theme-note,
+body[data-theme="confusity"] .persona-form-intro,
+body[data-theme="confusity"] .persona-form .field {
     background: #ffffff;
     border-color: rgba(17, 24, 39, 0.08);
 }
@@ -1793,6 +1847,19 @@ body[data-theme="confusity"] .settings-nav-item.active {
     background: #111827;
     color: #f9fafb;
     border: 1px solid rgba(17, 24, 39, 0.16);
+}
+
+body[data-theme="germini"] .persona-form-intro,
+body[data-theme="germini"] .persona-form .field {
+    background: rgba(255, 255, 255, 0.26);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    backdrop-filter: blur(18px);
+}
+
+body[data-theme="beta-ai"] .persona-form-intro,
+body[data-theme="beta-ai"] .persona-form .field {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(243, 238, 255, 0.92));
+    border: 1px solid rgba(90, 103, 255, 0.08);
 }
 
 @keyframes gemFloat {
@@ -1921,6 +1988,10 @@ body[data-theme="confusity"] .settings-nav-item.active {
 
     .hero-theme-switcher {
         justify-self: stretch;
+    }
+
+    .persona-form-grid {
+        grid-template-columns: 1fr;
     }
 
     .settings-shell .market-header-simple {

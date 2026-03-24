@@ -1,6 +1,6 @@
 const $ = (id) => document.getElementById(id);
 const authDiv = $("auth"), chatDiv = $("chat"), authMsg = $("authMsg");
-const messagesDiv = $("messages"), emptyState = $("emptyState"), modelSelect = $("model");
+const messagesDiv = $("messages"), modelSelect = $("model");
 const loginForm = $("loginForm"), registerForm = $("registerForm"), msgInput = $("msgInput"), sendBtn = $("send");
 const loginUsernameInput = $("loginUsername"), loginPasswordInput = $("loginPassword");
 const registerUsernameInput = $("registerUsername"), registerPasswordInput = $("registerPassword");
@@ -12,6 +12,7 @@ const personaList = $("personaList"), userPersonaList = $("userPersonaList");
 const personaForm = $("personaForm"), personaFormTitle = $("personaFormTitle"), personaTypeSelect = $("personaType");
 const personaNameInput = $("personaName"), personaPronounsInput = $("personaPronouns"), personaAppearanceInput = $("personaAppearance");
 const personaBackgroundInput = $("personaBackground"), personaDetailsInput = $("personaDetails");
+const personaFormNotice = $("personaFormNotice");
 const newPersonaBtn = $("newPersona"), newUserPersonaBtn = $("newUserPersona"), clearPersonaBtn = $("clearPersona"), clearUserPersonaBtn = $("clearUserPersona");
 const activePersonaStatus = $("activePersonaStatus"), activeUserPersonaStatus = $("activeUserPersonaStatus");
 const personaModal = $("personaModal"), personaCloseBtn = $("personaClose"), personaMenuButton = $("personaMenuButton"), personaPopover = $("personaPopover");
@@ -46,6 +47,16 @@ const del = (url) => request(url, null, "DELETE");
 
 function setAuthMessage(message, state = "") { authMsg.textContent = message; authMsg.className = state ? `status ${state}` : "status"; }
 function setNotice(message, state = "") { return {message, state}; }
+function setPersonaFormNotice(message = "", state = "") {
+    if (!personaFormNotice) return;
+    if (!message) {
+        personaFormNotice.textContent = "";
+        personaFormNotice.className = "status hidden";
+        return;
+    }
+    personaFormNotice.textContent = message;
+    personaFormNotice.className = state ? `status ${state}` : "status";
+}
 function setMessageContent(el, content) {
     if (window.marked && window.DOMPurify) {
         el.innerHTML = DOMPurify.sanitize(marked.parse(content, {breaks: true}));
@@ -53,7 +64,6 @@ function setMessageContent(el, content) {
         el.textContent = content;
     }
 }
-function updateEmptyState() { emptyState.classList.toggle("visible", currentMessages.length === 0); }
 function getChatById(id) { return chatSessions.find((chat) => chat.id === id); }
 
 function addMessage(content, isUser = false, isLoading = false) {
@@ -87,7 +97,6 @@ function addMessage(content, isUser = false, isLoading = false) {
 function renderMessages() {
     messagesDiv.innerHTML = "";
     currentMessages.forEach((msg) => addMessage(msg.content, msg.role === "user"));
-    updateEmptyState();
     updateChatActionState();
 }
 
@@ -178,10 +187,11 @@ function openPersonaForm(persona = null, personaType = "assistant") {
         personaTypeSelect.value = personaType; personaTypeSelect.disabled = false;
         personaNameInput.value = ""; personaPronounsInput.value = ""; personaAppearanceInput.value = ""; personaBackgroundInput.value = ""; personaDetailsInput.value = "";
     }
+    setPersonaFormNotice("");
     personaNameInput.focus();
 }
 
-function closePersonaForm() { personaModal.classList.add("hidden"); editingPersonaId = null; editingPersonaType = "assistant"; personaTypeSelect.disabled = false; }
+function closePersonaForm() { personaModal.classList.add("hidden"); editingPersonaId = null; editingPersonaType = "assistant"; personaTypeSelect.disabled = false; setPersonaFormNotice(""); }
 function closePersonaPopover() { personaPopover.classList.add("hidden"); personaMenuButton.setAttribute("aria-expanded", "false"); }
 
 function renderPersonaList(items, activeId, listElement, personaType) {
@@ -252,9 +262,9 @@ async function clearPersona(type) {
 
 async function savePersona() {
     const payload = {personaType: personaTypeSelect.value, name: personaNameInput.value.trim(), pronouns: personaPronounsInput.value.trim(), appearance: personaAppearanceInput.value.trim(), background: personaBackgroundInput.value.trim(), details: personaDetailsInput.value.trim()};
-    if (!payload.name) return setNotice("Persona name is required.", "error");
+    if (!payload.name) return setPersonaFormNotice("Persona name is required.", "error");
     const res = editingPersonaId ? await put(`/personas/${editingPersonaId}`, payload) : await post("/personas", payload);
-    if (res.error) return setNotice(res.error, "error");
+    if (res.error) return setPersonaFormNotice(res.error, "error");
     const wasEditing = Boolean(editingPersonaId);
     await loadPersonas(); closePersonaForm(); setNotice(wasEditing ? "Persona updated." : "Persona created.", "success");
 }
@@ -391,7 +401,7 @@ async function sendMessage() {
         const autoTitle = message.length > 40 ? `${message.slice(0, 40)}...` : message;
         currentChat.title = autoTitle; updateWorkspaceCopy(); renderChatList(); await put(`/chats/${activeChatId}`, {title: autoTitle});
     }
-    currentMessages.push({role: "user", content: message}); addMessage(message, true); updateEmptyState(); updateChatActionState();
+    currentMessages.push({role: "user", content: message}); addMessage(message, true); updateChatActionState();
     msgInput.value = ""; msgInput.style.height = "auto"; setLoadingState(true); setNotice("Generating reply...");
     const loadingMsg = addMessage("", false, true);
     try {
@@ -423,7 +433,7 @@ registerForm.addEventListener("submit", (event) => { event.preventDefault(); han
 $("logout").addEventListener("click", async () => {
     await post("/logout", {}); chatDiv.style.display = "none"; authDiv.style.display = "grid";
     activeChatId = null; currentUsername = ""; currentSummary = null; chatSessions = []; currentMessages = []; assistantPersonas = []; userPersonas = [];
-    activePersonaId = null; activeUserPersonaId = null; publishedPersonaIds = new Set(); messagesDiv.innerHTML = ""; renderChatList(); updateEmptyState(); updateChatActionState();
+    activePersonaId = null; activeUserPersonaId = null; publishedPersonaIds = new Set(); messagesDiv.innerHTML = ""; renderChatList(); updateChatActionState();
     showAuthScreen("login"); setAuthMessage("Logged out.", "success"); setNotice("Ready.");
 });
 sendBtn.addEventListener("click", sendMessage);
@@ -440,5 +450,5 @@ personaMenuButton.addEventListener("click", togglePersonaPopover); personaPopove
 document.addEventListener("keydown", (event) => { if (event.key === "Escape") { closePersonaPopover(); closePersonaForm(); } });
 window.addEventListener("load", async () => {
     applyTheme(localStorage.getItem("krishd-theme") || "fakegpt", false);
-    setNotice("Ready."); updateEmptyState(); updateChatActionState(); await checkSession();
+    setNotice("Ready."); updateChatActionState(); await checkSession();
 });

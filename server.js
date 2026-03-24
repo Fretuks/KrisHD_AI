@@ -782,6 +782,56 @@ const normalizePersonaField = (value) => {
     return trimmed ? trimmed : null;
 };
 
+const PERSONA_FIELD_LIMITS = {
+    name: 80,
+    pronouns: 40,
+    appearance: 400,
+    background: 1000,
+    details: 1200
+};
+
+const blockedPersonaPatterns = [
+    /\b(child|children|kid|kids|minor|underage|under-aged|teenager|young girl|young boy|loli|shota)\b/i,
+    /\b(nazi|hitler|third reich|kkk|ku klux klan|white power|nigger|nigga)\b/i,
+    /\b(rape|rapist|sexual assault|molest|molestation|incest|bestiality|zoophilia|necrophilia)\b/i,
+    /\b(self-harm|self harm|suicide fetish)\b/i
+];
+
+const validatePersonaPayload = (payload) => {
+    const sanitized = {
+        name: (payload?.name || "").trim(),
+        pronouns: normalizePersonaField(payload?.pronouns),
+        appearance: normalizePersonaField(payload?.appearance),
+        background: normalizePersonaField(payload?.background),
+        details: normalizePersonaField(payload?.details)
+    };
+
+    if (!sanitized.name) {
+        return {error: "Name is required"};
+    }
+
+    for (const [key, limit] of Object.entries(PERSONA_FIELD_LIMITS)) {
+        const value = sanitized[key];
+        if (value && value.length > limit) {
+            return {error: `${key.charAt(0).toUpperCase() + key.slice(1)} is too long`};
+        }
+    }
+
+    const combinedText = [
+        sanitized.name,
+        sanitized.pronouns,
+        sanitized.appearance,
+        sanitized.background,
+        sanitized.details
+    ].filter(Boolean).join("\n");
+
+    if (blockedPersonaPatterns.some((pattern) => pattern.test(combinedText))) {
+        return {error: "This persona contains disallowed content. Remove sexual content involving minors, extreme sexual violence, or hateful/extremist material."};
+    }
+
+    return {sanitized};
+};
+
 const buildPersonaPrompt = (persona) => {
     const lines = [
         "SYSTEM ROLE:",
@@ -921,18 +971,15 @@ app.get("/personas", requireLogin, (req, res) => {
 
 app.post("/personas", requireLogin, (req, res) => {
     const user = req.session.user;
-    const name = (req.body?.name || "").trim();
-    if (!name) {
-        return res.status(400).json({error: "Name is required"});
-    }
     const personaType = (req.body?.personaType || "assistant").trim();
     if (!["assistant", "user"].includes(personaType)) {
         return res.status(400).json({error: "Invalid persona type"});
     }
-    const pronouns = normalizePersonaField(req.body?.pronouns);
-    const appearance = normalizePersonaField(req.body?.appearance);
-    const background = normalizePersonaField(req.body?.background);
-    const details = normalizePersonaField(req.body?.details);
+    const validation = validatePersonaPayload(req.body);
+    if (validation.error) {
+        return res.status(400).json({error: validation.error});
+    }
+    const {name, pronouns, appearance, background, details} = validation.sanitized;
     const personaId = insertPersonaStmt.run(
         user,
         name,
@@ -949,14 +996,11 @@ app.post("/personas", requireLogin, (req, res) => {
 app.put("/personas/:id", requireLogin, (req, res) => {
     const user = req.session.user;
     const personaId = Number(req.params.id);
-    const name = (req.body?.name || "").trim();
-    if (!name) {
-        return res.status(400).json({error: "Name is required"});
+    const validation = validatePersonaPayload(req.body);
+    if (validation.error) {
+        return res.status(400).json({error: validation.error});
     }
-    const pronouns = normalizePersonaField(req.body?.pronouns);
-    const appearance = normalizePersonaField(req.body?.appearance);
-    const background = normalizePersonaField(req.body?.background);
-    const details = normalizePersonaField(req.body?.details);
+    const {name, pronouns, appearance, background, details} = validation.sanitized;
     const result = updatePersonaStmt.run(
         name,
         pronouns,

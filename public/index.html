@@ -163,12 +163,6 @@
 
                 <div id="messages" class="messages-panel messages-panel-focus"></div>
 
-                <div id="emptyState" class="empty-state">
-                    <p class="eyebrow">No messages yet</p>
-                    <h3>Write something when you're ready.</h3>
-                    <p>This can stay a plain chat. Personas and shared presets are optional.</p>
-                </div>
-
                 <div class="input-shell input-shell-focus">
                     <div class="input-meta">
                         <p class="composer-hint">Enter sends. Shift+Enter adds a new line.</p>
@@ -184,40 +178,48 @@
 </div>
 
 <div id="personaModal" class="modal-overlay hidden">
-    <div class="modal-card">
+    <div class="modal-card persona-modal-card">
         <div class="modal-header">
-            <h3 id="personaFormTitle">Create persona</h3>
+            <div class="persona-modal-heading">
+                <p class="eyebrow">Persona editor</p>
+                <h3 id="personaFormTitle">Create persona</h3>
+            </div>
             <button id="personaClose" type="button" class="icon-button">Cancel</button>
         </div>
         <form id="personaForm" class="persona-form">
-            <label class="field">
-                <span>Persona for</span>
-                <select id="personaType">
-                    <option value="assistant">AI persona</option>
-                    <option value="user">Your persona</option>
-                </select>
-            </label>
-            <p class="persona-helper">AI personas shape the assistant. Your persona gives the model user-side context.</p>
-            <label class="field">
-                <span>Name</span>
-                <input id="personaName" placeholder="Persona name" required/>
-            </label>
-            <label class="field">
-                <span>Pronouns</span>
-                <input id="personaPronouns" placeholder="e.g. she/her, they/them"/>
-            </label>
-            <label class="field">
-                <span>Appearance</span>
-                <textarea id="personaAppearance" rows="2" placeholder="Describe their look"></textarea>
-            </label>
-            <label class="field">
-                <span>Background</span>
-                <textarea id="personaBackground" rows="2" placeholder="Backstory or origins"></textarea>
-            </label>
-            <label class="field">
-                <span>Details</span>
-                <textarea id="personaDetails" rows="3" placeholder="Personality traits, voice, quirks, goals"></textarea>
-            </label>
+            <div class="persona-form-intro">
+                <p class="persona-helper">AI personas shape the assistant. User personas add context for how replies should read you.</p>
+            </div>
+            <p id="personaFormNotice" class="status hidden"></p>
+            <div class="persona-form-grid">
+                <label class="field field-wide">
+                    <span>Persona for</span>
+                    <select id="personaType">
+                        <option value="assistant">AI persona</option>
+                        <option value="user">Your persona</option>
+                    </select>
+                </label>
+                <label class="field">
+                    <span>Persona name</span>
+                    <input id="personaName" placeholder="Persona name" required/>
+                </label>
+                <label class="field">
+                    <span>Persona pronouns</span>
+                    <input id="personaPronouns" placeholder="e.g. she/her, they/them"/>
+                </label>
+                <label class="field field-wide">
+                    <span>Appearance</span>
+                    <textarea id="personaAppearance" rows="3" placeholder="Describe their look"></textarea>
+                </label>
+                <label class="field field-wide">
+                    <span>Background</span>
+                    <textarea id="personaBackground" rows="3" placeholder="Backstory, history, role, or origins"></textarea>
+                </label>
+                <label class="field field-wide">
+                    <span>Details</span>
+                    <textarea id="personaDetails" rows="4" placeholder="Personality traits, voice, goals, quirks, boundaries, style"></textarea>
+                </label>
+            </div>
             <div class="persona-actions">
                 <button id="personaSave" type="submit" class="primary-action">Save persona</button>
             </div>
