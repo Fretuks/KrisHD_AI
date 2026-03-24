@@ -1,742 +1,445 @@
-const authDiv = document.getElementById("auth");
-const chatDiv = document.getElementById("chat");
-const authMsg = document.getElementById("authMsg");
-const messagesDiv = document.getElementById("messages");
+const $ = (id) => document.getElementById(id);
+const authDiv = $("auth"), chatDiv = $("chat"), authMsg = $("authMsg");
+const messagesDiv = $("messages"), emptyState = $("emptyState"), modelSelect = $("model");
+const loginForm = $("loginForm"), registerForm = $("registerForm"), msgInput = $("msgInput"), sendBtn = $("send");
+const loginUsernameInput = $("loginUsername"), loginPasswordInput = $("loginPassword");
+const registerUsernameInput = $("registerUsername"), registerPasswordInput = $("registerPassword");
+const loginSubmit = $("loginSubmit"), registerSubmit = $("registerSubmit");
+const chatList = $("chatList"), chatSearchInput = $("chatSearch"), newChatBtn = $("newChat");
+const renameChatBtn = $("renameChat"), clearChatBtn = $("clearChat"), exportChatBtn = $("exportChat");
+const activeChatTitle = $("activeChatTitle"), workspaceSubline = $("workspaceSubline"), sessionUser = $("sessionUser");
+const personaList = $("personaList"), userPersonaList = $("userPersonaList");
+const personaForm = $("personaForm"), personaFormTitle = $("personaFormTitle"), personaTypeSelect = $("personaType");
+const personaNameInput = $("personaName"), personaPronounsInput = $("personaPronouns"), personaAppearanceInput = $("personaAppearance");
+const personaBackgroundInput = $("personaBackground"), personaDetailsInput = $("personaDetails");
+const newPersonaBtn = $("newPersona"), newUserPersonaBtn = $("newUserPersona"), clearPersonaBtn = $("clearPersona"), clearUserPersonaBtn = $("clearUserPersona");
+const activePersonaStatus = $("activePersonaStatus"), activeUserPersonaStatus = $("activeUserPersonaStatus");
+const personaModal = $("personaModal"), personaCloseBtn = $("personaClose"), personaMenuButton = $("personaMenuButton"), personaPopover = $("personaPopover");
+const authScreens = document.querySelectorAll(".auth-screen"), toggleButtons = document.querySelectorAll(".auth-toggle .toggle");
+const themeNameTargets = document.querySelectorAll("[data-theme-name]"), themeLogoTargets = document.querySelectorAll("[data-theme-logo]");
 
-const loginForm = document.getElementById("loginForm");
-const registerForm = document.getElementById("registerForm");
-const loginUsernameInput = document.getElementById("loginUsername");
-const loginPasswordInput = document.getElementById("loginPassword");
-const registerUsernameInput = document.getElementById("registerUsername");
-const registerPasswordInput = document.getElementById("registerPassword");
-const loginSubmit = document.getElementById("loginSubmit");
-const registerSubmit = document.getElementById("registerSubmit");
-const msgInput = document.getElementById("msgInput");
-const sendBtn = document.getElementById("send");
-const authScreens = document.querySelectorAll(".auth-screen");
-const toggleButtons = document.querySelectorAll(".auth-toggle .toggle");
-const chatList = document.getElementById("chatList");
-const newChatBtn = document.getElementById("newChat");
-const renameChatBtn = document.getElementById("renameChat");
-const deleteChatBtn = document.getElementById("deleteChat");
-const activeChatTitle = document.getElementById("activeChatTitle");
-const personaList = document.getElementById("personaList");
-const userPersonaList = document.getElementById("userPersonaList");
-const personaForm = document.getElementById("personaForm");
-const personaFormTitle = document.getElementById("personaFormTitle");
-const personaTypeSelect = document.getElementById("personaType");
-const personaNameInput = document.getElementById("personaName");
-const personaPronounsInput = document.getElementById("personaPronouns");
-const personaAppearanceInput = document.getElementById("personaAppearance");
-const personaBackgroundInput = document.getElementById("personaBackground");
-const personaDetailsInput = document.getElementById("personaDetails");
-const newPersonaBtn = document.getElementById("newPersona");
-const newUserPersonaBtn = document.getElementById("newUserPersona");
-const clearPersonaBtn = document.getElementById("clearPersona");
-const clearUserPersonaBtn = document.getElementById("clearUserPersona");
-const personaCancelBtn = document.getElementById("personaCancel");
-const activePersonaStatus = document.getElementById("activePersonaStatus");
-const activeUserPersonaStatus = document.getElementById("activeUserPersonaStatus");
-const personaModal = document.getElementById("personaModal");
-const personaCloseBtn = document.getElementById("personaClose");
-const personaMenuButton = document.getElementById("personaMenuButton");
-const personaPopover = document.getElementById("personaPopover");
+let isProcessing = false, activeChatId = null, editingPersonaId = null, editingPersonaType = "assistant", currentUsername = "";
+let chatSessions = [], currentMessages = [], assistantPersonas = [], userPersonas = [];
+let activePersonaId = null, activeUserPersonaId = null, currentSummary = null, publishedPersonaIds = new Set();
 
-let isProcessing = false;
-let chatSessions = [];
-let activeChatId = null;
-let assistantPersonas = [];
-let userPersonas = [];
-let activePersonaId = null;
-let activeUserPersonaId = null;
-let editingPersonaId = null;
-let editingPersonaType = "assistant";
-let publishedPersonaIds = new Set();
-
-const displayModels = async () => {
-    const select = document.getElementById("model");
-
-    fetch("/models")
-        .then(response => response.json())
-        .then(data => {
-            select.innerHTML = "";
-
-            data.models.forEach(model => {
-                const option = document.createElement("option");
-                option.value = model.model;
-                option.textContent = model.name;
-                select.appendChild(option);
-            });
-        })
-        .catch(err => {
-            console.error("Failed to load models:", err);
-            select.innerHTML = `<option>Error loading models</option>`;
-        });
-}
+const themes = {
+    "fakegpt": {name: "FakeGPT", short: "FG"},
+    "fraud": {name: "Fraud", short: "FR"},
+    "germini": {name: "Germini", short: "GE"},
+    "slopilot": {name: "Slopilot", short: "SP"},
+    "beta-ai": {name: "Beta AI", short: "BA"},
+    "confusity": {name: "Confusity", short: "CF"}
+};
 
 async function request(url, data, method = "POST") {
     try {
-        const res = await fetch(url, {
-            method,
-            headers: {"Content-Type": "application/json"},
-            body: data ? JSON.stringify(data) : undefined
-        });
+        const res = await fetch(url, {method, headers: {"Content-Type": "application/json"}, body: data ? JSON.stringify(data) : undefined});
         return await res.json();
-    } catch (err) {
-        return {error: "Network error — please try again."};
+    } catch {
+        return {error: "Network error - please try again."};
     }
 }
+const get = (url) => request(url, null, "GET");
+const post = (url, data) => request(url, data, "POST");
+const put = (url, data) => request(url, data, "PUT");
+const del = (url) => request(url, null, "DELETE");
 
-async function post(url, data) {
-    return request(url, data, "POST");
-}
-
-async function get(url) {
-    try {
-        const res = await fetch(url);
-        return await res.json();
-    } catch (err) {
-        return {error: "Network error — please try again."};
-    }
-}
-
-function setAuthMessage(msg, state = "") {
-    authMsg.textContent = msg;
-    authMsg.className = state ? `status ${state}` : 'status';
-}
-
-function setMessageContent(element, content) {
+function setAuthMessage(message, state = "") { authMsg.textContent = message; authMsg.className = state ? `status ${state}` : "status"; }
+function setNotice(message, state = "") { return {message, state}; }
+function setMessageContent(el, content) {
     if (window.marked && window.DOMPurify) {
-        const rendered = marked.parse(content, {breaks: true});
-        element.innerHTML = DOMPurify.sanitize(rendered);
-        return;
+        el.innerHTML = DOMPurify.sanitize(marked.parse(content, {breaks: true}));
+    } else {
+        el.textContent = content;
     }
-    element.textContent = content;
 }
+function updateEmptyState() { emptyState.classList.toggle("visible", currentMessages.length === 0); }
+function getChatById(id) { return chatSessions.find((chat) => chat.id === id); }
 
-function addMessage(content, isUser = false, isLoading = false, saveToHistory = true) {
-    const msgDiv = document.createElement('div');
-    msgDiv.className = `msg ${isUser ? 'user' : 'bot'}${isLoading ? ' loading' : ''}`;
+function addMessage(content, isUser = false, isLoading = false) {
+    const msgDiv = document.createElement("div");
+    msgDiv.className = `msg ${isUser ? "user" : "bot"}${isLoading ? " loading" : ""}`;
     if (isLoading) {
         msgDiv.innerHTML = `
-             <div class="typing-indicator">
-                 <div class="typing-dot"></div>
-                 <div class="typing-dot"></div>
-                 <div class="typing-dot"></div>
-             </div>
-         `;
+            <div class="loading-shell" aria-live="polite" aria-label="Assistant is responding">
+                <div class="loading-bars">
+                    <span class="loading-bar"></span>
+                    <span class="loading-bar"></span>
+                    <span class="loading-bar"></span>
+                    <span class="loading-bar"></span>
+                </div>
+                <div class="loading-copy">
+                    <strong>Thinking</strong>
+                    <span>Building a response</span>
+                </div>
+            </div>`;
     } else {
-        const header = document.createElement('div');
-        header.className = 'msg-header';
-        header.textContent = isUser ? 'You' : 'DeepFake';
-        const body = document.createElement('div');
-        body.className = 'msg-content';
+        const header = document.createElement("div"), body = document.createElement("div");
+        header.className = "msg-header"; body.className = "msg-content";
+        header.textContent = isUser ? "You" : "Assistant";
         setMessageContent(body, content);
-        msgDiv.appendChild(header);
-        msgDiv.appendChild(body);
+        msgDiv.append(header, body);
     }
     messagesDiv.appendChild(msgDiv);
-    setTimeout(() => {
-        messagesDiv.scrollTop = messagesDiv.scrollHeight;
-    }, 100);
-
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
     return msgDiv;
 }
 
-function clearMessages() {
-    messagesDiv.innerHTML = '';
+function renderMessages() {
+    messagesDiv.innerHTML = "";
+    currentMessages.forEach((msg) => addMessage(msg.content, msg.role === "user"));
+    updateEmptyState();
+    updateChatActionState();
 }
 
-
-function getChatById(chatId) {
-    return chatSessions.find(chat => chat.id === chatId);
+function updateWorkspaceCopy() {
+    const activeChat = getChatById(activeChatId);
+    if (activeChatTitle) {
+        activeChatTitle.textContent = activeChat ? activeChat.title : "New chat";
+    }
+    if (sessionUser) {
+        sessionUser.textContent = currentUsername || "-";
+    }
 }
 
-function bumpChat(chatId) {
-    const index = chatSessions.findIndex(chat => chat.id === chatId);
-    if (index <= 0) return;
-    const [chat] = chatSessions.splice(index, 1);
-    chatSessions.unshift(chat);
-    renderChatList();
+function updateSummaryStats() {
+    return currentSummary;
+}
+
+function updateContextRail() {
+    return modelSelect?.selectedOptions[0]?.textContent || "";
+}
+
+function applyTheme(themeKey, persist = true) {
+    const nextTheme = themes[themeKey] ? themeKey : "fakegpt";
+    const theme = themes[nextTheme];
+    document.body.dataset.theme = nextTheme;
+    document.title = theme.name;
+    themeNameTargets.forEach((target) => { target.textContent = theme.name; });
+    themeLogoTargets.forEach((target) => { target.textContent = theme.short; });
+    if (persist) localStorage.setItem("krishd-theme", nextTheme);
+    updateWorkspaceCopy();
+    updateContextRail();
 }
 
 function updateChatActionState() {
     const hasChat = Boolean(activeChatId);
     renameChatBtn.disabled = !hasChat;
-    deleteChatBtn.disabled = !hasChat;
+    clearChatBtn.disabled = !hasChat;
+    exportChatBtn.disabled = !hasChat || currentMessages.length === 0;
 }
 
-
 function renderChatList() {
-    chatList.innerHTML = '';
-    if (!chatSessions.length) {
-        const empty = document.createElement('p');
-        empty.className = 'status';
-        empty.textContent = 'No chats yet. Start a new one!';
+    const query = chatSearchInput.value.trim().toLowerCase();
+    const filtered = chatSessions.filter((chat) => !query || chat.title.toLowerCase().includes(query));
+    chatList.innerHTML = "";
+    if (!filtered.length) {
+        const empty = document.createElement("p");
+        empty.className = "status";
+        empty.textContent = query ? "No chats match this search." : "No chats yet. Start a new one.";
         chatList.appendChild(empty);
         return;
     }
-    chatSessions.forEach(chat => {
-        const item = document.createElement('div');
-        item.className = `chat-item${chat.id === activeChatId ? ' active' : ''}`;
-        const title = document.createElement('span');
-        title.textContent = chat.title;
-        const actions = document.createElement('button');
-        actions.type = 'button';
-        actions.textContent = '✕';
-        actions.title = 'Delete chat';
-        actions.addEventListener('click', (event) => {
-            event.stopPropagation();
-            deleteChat(chat.id);
-        });
-        item.appendChild(title);
-        item.appendChild(actions);
-        item.addEventListener('click', () => setActiveChat(chat.id));
+    filtered.forEach((chat) => {
+        const item = document.createElement("div"), title = document.createElement("span"), remove = document.createElement("button");
+        item.className = `chat-item${chat.id === activeChatId ? " active" : ""}`;
+        title.textContent = chat.title; remove.type = "button"; remove.textContent = "Delete";
+        remove.addEventListener("click", async (event) => { event.stopPropagation(); await deleteChat(chat.id); });
+        item.append(title, remove);
+        item.addEventListener("click", () => setActiveChat(chat.id));
         chatList.appendChild(item);
     });
 }
 
-function updateActivePersonaStatus(personaItems, activeId, statusElement, emptyMessage, activePrefix) {
-    const activePersona = personaItems.find(persona => persona.id === activeId);
-    if (activePersona) {
-        statusElement.textContent = `${activePrefix}: ${activePersona.name}`;
-    } else {
-        statusElement.textContent = emptyMessage;
-    }
+function updateActivePersonaStatus(items, activeId, statusEl, emptyText, prefix) {
+    const active = items.find((persona) => persona.id === activeId);
+    statusEl.textContent = active ? `${prefix}: ${active.name}` : emptyText;
 }
 
 function setActivePersonaStatus() {
-    updateActivePersonaStatus(
-        assistantPersonas,
-        activePersonaId,
-        activePersonaStatus,
-        'No AI persona equipped.',
-        'AI persona equipped'
-    );
-    updateActivePersonaStatus(
-        userPersonas,
-        activeUserPersonaId,
-        activeUserPersonaStatus,
-        'No user persona set.',
-        'User persona active'
-    );
+    updateActivePersonaStatus(assistantPersonas, activePersonaId, activePersonaStatus, "No AI persona equipped.", "AI persona equipped");
+    updateActivePersonaStatus(userPersonas, activeUserPersonaId, activeUserPersonaStatus, "No user persona set.", "User persona active");
     clearPersonaBtn.disabled = !activePersonaId;
     clearUserPersonaBtn.disabled = !activeUserPersonaId;
+    updateContextRail();
 }
 
 function openPersonaForm(persona = null, personaType = "assistant") {
     closePersonaPopover();
     personaModal.classList.remove("hidden");
     if (persona) {
-        editingPersonaId = persona.id;
-        editingPersonaType = persona.persona_type || "assistant";
+        editingPersonaId = persona.id; editingPersonaType = persona.persona_type || "assistant";
         personaFormTitle.textContent = `Edit ${editingPersonaType === "user" ? "your persona" : "AI persona"}`;
-        personaTypeSelect.value = editingPersonaType;
-        personaTypeSelect.disabled = true;
-        personaNameInput.value = persona.name || "";
-        personaPronounsInput.value = persona.pronouns || "";
-        personaAppearanceInput.value = persona.appearance || "";
-        personaBackgroundInput.value = persona.background || "";
-        personaDetailsInput.value = persona.details || "";
+        personaTypeSelect.value = editingPersonaType; personaTypeSelect.disabled = true;
+        personaNameInput.value = persona.name || ""; personaPronounsInput.value = persona.pronouns || "";
+        personaAppearanceInput.value = persona.appearance || ""; personaBackgroundInput.value = persona.background || ""; personaDetailsInput.value = persona.details || "";
     } else {
-        editingPersonaId = null;
-        editingPersonaType = personaType;
+        editingPersonaId = null; editingPersonaType = personaType;
         personaFormTitle.textContent = `Create ${personaType === "user" ? "your persona" : "AI persona"}`;
-        personaTypeSelect.value = personaType;
-        personaTypeSelect.disabled = false;
-        personaNameInput.value = "";
-        personaPronounsInput.value = "";
-        personaAppearanceInput.value = "";
-        personaBackgroundInput.value = "";
-        personaDetailsInput.value = "";
+        personaTypeSelect.value = personaType; personaTypeSelect.disabled = false;
+        personaNameInput.value = ""; personaPronounsInput.value = ""; personaAppearanceInput.value = ""; personaBackgroundInput.value = ""; personaDetailsInput.value = "";
     }
-
     personaNameInput.focus();
 }
 
-function closePersonaForm() {
-    personaModal.classList.add("hidden");
-    editingPersonaId = null;
-    editingPersonaType = "assistant";
-    personaTypeSelect.disabled = false;
-}
+function closePersonaForm() { personaModal.classList.add("hidden"); editingPersonaId = null; editingPersonaType = "assistant"; personaTypeSelect.disabled = false; }
+function closePersonaPopover() { personaPopover.classList.add("hidden"); personaMenuButton.setAttribute("aria-expanded", "false"); }
 
-function renderPersonaList(personaItems, activeId, listElement, personaType) {
-    listElement.innerHTML = '';
-    if (!personaItems.length) {
-        const empty = document.createElement('p');
-        empty.className = 'status persona-status';
-        empty.textContent = 'No personas yet. Create one to get started.';
+function renderPersonaList(items, activeId, listElement, personaType) {
+    listElement.innerHTML = "";
+    if (!items.length) {
+        const empty = document.createElement("p");
+        empty.className = "status persona-status";
+        empty.textContent = "No personas yet. Create one to get started.";
         listElement.appendChild(empty);
         setActivePersonaStatus();
         return;
     }
-    personaItems.forEach(persona => {
-        const item = document.createElement('div');
-        item.className = `persona-item${persona.id === activeId ? ' active' : ''}`;
-        const titleRow = document.createElement('div');
-        titleRow.className = 'persona-title-row';
-        const title = document.createElement('h4');
-        title.textContent = persona.name;
-        const roleTag = document.createElement('span');
-        roleTag.className = `persona-role-tag ${personaType === "user" ? "user" : "ai"}`;
-        roleTag.textContent = personaType === "user" ? "You" : "AI";
-        titleRow.appendChild(title);
-        titleRow.appendChild(roleTag);
-        const meta = document.createElement('p');
-        meta.textContent = persona.pronouns ? `Pronouns: ${persona.pronouns}` : 'Pronouns: —';
-        const actions = document.createElement('div');
-        actions.className = 'persona-item-actions';
-
-        const equipBtn = document.createElement('button');
-        equipBtn.type = 'button';
-        const equipLabel = personaType === "user" ? "Equip as You" : "Equip as AI";
-        equipBtn.textContent = persona.id === activeId ? `${equipLabel} (Active)` : equipLabel;
-        equipBtn.disabled = persona.id === activeId;
-        equipBtn.addEventListener('click', () => equipPersona(persona.id, personaType));
-
-        const editBtn = document.createElement('button');
-        editBtn.type = 'button';
-        editBtn.textContent = 'Edit';
-        editBtn.addEventListener('click', () => openPersonaForm(persona));
-
-        const publishBtn = document.createElement('button');
-        publishBtn.type = 'button';
-        const isPublished = publishedPersonaIds.has(persona.id);
-        publishBtn.textContent = isPublished ? 'Update listing' : 'Publish';
-        publishBtn.addEventListener('click', () => publishPersona(persona.id));
-
-        if (isPublished) {
-            const unpublishBtn = document.createElement('button');
-            unpublishBtn.type = 'button';
-            unpublishBtn.textContent = 'Unpublish';
-            unpublishBtn.addEventListener('click', () => unpublishPersona(persona.id));
-            actions.appendChild(unpublishBtn);
+    items.forEach((persona) => {
+        const item = document.createElement("div"), titleRow = document.createElement("div"), title = document.createElement("h4");
+        const tag = document.createElement("span"), meta = document.createElement("p"), actions = document.createElement("div");
+        item.className = `persona-item${persona.id === activeId ? " active" : ""}`; titleRow.className = "persona-title-row"; actions.className = "persona-item-actions";
+        tag.className = `persona-role-tag ${personaType === "user" ? "user" : "ai"}`; tag.textContent = personaType === "user" ? "You" : "AI";
+        title.textContent = persona.name; meta.textContent = persona.pronouns ? `Pronouns: ${persona.pronouns}` : "Pronouns: n/a";
+        [["Equip", () => equipPersona(persona.id, personaType), persona.id === activeId],
+            ["Edit", () => openPersonaForm(persona), false],
+            [publishedPersonaIds.has(persona.id) ? "Update listing" : "Publish", () => publishPersona(persona.id), false],
+            ["Delete", () => deletePersona(persona.id), false]]
+            .forEach(([label, handler, disabled]) => {
+                const btn = document.createElement("button");
+                btn.type = "button"; btn.textContent = label; btn.disabled = disabled; btn.addEventListener("click", handler); actions.appendChild(btn);
+            });
+        if (publishedPersonaIds.has(persona.id)) {
+            const btn = document.createElement("button");
+            btn.type = "button"; btn.textContent = "Unpublish"; btn.addEventListener("click", () => unpublishPersona(persona.id)); actions.appendChild(btn);
         }
-
-        const deleteBtn = document.createElement('button');
-        deleteBtn.type = 'button';
-        deleteBtn.textContent = 'Delete';
-        deleteBtn.addEventListener('click', () => deletePersona(persona.id));
-
-        actions.appendChild(equipBtn);
-        actions.appendChild(editBtn);
-        actions.appendChild(publishBtn);
-        actions.appendChild(deleteBtn);
-
-        item.appendChild(titleRow);
-        item.appendChild(meta);
-        item.appendChild(actions);
-        listElement.appendChild(item);
+        titleRow.append(title, tag); item.append(titleRow, meta, actions); listElement.appendChild(item);
     });
     setActivePersonaStatus();
 }
 
+async function loadSummary() {
+    updateWorkspaceCopy();
+    return currentSummary;
+}
+
 async function loadPersonas() {
-    const res = await get('/personas');
-    if (res.error) return;
-    assistantPersonas = res.assistantPersonas || [];
-    userPersonas = res.userPersonas || [];
-    activePersonaId = res.activePersonaId || null;
-    activeUserPersonaId = res.activeUserPersonaId || null;
-    publishedPersonaIds = new Set(res.publishedPersonaIds || []);
+    const res = await get("/personas");
+    if (res.error) return setNotice(res.error, "error");
+    assistantPersonas = res.assistantPersonas || []; userPersonas = res.userPersonas || [];
+    activePersonaId = res.activePersonaId || null; activeUserPersonaId = res.activeUserPersonaId || null; publishedPersonaIds = new Set(res.publishedPersonaIds || []);
     renderPersonaList(assistantPersonas, activePersonaId, personaList, "assistant");
     renderPersonaList(userPersonas, activeUserPersonaId, userPersonaList, "user");
+    updateWorkspaceCopy();
 }
 
-async function equipPersona(personaId, personaType) {
-    const endpoint = personaType === "user"
-        ? `/personas/${personaId}/equip-user`
-        : `/personas/${personaId}/equip`;
-    const res = await post(endpoint, {});
-    if (res.error) return;
-    if (personaType === "user") {
-        activeUserPersonaId = personaId;
-    } else {
-        activePersonaId = personaId;
-    }
+async function equipPersona(id, type) {
+    const res = await post(type === "user" ? `/personas/${id}/equip-user` : `/personas/${id}/equip`, {});
+    if (res.error) return setNotice(res.error, "error");
+    if (type === "user") activeUserPersonaId = id; else activePersonaId = id;
     renderPersonaList(assistantPersonas, activePersonaId, personaList, "assistant");
     renderPersonaList(userPersonas, activeUserPersonaId, userPersonaList, "user");
+    setNotice(type === "user" ? "User persona updated." : "AI persona updated.", "success");
 }
 
-async function clearPersona(personaType) {
-    const endpoint = personaType === "user" ? '/personas/user/clear' : '/personas/clear';
-    const res = await post(endpoint, {});
-    if (res.error) return;
-    if (personaType === "user") {
-        activeUserPersonaId = null;
-    } else {
-        activePersonaId = null;
-    }
+async function clearPersona(type) {
+    const res = await post(type === "user" ? "/personas/user/clear" : "/personas/clear", {});
+    if (res.error) return setNotice(res.error, "error");
+    if (type === "user") activeUserPersonaId = null; else activePersonaId = null;
     renderPersonaList(assistantPersonas, activePersonaId, personaList, "assistant");
     renderPersonaList(userPersonas, activeUserPersonaId, userPersonaList, "user");
+    setNotice("Persona cleared.", "success");
 }
 
 async function savePersona() {
-    const payload = {
-        personaType: personaTypeSelect.value,
-        name: personaNameInput.value.trim(),
-        pronouns: personaPronounsInput.value.trim(),
-        appearance: personaAppearanceInput.value.trim(),
-        background: personaBackgroundInput.value.trim(),
-        details: personaDetailsInput.value.trim()
-    };
-    if (!payload.name) return;
-    let res;
-    if (editingPersonaId) {
-        res = await request(`/personas/${editingPersonaId}`, payload, "PUT");
-    } else {
-        res = await post('/personas', payload);
-    }
-    if (res.error) return;
-    await loadPersonas();
-    closePersonaForm();
+    const payload = {personaType: personaTypeSelect.value, name: personaNameInput.value.trim(), pronouns: personaPronounsInput.value.trim(), appearance: personaAppearanceInput.value.trim(), background: personaBackgroundInput.value.trim(), details: personaDetailsInput.value.trim()};
+    if (!payload.name) return setNotice("Persona name is required.", "error");
+    const res = editingPersonaId ? await put(`/personas/${editingPersonaId}`, payload) : await post("/personas", payload);
+    if (res.error) return setNotice(res.error, "error");
+    const wasEditing = Boolean(editingPersonaId);
+    await loadPersonas(); closePersonaForm(); setNotice(wasEditing ? "Persona updated." : "Persona created.", "success");
 }
 
-async function deletePersona(personaId) {
-    const persona = assistantPersonas.find(item => item.id === personaId)
-        || userPersonas.find(item => item.id === personaId);
-    if (!persona) return;
-    const confirmDelete = confirm(`Delete persona "${persona.name}"?`);
-    if (!confirmDelete) return;
-    const res = await request(`/personas/${personaId}`, null, "DELETE");
-    if (res.error) return;
-    await loadPersonas();
+async function deletePersona(id) {
+    const persona = assistantPersonas.find((item) => item.id === id) || userPersonas.find((item) => item.id === id);
+    if (!persona || !window.confirm(`Delete persona "${persona.name}"?`)) return;
+    const res = await del(`/personas/${id}`);
+    if (res.error) return setNotice(res.error, "error");
+    await loadPersonas(); setNotice("Persona deleted.", "success");
 }
-
-async function publishPersona(personaId) {
-    const res = await post(`/personas/${personaId}/publish`, {});
-    if (res.error) return;
-    await loadPersonas();
-}
-
-async function unpublishPersona(personaId) {
-    const res = await post(`/personas/${personaId}/unpublish`, {});
-    if (res.error) return;
-    await loadPersonas();
-}
+async function publishPersona(id) { const res = await post(`/personas/${id}/publish`, {}); if (res.error) return setNotice(res.error, "error"); await loadPersonas(); setNotice("Persona published.", "success"); }
+async function unpublishPersona(id) { const res = await post(`/personas/${id}/unpublish`, {}); if (res.error) return setNotice(res.error, "error"); await loadPersonas(); setNotice("Persona unpublished.", "success"); }
 
 function setLoadingState(loading) {
-    isProcessing = loading;
-    sendBtn.disabled = loading;
-    msgInput.disabled = loading;
-
-    if (loading) {
-        sendBtn.classList.add('loading');
-        msgInput.placeholder = "Processing response...";
-    } else {
-        sendBtn.classList.remove('loading');
-        msgInput.placeholder = "Type your message...";
-    }
+    isProcessing = loading; sendBtn.disabled = loading; msgInput.disabled = loading;
+    sendBtn.classList.toggle("loading", loading); msgInput.placeholder = loading ? "Processing response..." : "Type your message...";
 }
 
 function showAuthScreen(target) {
-    authScreens.forEach(screen => {
-        screen.classList.toggle('active', screen.id === `${target}Screen`);
-    });
-    toggleButtons.forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.target === target);
-    });
-    setAuthMessage('', '');
+    authScreens.forEach((screen) => screen.classList.toggle("active", screen.id === `${target}Screen`));
+    toggleButtons.forEach((btn) => btn.classList.toggle("active", btn.dataset.target === target));
+    setAuthMessage("");
 }
 
-function setActiveChat(chatId) {
-    activeChatId = chatId;
-    const chat = getChatById(chatId);
-    activeChatTitle.textContent = chat ? chat.title : 'New chat';
-    updateChatActionState();
-    renderChatList();
-    if (chatId) {
-        loadChatMessages(chatId);
-    } else {
-        clearMessages();
-    }
+async function setActiveChat(id) {
+    activeChatId = id;
+    updateWorkspaceCopy(); renderChatList(); updateChatActionState();
+    const res = await get(`/chats/${id}/messages`);
+    if (res.error) return setNotice(res.error, "error");
+    currentMessages = res.messages || []; renderMessages();
 }
-
 
 async function loadChatSessions() {
-    const res = await get('/chats');
-    if (res.error) return;
-    chatSessions = res.chats || [];
-    renderChatList();
-    const activeExists = chatSessions.find(chat => chat.id === activeChatId);
-    if (activeExists) {
-        setActiveChat(activeChatId);
-        return;
-    }
-    if (!chatSessions.length) {
-        await createNewChat();
-        return;
-    }
-    setActiveChat(chatSessions[0].id);
-}
-
-async function loadChatMessages(chatId) {
-    const res = await get(`/chats/${chatId}/messages`);
-    if (res.error) return;
-    clearMessages();
-    (res.messages || []).forEach(msg => {
-        addMessage(msg.content, msg.role === 'user', false, false);
-
-    });
-    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    const res = await get("/chats");
+    if (res.error) return setNotice(res.error, "error");
+    chatSessions = res.chats || []; renderChatList();
+    if (chatSessions.length) return setActiveChat(activeChatId && getChatById(activeChatId) ? activeChatId : chatSessions[0].id);
+    return createNewChat();
 }
 
 async function createNewChat() {
-    const res = await post('/chats', {title: 'New chat'});
-    if (res.error || !res.chat) return;
-    chatSessions.unshift(res.chat);
-    setActiveChat(res.chat.id);
-    renderChatList();
+    const res = await post("/chats", {title: "New chat"});
+    if (res.error || !res.chat) return setNotice(res.error || "Unable to create chat.", "error");
+    chatSessions.unshift(res.chat); await loadSummary(); renderChatList(); await setActiveChat(res.chat.id); setNotice("New chat created.", "success");
 }
 
-async function renameChat(chatId) {
-    const chat = getChatById(chatId);
-    if (!chat) return;
-    const nextTitle = prompt('Rename chat', chat.title);
-    if (!nextTitle) return;
-    const trimmedTitle = nextTitle.trim();
-    if (!trimmedTitle) return;
-    const res = await request(`/chats/${chatId}`, {title: trimmedTitle}, "PUT");
-    if (res.error) return;
-    chat.title = trimmedTitle;
-    activeChatTitle.textContent = trimmedTitle;
-    renderChatList();
+async function renameChat(id) {
+    const chat = getChatById(id), nextTitle = chat ? window.prompt("Rename chat", chat.title) : "";
+    const title = (nextTitle || "").trim();
+    if (!chat || !title) return;
+    const res = await put(`/chats/${id}`, {title});
+    if (res.error) return setNotice(res.error, "error");
+    chat.title = title; updateWorkspaceCopy(); renderChatList(); setNotice("Chat renamed.", "success");
 }
 
+async function clearChat(id) {
+    const chat = getChatById(id);
+    if (!chat || !window.confirm(`Clear all messages in "${chat.title}"?`)) return;
+    const res = await post(`/chats/${id}/clear`, {});
+    if (res.error) return setNotice(res.error, "error");
+    currentMessages = []; renderMessages(); await loadSummary(); setNotice("Chat cleared.", "success");
+}
 
-async function deleteChat(chatId) {
-    const chat = getChatById(chatId);
-    if (!chat) return;
-    const confirmDelete = confirm(`Delete "${chat.title}"? This cannot be undone.`);
-    if (!confirmDelete) return;
-    const res = await request(`/chats/${chatId}`, null, "DELETE");
-    if (res.error) return;
-    chatSessions = chatSessions.filter(item => item.id !== chatId);
-    if (activeChatId === chatId) {
-        if (chatSessions.length) {
-            setActiveChat(chatSessions[0].id);
-        } else {
-            activeChatId = null;
-            await createNewChat();
-        }
+function exportCurrentChat() {
+    const chat = getChatById(activeChatId);
+    if (!chat || !currentMessages.length) return;
+    const lines = [`Chat: ${chat.title}`, `Exported: ${new Date().toISOString()}`, ""];
+    currentMessages.forEach((msg) => { lines.push(`${msg.role === "user" ? "You" : "Assistant"}:`); lines.push(msg.content, ""); });
+    const blob = new Blob([lines.join("\n")], {type: "text/plain;charset=utf-8"}), url = URL.createObjectURL(blob), link = document.createElement("a");
+    link.href = url; link.download = `${(chat.title.replace(/[^a-z0-9-_]+/gi, "-").replace(/^-+|-+$/g, "") || "chat")}.txt`;
+    document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(url); setNotice("Chat exported.", "success");
+}
+
+async function deleteChat(id) {
+    const chat = getChatById(id);
+    if (!chat || !window.confirm(`Delete "${chat.title}"? This cannot be undone.`)) return;
+    const res = await del(`/chats/${id}`);
+    if (res.error) return setNotice(res.error, "error");
+    chatSessions = chatSessions.filter((item) => item.id !== id);
+    if (activeChatId === id) { activeChatId = null; currentMessages = []; renderMessages(); }
+    await loadSummary(); renderChatList();
+    if (chatSessions.length) await setActiveChat(chatSessions[0].id); else await createNewChat();
+    setNotice("Chat deleted.", "success");
+}
+
+async function displayModels() {
+    const res = await get("/models");
+    if (res.error || !Array.isArray(res.models)) {
+        modelSelect.innerHTML = "<option>Error loading models</option>";
+        updateContextRail();
+        return setNotice("Models could not be loaded.", "error");
     }
-    renderChatList();
+    modelSelect.innerHTML = "";
+    res.models.forEach((model, index) => {
+        const option = document.createElement("option");
+        option.value = model.model; option.textContent = model.name; option.selected = index === 0; modelSelect.appendChild(option);
+    });
+    updateContextRail();
 }
 
 async function checkSession() {
-    const res = await get('/session');
-    if (res.user) {
-        authDiv.style.display = "none";
-        chatDiv.style.display = "block";
-        await loadChatSessions();
-        await loadPersonas();
-        msgInput.focus();
-        return true;
-    }
-    return false;
-}
-
-async function loadServerChat() {
-    await loadChatSessions();
-    await loadPersonas();
+    const res = await get("/session");
+    if (!res.user) return false;
+    currentUsername = res.user; authDiv.style.display = "none"; chatDiv.style.display = "block";
+    await Promise.all([displayModels(), loadSummary(), loadChatSessions(), loadPersonas()]);
+    msgInput.focus(); return true;
 }
 
 async function handleAuth(endpoint, credentials) {
-    const {username, password} = credentials;
-    const submitBtn = endpoint === "login" ? loginSubmit : registerSubmit;
-
-    if (!username || !password) {
-        setAuthMessage("Please enter both username and password.", 'error');
-        return;
-    }
-
-    submitBtn.disabled = true;
-    setAuthMessage("Processing...", '');
-
+    const {username, password} = credentials, submitBtn = endpoint === "login" ? loginSubmit : registerSubmit;
+    if (!username || !password) return setAuthMessage("Please enter both username and password.", "error");
+    submitBtn.disabled = true; setAuthMessage("Processing...");
     const res = await post(`/${endpoint}`, {username, password});
-
     submitBtn.disabled = false;
-
-    if (res.error) {
-        setAuthMessage(res.error, 'error');
+    if (res.error) return setAuthMessage(res.error, "error");
+    if (endpoint === "login") {
+        currentUsername = username; authDiv.style.display = "none"; chatDiv.style.display = "block";
+        await Promise.all([displayModels(), loadSummary(), loadChatSessions(), loadPersonas()]);
+        setNotice("Ready.", "success"); msgInput.focus();
     } else {
-        if (endpoint === "login") {
-            setAuthMessage("Login successful! Redirecting to chat...", 'success');
-            authDiv.style.display = "none";
-            chatDiv.style.display = "block";
-            await loadServerChat();
-            msgInput.focus();
-        } else {
-            setAuthMessage("Registration successful — you can now log in!", 'success');
-            showAuthScreen('login');
-            loginUsernameInput.value = username;
-            loginPasswordInput.focus();
-        }
+        setAuthMessage("Registration successful. You can now log in.", "success");
+        showAuthScreen("login"); loginUsernameInput.value = username; loginPasswordInput.focus();
     }
 }
 
 async function sendMessage() {
     if (isProcessing) return;
-    const msg = msgInput.value.trim();
-    if (!msg) return;
-    if (!activeChatId) {
-        await createNewChat();
-    }
+    const message = msgInput.value.trim();
+    if (!message) return;
+    if (!activeChatId) await createNewChat();
     const currentChat = getChatById(activeChatId);
-    if (currentChat && currentChat.title === 'New chat') {
-        const autoTitle = msg.length > 40 ? `${msg.slice(0, 40)}…` : msg;
-        currentChat.title = autoTitle;
-        activeChatTitle.textContent = autoTitle;
-        renderChatList();
-        await request(`/chats/${activeChatId}`, {title: autoTitle}, "PUT");
+    if (currentChat && currentChat.title === "New chat") {
+        const autoTitle = message.length > 40 ? `${message.slice(0, 40)}...` : message;
+        currentChat.title = autoTitle; updateWorkspaceCopy(); renderChatList(); await put(`/chats/${activeChatId}`, {title: autoTitle});
     }
-    addMessage(msg, true);
-    msgInput.value = "";
-    msgInput.style.height = 'auto';
-    setLoadingState(true);
-    const loadingMsg = addMessage('', false, true, false);
+    currentMessages.push({role: "user", content: message}); addMessage(message, true); updateEmptyState(); updateChatActionState();
+    msgInput.value = ""; msgInput.style.height = "auto"; setLoadingState(true); setNotice("Generating reply...");
+    const loadingMsg = addMessage("", false, true);
     try {
-        const model = document.getElementById("model").value;
-        const res = await post("/chat", {message: msg, model, chatId: activeChatId});
-        if (messagesDiv.contains(loadingMsg)) {
-            messagesDiv.removeChild(loadingMsg);
-        }
+        const res = await post("/chat", {message, model: modelSelect.value, chatId: activeChatId});
+        if (messagesDiv.contains(loadingMsg)) messagesDiv.removeChild(loadingMsg);
         if (res.reply) {
-            addMessage(res.reply, false);
-            bumpChat(activeChatId);
+            currentMessages.push({role: "bot", content: res.reply}); addMessage(res.reply); await loadSummary(); setNotice("Reply received.", "success");
         } else {
-            addMessage(`[Error: ${res.error}]`, false);
+            addMessage(`[Error: ${res.error}]`); setNotice(res.error || "Failed to generate reply.", "error");
         }
-    } catch (error) {
-        if (messagesDiv.contains(loadingMsg)) {
-            messagesDiv.removeChild(loadingMsg);
-        }
-        addMessage(`[Error: Network error]`, false);
+    } catch {
+        if (messagesDiv.contains(loadingMsg)) messagesDiv.removeChild(loadingMsg);
+        addMessage("[Error: Network error]"); setNotice("Network error while sending message.", "error");
     } finally {
-        setLoadingState(false);
-        msgInput.focus();
+        setLoadingState(false); msgInput.focus(); updateChatActionState();
     }
-}
-
-toggleButtons.forEach(btn => {
-    btn.addEventListener('click', () => showAuthScreen(btn.dataset.target));
-});
-
-loginForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-    handleAuth("login", {
-        username: loginUsernameInput.value.trim(),
-        password: loginPasswordInput.value.trim()
-    });
-});
-
-registerForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-    handleAuth("register", {
-        username: registerUsernameInput.value.trim(),
-        password: registerPasswordInput.value.trim()
-    });
-});
-
-document.getElementById("logout").onclick = async () => {
-    await post("/logout", {});
-    chatDiv.style.display = "none";
-    authDiv.style.display = "grid";
-    clearMessages();
-    chatSessions = [];
-    activeChatId = null;
-    assistantPersonas = [];
-    userPersonas = [];
-    activePersonaId = null;
-    activeUserPersonaId = null;
-    publishedPersonaIds = new Set();
-    setAuthMessage("Logged out.", 'success');
-    showAuthScreen('login');
-    loginUsernameInput.value = "";
-    loginPasswordInput.value = "";
-};
-
-sendBtn.onclick = sendMessage;
-
-msgInput.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        sendMessage();
-    }
-});
-
-newChatBtn.addEventListener('click', () => createNewChat());
-
-renameChatBtn.addEventListener('click', () => {
-    if (activeChatId) {
-        renameChat(activeChatId);
-    }
-});
-
-deleteChatBtn.addEventListener('click', () => {
-    if (activeChatId) {
-        deleteChat(activeChatId);
-    }
-});
-
-msgInput.addEventListener('input', function () {
-    this.style.height = 'auto';
-    this.style.height = Math.min(this.scrollHeight, 120) + 'px';
-});
-
-newPersonaBtn.addEventListener('click', () => openPersonaForm());
-
-newUserPersonaBtn.addEventListener('click', () => openPersonaForm(null, "user"));
-
-clearPersonaBtn.addEventListener('click', () => clearPersona("assistant"));
-
-clearUserPersonaBtn.addEventListener('click', () => clearPersona("user"));
-
-personaForm.addEventListener('submit', (event) => {
-    event.preventDefault();
-    savePersona();
-});
-
-personaCloseBtn.addEventListener("click", closePersonaForm);
-
-personaModal.addEventListener("click", (e) => {
-    if (e.target === personaModal) closePersonaForm();
-});
-
-function closePersonaPopover() {
-    personaPopover.classList.add("hidden");
-    personaMenuButton.setAttribute("aria-expanded", "false");
 }
 
 function togglePersonaPopover(event) {
     event.stopPropagation();
     const isHidden = personaPopover.classList.contains("hidden");
-    if (isHidden) {
-        personaPopover.classList.remove("hidden");
-        personaMenuButton.setAttribute("aria-expanded", "true");
-    } else {
-        closePersonaPopover();
-    }
+    personaPopover.classList.toggle("hidden", !isHidden);
+    personaMenuButton.setAttribute("aria-expanded", String(isHidden));
 }
 
-personaMenuButton.addEventListener("click", togglePersonaPopover);
-
-personaPopover.addEventListener("click", (event) => {
-    event.stopPropagation();
+toggleButtons.forEach((btn) => btn.addEventListener("click", () => showAuthScreen(btn.dataset.target)));
+loginForm.addEventListener("submit", (event) => { event.preventDefault(); handleAuth("login", {username: loginUsernameInput.value.trim(), password: loginPasswordInput.value.trim()}); });
+registerForm.addEventListener("submit", (event) => { event.preventDefault(); handleAuth("register", {username: registerUsernameInput.value.trim(), password: registerPasswordInput.value.trim()}); });
+$("logout").addEventListener("click", async () => {
+    await post("/logout", {}); chatDiv.style.display = "none"; authDiv.style.display = "grid";
+    activeChatId = null; currentUsername = ""; currentSummary = null; chatSessions = []; currentMessages = []; assistantPersonas = []; userPersonas = [];
+    activePersonaId = null; activeUserPersonaId = null; publishedPersonaIds = new Set(); messagesDiv.innerHTML = ""; renderChatList(); updateEmptyState(); updateChatActionState();
+    showAuthScreen("login"); setAuthMessage("Logged out.", "success"); setNotice("Ready.");
 });
-
-document.addEventListener("click", () => {
-    closePersonaPopover();
-});
-
-document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") {
-        closePersonaPopover();
-    }
-});
-
-window.addEventListener('load', () => {
-    checkSession();
-    displayModels();
+sendBtn.addEventListener("click", sendMessage);
+msgInput.addEventListener("keydown", (event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); sendMessage(); } });
+msgInput.addEventListener("input", function () { this.style.height = "auto"; this.style.height = `${Math.min(this.scrollHeight, 180)}px`; });
+newChatBtn.addEventListener("click", createNewChat); renameChatBtn.addEventListener("click", () => activeChatId && renameChat(activeChatId));
+clearChatBtn.addEventListener("click", () => activeChatId && clearChat(activeChatId)); exportChatBtn.addEventListener("click", exportCurrentChat);
+chatSearchInput.addEventListener("input", renderChatList); modelSelect.addEventListener("change", updateContextRail);
+newPersonaBtn.addEventListener("click", () => openPersonaForm()); newUserPersonaBtn.addEventListener("click", () => openPersonaForm(null, "user"));
+clearPersonaBtn.addEventListener("click", () => clearPersona("assistant")); clearUserPersonaBtn.addEventListener("click", () => clearPersona("user"));
+personaForm.addEventListener("submit", (event) => { event.preventDefault(); savePersona(); }); personaCloseBtn.addEventListener("click", closePersonaForm);
+personaModal.addEventListener("click", (event) => { if (event.target === personaModal) closePersonaForm(); });
+personaMenuButton.addEventListener("click", togglePersonaPopover); personaPopover.addEventListener("click", (event) => event.stopPropagation()); document.addEventListener("click", closePersonaPopover);
+document.addEventListener("keydown", (event) => { if (event.key === "Escape") { closePersonaPopover(); closePersonaForm(); } });
+window.addEventListener("load", async () => {
+    applyTheme(localStorage.getItem("krishd-theme") || "fakegpt", false);
+    setNotice("Ready."); updateEmptyState(); updateChatActionState(); await checkSession();
 });

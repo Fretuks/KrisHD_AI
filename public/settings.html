@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <title>Settings</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+<div class="settings-shell card">
+    <header class="market-header market-header-simple">
+        <div>
+            <p class="eyebrow">Settings</p>
+            <h1>Preferences</h1>
+            <p class="subtitle">Manage account details and appearance.</p>
+        </div>
+        <div class="market-header-actions">
+            <a href="/" class="secondary-action">Back to chat</a>
+            <a href="/market" class="secondary-action">Persona Market</a>
+        </div>
+    </header>
+
+    <p id="settingsNotice" class="status">Loading settings...</p>
+
+    <section class="settings-layout">
+        <aside class="settings-nav" aria-label="Settings sections">
+            <button class="settings-nav-item active" type="button" data-settings-view="personal">Personal</button>
+            <button class="settings-nav-item" type="button" data-settings-view="design">Design</button>
+        </aside>
+
+        <div class="settings-content">
+            <section class="settings-view active" data-settings-panel="personal">
+                <div class="settings-panel">
+                    <div class="settings-section-header">
+                        <div>
+                            <p class="eyebrow">Profile</p>
+                            <h2>Username</h2>
+                        </div>
+                    </div>
+                    <form id="usernameForm" class="settings-form-stack">
+                        <label class="field">
+                            <span>Current username</span>
+                            <input id="currentUsername" readonly/>
+                        </label>
+                        <label class="field">
+                            <span>New username</span>
+                            <input id="newUsername" autocomplete="username"/>
+                        </label>
+                        <label class="field">
+                            <span>Current password</span>
+                            <input id="usernamePassword" type="password" autocomplete="current-password"/>
+                        </label>
+                        <button id="saveUsername" type="submit">Save username</button>
+                    </form>
+                </div>
+
+                <div class="settings-panel">
+                    <div class="settings-section-header">
+                        <div>
+                            <p class="eyebrow">Security</p>
+                            <h2>Password</h2>
+                        </div>
+                    </div>
+                    <form id="passwordForm" class="settings-form-stack">
+                        <label class="field">
+                            <span>Current password</span>
+                            <input id="currentPassword" type="password" autocomplete="current-password"/>
+                        </label>
+                        <label class="field">
+                            <span>New password</span>
+                            <input id="newPassword" type="password" autocomplete="new-password"/>
+                        </label>
+                        <label class="field">
+                            <span>Repeat new password</span>
+                            <input id="repeatPassword" type="password" autocomplete="new-password"/>
+                        </label>
+                        <button id="savePassword" type="submit">Save password</button>
+                    </form>
+                </div>
+            </section>
+
+            <section class="settings-view" data-settings-panel="design">
+                <div class="settings-panel settings-panel-compact">
+                    <div class="settings-section-header">
+                        <div>
+                            <p class="eyebrow">Appearance</p>
+                            <h2>Theme</h2>
+                            <p class="subtitle">Themes are only changed here.</p>
+                        </div>
+                    </div>
+                    <div class="settings-theme-row">
+                        <label class="field">
+                            <span>Theme</span>
+                            <select id="settingsThemeSelect">
+                                <option value="fakegpt">FakeGPT</option>
+                                <option value="fraud">Fraud</option>
+                                <option value="germini">Germini</option>
+                                <option value="slopilot">Slopilot</option>
+                                <option value="beta-ai">Beta AI</option>
+                                <option value="confusity">Confusity</option>
+                            </select>
+                        </label>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </section>
+</div>
+<script src="settings.js" defer></script>
+</body>
+</html>

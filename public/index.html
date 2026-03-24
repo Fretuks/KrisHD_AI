@@ -2,122 +2,151 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8"/>
-    <title>DeepFake</title>
+    <title>FakeGPT</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
 <body>
 <div class="app-shell">
-    <div id="auth" class="card">
-        <div class="brand">
-            <div class="logo">DF</div>
-            <div>
-                <p class="eyebrow">Best AI chat in the big 2026</p>
-                <h1>Welcome to DeepFake</h1>
-                <p class="subtitle">Log in to continue your conversation or create an account to get started.</p>
+    <section id="auth" class="card auth-card auth-card-compact">
+        <div class="auth-hero auth-hero-compact">
+            <div class="brand">
+                <div class="logo" data-theme-logo>FG</div>
+                <div>
+                    <p class="eyebrow">Private chat</p>
+                    <h1 data-theme-name>FakeGPT</h1>
+                </div>
+            </div>
+            <div class="hero-grid">
+                <article class="hero-panel">
+                    <p>Log in to continue your chats. Personas, shared presets, and theme changes are available after sign-in.</p>
+                </article>
             </div>
         </div>
 
-        <div class="auth-toggle">
-            <button class="toggle active" data-target="login">Login</button>
-            <button class="toggle" data-target="register">Register</button>
-        </div>
+        <div class="auth-panel">
+            <div class="auth-toggle">
+                <button class="toggle active" data-target="login">Login</button>
+                <button class="toggle" data-target="register">Register</button>
+            </div>
 
-        <div id="loginScreen" class="auth-screen active">
-            <form id="loginForm" class="auth-form">
-                <label class="field">
-                    <span>Username</span>
-                    <input id="loginUsername" placeholder="Enter your username" autocomplete="username"/>
-                </label>
-                <label class="field">
-                    <span>Password</span>
-                    <input id="loginPassword" type="password" placeholder="Enter your password"
-                           autocomplete="current-password"/>
-                </label>
-                <button id="loginSubmit" type="submit" class="primary-action">Sign in</button>
-            </form>
-        </div>
+            <div id="loginScreen" class="auth-screen active">
+                <form id="loginForm" class="auth-form">
+                    <label class="field">
+                        <span>Username</span>
+                        <input id="loginUsername" placeholder="Enter your username" autocomplete="username"/>
+                    </label>
+                    <label class="field">
+                        <span>Password</span>
+                        <input id="loginPassword" type="password" placeholder="Enter your password" autocomplete="current-password"/>
+                    </label>
+                    <button id="loginSubmit" type="submit" class="primary-action">Sign in</button>
+                </form>
+            </div>
 
-        <div id="registerScreen" class="auth-screen">
-            <form id="registerForm" class="auth-form">
-                <label class="field">
-                    <span>Create username</span>
-                    <input id="registerUsername" placeholder="Choose a username" autocomplete="new-username"/>
-                </label>
-                <label class="field">
-                    <span>Create password</span>
-                    <input id="registerPassword" type="password" placeholder="Create a password"
-                           autocomplete="new-password"/>
-                </label>
-                <div class="consent-container">
-                    <input type="checkbox" id="consentCheckbox" required/>
-                    <label for="consentCheckbox">
-                        I agree to the
-                        <a href="/tos.html" target="_blank">Terms of Service</a> and
-                        <a href="/privacy.html" target="_blank">Privacy Policy</a>.
+            <div id="registerScreen" class="auth-screen">
+                <form id="registerForm" class="auth-form">
+                    <label class="field">
+                        <span>Create username</span>
+                        <input id="registerUsername" placeholder="Choose a username" autocomplete="new-username"/>
+                    </label>
+                    <label class="field">
+                        <span>Create password</span>
+                        <input id="registerPassword" type="password" placeholder="Create a password" autocomplete="new-password"/>
+                    </label>
+                    <div class="consent-container">
+                        <input type="checkbox" id="consentCheckbox" required/>
+                        <label for="consentCheckbox">
+                            I agree to the
+                            <a href="/tos.html" target="_blank">Terms of Service</a> and
+                            <a href="/privacy.html" target="_blank">Privacy Policy</a>.
+                        </label>
+                    </div>
+                    <button id="registerSubmit" type="submit" class="primary-action">Create account</button>
+                </form>
+            </div>
+
+            <p id="authMsg" class="status"></p>
+        </div>
+    </section>
+
+    <section id="chat" class="card chat-card chat-focus-card" style="display:none;">
+        <div class="chat-layout chat-layout-focus">
+            <aside class="chat-sidebar">
+                <div class="sidebar-top">
+                    <div class="sidebar-header">
+                        <div>
+                            <p class="eyebrow">Chats</p>
+                            <h2>Saved threads</h2>
+                        </div>
+                        <button id="newChat" class="secondary-action" type="button">New</button>
+                    </div>
+                    <label class="field compact-field">
+                        <span>Search</span>
+                        <input id="chatSearch" type="search" placeholder="Filter chat titles"/>
                     </label>
                 </div>
-
-                <button id="registerSubmit" type="submit" class="primary-action">Create account</button>
-            </form>
-        </div>
-
-        <p id="authMsg" class="status"></p>
-    </div>
-
-    <div id="chat" class="card" style="display:none;">
-        <div class="chat-layout">
-            <aside class="chat-sidebar">
-                <div class="sidebar-header">
-                    <div>
-                        <p class="eyebrow">Conversations</p>
-                        <h2>Chats</h2>
-                    </div>
-                    <button id="newChat" class="secondary-action">New</button>
-                </div>
                 <div id="chatList" class="chat-list"></div>
+                <div class="sidebar-footer sidebar-footer-stack">
+                    <a href="/market" class="secondary-action">Persona Market</a>
+                    <a href="/settings" class="secondary-action">Settings</a>
+                    <div class="session-chip">
+                        <span class="session-chip-label">Signed in as</span>
+                        <strong id="sessionUser">-</strong>
+                    </div>
+                    <button id="logout" type="button">Logout</button>
+                </div>
             </aside>
-            <section class="chat-main">
-                <div class="chat-header">
-                    <div class="chat-title">
-                        <h2 id="activeChatTitle">New chat</h2>
-                        <button id="renameChat" class="icon-button" type="button">Rename</button>
+
+            <section class="chat-main chat-main-focus">
+                <header class="chat-header chat-header-focus">
+                    <div class="chat-title-block">
+                        <div class="chat-title">
+                            <p class="eyebrow">Conversation</p>
+                            <h2 id="activeChatTitle">New chat</h2>
+                        </div>
+                        <div class="chat-toolbar">
+                            <button id="renameChat" class="icon-button" type="button">Rename</button>
+                            <button id="clearChat" class="icon-button" type="button">Clear</button>
+                            <button id="exportChat" class="icon-button" type="button">Export</button>
+                        </div>
                     </div>
                     <div class="chat-header-actions">
                         <div class="model-select">
-                            <label for="model">Model:</label>
+                            <label for="model">Model</label>
                             <select id="model">
                                 <option disabled selected>Loading models...</option>
                             </select>
                         </div>
-                        <a href="/market.html" class="secondary-action market-link">Persona Market</a>
                         <div class="persona-menu">
-                            <button id="personaMenuButton" class="secondary-action" type="button"
-                                    aria-expanded="false" aria-controls="personaPopover">
+                            <button id="personaMenuButton" class="secondary-action" type="button" aria-expanded="false" aria-controls="personaPopover">
                                 Personas
                             </button>
                             <div id="personaPopover" class="persona-popover hidden" role="dialog">
                                 <div class="persona-section">
                                     <div class="persona-section-header">
                                         <div>
-                                            <p class="eyebrow">Roleplay</p>
-                                            <h2>AI Persona</h2>
-                                            <p class="persona-guidance">Controls how the assistant sounds and behaves.</p>
+                                            <p class="eyebrow">Assistant</p>
+                                            <h2>AI persona</h2>
+                                            <p class="persona-guidance">Changes the assistant's tone and character.</p>
                                         </div>
                                         <div class="persona-section-actions">
                                             <button id="newPersona" class="secondary-action" type="button">New AI</button>
                                             <button id="clearPersona" class="secondary-action" type="button">Clear</button>
                                         </div>
                                     </div>
-                                    <p id="activePersonaStatus" class="status persona-status">No persona equipped.</p>
+                                    <p id="activePersonaStatus" class="status persona-status">No AI persona equipped.</p>
                                     <div id="personaList" class="persona-list"></div>
                                 </div>
                                 <div class="persona-section">
                                     <div class="persona-section-header">
                                         <div>
-                                            <p class="eyebrow">Roleplay</p>
-                                            <h2>Your Persona</h2>
-                                            <p class="persona-guidance">Defines how the assistant should portray you.</p>
+                                            <p class="eyebrow">User</p>
+                                            <h2>Your persona</h2>
+                                            <p class="persona-guidance">Adds context for how the assistant should read you.</p>
                                         </div>
                                         <div class="persona-section-actions">
                                             <button id="newUserPersona" class="secondary-action" type="button">New you</button>
@@ -130,20 +159,30 @@
                             </div>
                         </div>
                     </div>
+                </header>
+
+                <div id="messages" class="messages-panel messages-panel-focus"></div>
+
+                <div id="emptyState" class="empty-state">
+                    <p class="eyebrow">No messages yet</p>
+                    <h3>Write something when you're ready.</h3>
+                    <p>This can stay a plain chat. Personas and shared presets are optional.</p>
                 </div>
-                <div id="messages"></div>
-                <div class="input-container">
-                    <textarea id="msgInput" placeholder="Type your message..."></textarea>
-                    <button id="send"></button>
-                </div>
-                <div class="logout-container">
-                    <button id="deleteChat" class="danger">Delete Chat</button>
-                    <button id="logout">Logout</button>
+
+                <div class="input-shell input-shell-focus">
+                    <div class="input-meta">
+                        <p class="composer-hint">Enter sends. Shift+Enter adds a new line.</p>
+                    </div>
+                    <div class="input-container">
+                        <textarea id="msgInput" placeholder="Type your message..."></textarea>
+                        <button id="send" type="button" aria-label="Send message"></button>
+                    </div>
                 </div>
             </section>
         </div>
-    </div>
+    </section>
 </div>
+
 <div id="personaModal" class="modal-overlay hidden">
     <div class="modal-card">
         <div class="modal-header">
@@ -158,7 +197,7 @@
                     <option value="user">Your persona</option>
                 </select>
             </label>
-            <p class="persona-helper">AI personas shape how the assistant speaks. Your persona describes how you should be portrayed.</p>
+            <p class="persona-helper">AI personas shape the assistant. Your persona gives the model user-side context.</p>
             <label class="field">
                 <span>Name</span>
                 <input id="personaName" placeholder="Persona name" required/>
@@ -177,8 +216,7 @@
             </label>
             <label class="field">
                 <span>Details</span>
-                <textarea id="personaDetails" rows="3"
-                          placeholder="Personality traits, voice, or quirks"></textarea>
+                <textarea id="personaDetails" rows="3" placeholder="Personality traits, voice, quirks, goals"></textarea>
             </label>
             <div class="persona-actions">
                 <button id="personaSave" type="submit" class="primary-action">Save persona</button>
@@ -186,6 +224,7 @@
         </form>
     </div>
 </div>
+
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js" defer></script>
 <script src="script.js" defer></script>

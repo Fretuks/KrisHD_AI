@@ -298,6 +298,8 @@ db.prepare(`
 
 const insertUserStmt = db.prepare("INSERT INTO users (username, password) VALUES (?, ?)");
 const getUserStmt = db.prepare("SELECT username, password FROM users WHERE username = ?");
+const updateUsernameStmt = db.prepare("UPDATE users SET username = ? WHERE username = ?");
+const updatePasswordStmt = db.prepare("UPDATE users SET password = ? WHERE username = ?");
 const getLegacyChatsStmt = db.prepare(`
     SELECT role, content
     FROM chats
@@ -529,6 +531,71 @@ const listPublishedPersonaIdsStmt = db.prepare(`
     WHERE creator_username = ?
 `);
 
+const getChatMessageCountForUserStmt = db.prepare(`
+    SELECT COUNT(*) as count
+    FROM chat_messages cm
+             JOIN chat_sessions cs ON cs.id = cm.chat_id
+    WHERE cs.username = ?
+`);
+
+const getPersonaCountForUserStmt = db.prepare(`
+    SELECT COUNT(*) as count
+    FROM personas
+    WHERE username = ?
+`);
+
+const getPublishedPersonaCountForUserStmt = db.prepare(`
+    SELECT COUNT(*) as count
+    FROM persona_market
+    WHERE creator_username = ?
+`);
+
+const updateLegacyChatsUsernameStmt = db.prepare(`
+    UPDATE chats
+    SET username = ?
+    WHERE username = ?
+`);
+
+const updateChatSessionsUsernameStmt = db.prepare(`
+    UPDATE chat_sessions
+    SET username = ?
+    WHERE username = ?
+`);
+
+const updatePersonasUsernameStmt = db.prepare(`
+    UPDATE personas
+    SET username = ?
+    WHERE username = ?
+`);
+
+const updatePersonasSourceCreatorStmt = db.prepare(`
+    UPDATE personas
+    SET source_creator_username = ?
+    WHERE source_creator_username = ?
+`);
+
+const updateUserSettingsUsernameStmt = db.prepare(`
+    UPDATE user_settings
+    SET username = ?
+    WHERE username = ?
+`);
+
+const updatePersonaMarketCreatorStmt = db.prepare(`
+    UPDATE persona_market
+    SET creator_username = ?
+    WHERE creator_username = ?
+`);
+
+const renameUserTransaction = db.transaction((currentUsername, nextUsername) => {
+    updateUsernameStmt.run(nextUsername, currentUsername);
+    updateLegacyChatsUsernameStmt.run(nextUsername, currentUsername);
+    updateChatSessionsUsernameStmt.run(nextUsername, currentUsername);
+    updatePersonasUsernameStmt.run(nextUsername, currentUsername);
+    updatePersonasSourceCreatorStmt.run(nextUsername, currentUsername);
+    updateUserSettingsUsernameStmt.run(nextUsername, currentUsername);
+    updatePersonaMarketCreatorStmt.run(nextUsername, currentUsername);
+});
+
 const deleteMarketPersonaByPersonaIdStmt = db.prepare(`
     DELETE FROM persona_market
     WHERE persona_id = ?
@@ -640,6 +707,76 @@ app.post("/logout", (req, res) => {
     req.session.destroy(() => res.json({message: "Logged out"}));
 });
 
+const requireLogin = (req, res, next) => {
+    if (!req.session.user) return res.status(403).json({error: "Not logged in"});
+    next();
+};
+
+app.get("/settings/profile", requireLogin, (req, res) => {
+    const user = getUserStmt.get(req.session.user);
+    if (!user) return res.status(404).json({error: "User not found"});
+    res.json({username: user.username});
+});
+
+app.put("/settings/username", requireLogin, async (req, res) => {
+    const currentUsername = req.session.user;
+    const nextUsername = (req.body?.username || "").trim();
+    const password = req.body?.password || "";
+
+    if (!nextUsername) {
+        return res.status(400).json({error: "New username is required"});
+    }
+    if (nextUsername.length < 3) {
+        return res.status(400).json({error: "Username must be at least 3 characters"});
+    }
+    if (nextUsername === currentUsername) {
+        return res.status(400).json({error: "That is already your username"});
+    }
+
+    const currentUser = getUserStmt.get(currentUsername);
+    if (!currentUser) {
+        return res.status(404).json({error: "User not found"});
+    }
+    const valid = await bcrypt.compare(password, currentUser.password);
+    if (!valid) {
+        return res.status(403).json({error: "Current password is incorrect"});
+    }
+
+    if (getUserStmt.get(nextUsername)) {
+        return res.status(400).json({error: "Username already exists"});
+    }
+
+    renameUserTransaction(currentUsername, nextUsername);
+    req.session.user = nextUsername;
+    res.json({username: nextUsername});
+});
+
+app.put("/settings/password", requireLogin, async (req, res) => {
+    const username = req.session.user;
+    const currentPassword = req.body?.currentPassword || "";
+    const nextPassword = req.body?.newPassword || "";
+
+    if (!currentPassword || !nextPassword) {
+        return res.status(400).json({error: "Current and new password are required"});
+    }
+    if (nextPassword.length < 6) {
+        return res.status(400).json({error: "New password must be at least 6 characters"});
+    }
+
+    const user = getUserStmt.get(username);
+    if (!user) {
+        return res.status(404).json({error: "User not found"});
+    }
+    const valid = await bcrypt.compare(currentPassword, user.password);
+    if (!valid) {
+        return res.status(403).json({error: "Current password is incorrect"});
+    }
+
+    const hashed = await bcrypt.hash(nextPassword, 10);
+    updatePasswordStmt.run(hashed, username);
+    res.json({message: "Password updated"});
+});
+
 const normalizePersonaField = (value) => {
     const trimmed = (value || "").trim();
     return trimmed ? trimmed : null;
@@ -681,11 +818,6 @@ const buildUserPersonaPrompt = (persona) => {
     if (persona.background) lines.push(`Background: ${persona.background}`);
     if (persona.details) lines.push(`Additional Traits: ${persona.details}`);
     return lines.join("\n");
-};
-
-const requireLogin = (req, res, next) => {
-    if (!req.session.user) return res.status(403).json({error: "Not logged in"});
-    next();
 };
 
 app.get("/models", async (req, res) => {
@@ -898,6 +1030,26 @@ app.get("/personas/market", requireLogin, (req, res) => {
     res.json({personas});
 });
 
+app.get("/dashboard/summary", requireLogin, (req, res) => {
+    const user = req.session.user;
+    const chats = countChatSessionsStmt.get(user).count;
+    const messages = getChatMessageCountForUserStmt.get(user).count;
+    const personas = getPersonaCountForUserStmt.get(user).count;
+    const published = getPublishedPersonaCountForUserStmt.get(user).count;
+    const marketPersonas = listMarketPersonasStmt.all().length;
+
+    res.json({
+        username: user,
+        stats: {
+            chats,
+            messages,
+            personas,
+            published,
+            marketPersonas
+        }
+    });
+});
+
 app.post("/personas/:id/publish", requireLogin, (req, res) => {
     const user = req.session.user;
     const personaId = Number(req.params.id);
@@ -1088,6 +1240,14 @@ app.get("/chat/history", requireLogin, (req, res) => {
     const user = req.session.user;
     const chats = listChatSessionsStmt.all(user);
     res.json({history: chats});
+});
+
+app.get("/market", (req, res) => {
+    res.sendFile(path.resolve("public/market.html"));
+});
+
+app.get("/settings", (req, res) => {
+    res.sendFile(path.resolve("public/settings.html"));
 });
 
 app.get("/", (req, res) => {
