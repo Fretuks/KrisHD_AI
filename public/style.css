@@ -557,14 +557,18 @@ select:focus {
 
 .chat-card {
     padding: 16px;
+    height: calc(100vh - 48px);
     min-height: calc(100vh - 48px);
+    overflow: hidden;
 }
 
 .chat-layout {
     display: grid;
     grid-template-columns: 340px minmax(0, 1fr);
     gap: 20px;
-    min-height: calc(100vh - 88px);
+    height: calc(100vh - 80px);
+    min-height: calc(100vh - 80px);
+    overflow: hidden;
 }
 
 .chat-sidebar {
@@ -573,6 +577,8 @@ select:focus {
     display: grid;
     grid-template-rows: auto 1fr auto;
     gap: 16px;
+    min-height: 0;
+    overflow: hidden;
 }
 
 .sidebar-top {
@@ -725,6 +731,7 @@ select:focus {
     grid-template-rows: auto auto auto auto minmax(0, 1fr) auto auto;
     gap: 16px;
     min-height: 0;
+    overflow: hidden;
 }
 
 .chat-layout-focus {
@@ -733,6 +740,7 @@ select:focus {
 
 .chat-main-focus {
     grid-template-rows: auto minmax(0, 1fr) auto auto;
+    min-height: 0;
 }
 
 .chat-header-focus {
@@ -852,6 +860,7 @@ select:focus {
     flex-direction: column;
     gap: 12px;
     background: rgba(252, 248, 240, 0.52);
+    min-height: 0;
 }
 
 .empty-state {
@@ -1251,7 +1260,7 @@ select:focus {
 }
 
 .settings-shell {
-    width: min(920px, 100%);
+    width: min(1180px, 100%);
     margin: 0 auto;
     padding: 20px;
     display: grid;
@@ -1631,7 +1640,7 @@ body[data-theme="beta-ai"] {
 }
 
 body[data-theme="beta-ai"] .chat-layout-focus {
-    grid-template-columns: 250px minmax(0, 780px);
+    grid-template-columns: 320px minmax(0, 980px);
     justify-content: center;
 }
 
