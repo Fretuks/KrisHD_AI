@@ -7,7 +7,7 @@ const registerUsernameInput = $("registerUsername"), registerPasswordInput = $("
 const loginSubmit = $("loginSubmit"), registerSubmit = $("registerSubmit");
 const chatList = $("chatList"), chatSearchInput = $("chatSearch"), newChatBtn = $("newChat");
 const renameChatBtn = $("renameChat"), clearChatBtn = $("clearChat"), exportChatBtn = $("exportChat");
-const activeChatTitle = $("activeChatTitle"), workspaceSubline = $("workspaceSubline"), sessionUser = $("sessionUser");
+const activeChatTitle = $("activeChatTitle"), sessionUser = $("sessionUser");
 const personaList = $("personaList"), userPersonaList = $("userPersonaList");
 const personaForm = $("personaForm"), personaFormTitle = $("personaFormTitle"), personaTypeSelect = $("personaType");
 const personaNameInput = $("personaName"), personaPronounsInput = $("personaPronouns"), personaAppearanceInput = $("personaAppearance");
@@ -58,8 +58,10 @@ function setPersonaFormNotice(message = "", state = "") {
     personaFormNotice.className = state ? `status ${state}` : "status";
 }
 function setMessageContent(el, content) {
-    if (window.marked && window.DOMPurify) {
-        el.innerHTML = DOMPurify.sanitize(marked.parse(content, {breaks: true}));
+    const markdownParser = window.marked;
+    const purifier = window.DOMPurify;
+    if (markdownParser?.parse && purifier?.sanitize) {
+        el.innerHTML = purifier.sanitize(markdownParser.parse(content, {breaks: true}));
     } else {
         el.textContent = content;
     }
@@ -108,10 +110,6 @@ function updateWorkspaceCopy() {
     if (sessionUser) {
         sessionUser.textContent = currentUsername || "-";
     }
-}
-
-function updateSummaryStats() {
-    return currentSummary;
 }
 
 function updateContextRail() {
@@ -353,13 +351,14 @@ async function deleteChat(id) {
 
 async function displayModels() {
     const res = await get("/models");
-    if (res.error || !Array.isArray(res.models)) {
+    const models = Array.isArray(res.models) ? res.models : null;
+    if (res.error || !models) {
         modelSelect.innerHTML = "<option>Error loading models</option>";
         updateContextRail();
         return setNotice("Models could not be loaded.", "error");
     }
     modelSelect.innerHTML = "";
-    res.models.forEach((model, index) => {
+    models.forEach((model, index) => {
         const option = document.createElement("option");
         option.value = model.model; option.textContent = model.name; option.selected = index === 0; modelSelect.appendChild(option);
     });
@@ -428,23 +427,24 @@ function togglePersonaPopover(event) {
 }
 
 toggleButtons.forEach((btn) => btn.addEventListener("click", () => showAuthScreen(btn.dataset.target)));
-loginForm.addEventListener("submit", (event) => { event.preventDefault(); handleAuth("login", {username: loginUsernameInput.value.trim(), password: loginPasswordInput.value.trim()}); });
-registerForm.addEventListener("submit", (event) => { event.preventDefault(); handleAuth("register", {username: registerUsernameInput.value.trim(), password: registerPasswordInput.value.trim()}); });
+loginForm.addEventListener("submit", (event) => { event.preventDefault(); void handleAuth("login", {username: loginUsernameInput.value.trim(), password: loginPasswordInput.value.trim()}); });
+registerForm.addEventListener("submit", (event) => { event.preventDefault(); void handleAuth("register", {username: registerUsernameInput.value.trim(), password: registerPasswordInput.value.trim()}); });
 $("logout").addEventListener("click", async () => {
     await post("/logout", {}); chatDiv.style.display = "none"; authDiv.style.display = "grid";
     activeChatId = null; currentUsername = ""; currentSummary = null; chatSessions = []; currentMessages = []; assistantPersonas = []; userPersonas = [];
     activePersonaId = null; activeUserPersonaId = null; publishedPersonaIds = new Set(); messagesDiv.innerHTML = ""; renderChatList(); updateChatActionState();
     showAuthScreen("login"); setAuthMessage("Logged out.", "success"); setNotice("Ready.");
 });
-sendBtn.addEventListener("click", sendMessage);
-msgInput.addEventListener("keydown", (event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); sendMessage(); } });
+sendBtn.addEventListener("click", () => { void sendMessage(); });
+msgInput.addEventListener("keydown", (event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void sendMessage(); } });
 msgInput.addEventListener("input", function () { this.style.height = "auto"; this.style.height = `${Math.min(this.scrollHeight, 180)}px`; });
-newChatBtn.addEventListener("click", createNewChat); renameChatBtn.addEventListener("click", () => activeChatId && renameChat(activeChatId));
-clearChatBtn.addEventListener("click", () => activeChatId && clearChat(activeChatId)); exportChatBtn.addEventListener("click", exportCurrentChat);
+newChatBtn.addEventListener("click", () => { void createNewChat(); });
+renameChatBtn.addEventListener("click", () => { if (activeChatId) void renameChat(activeChatId); });
+clearChatBtn.addEventListener("click", () => { if (activeChatId) void clearChat(activeChatId); }); exportChatBtn.addEventListener("click", exportCurrentChat);
 chatSearchInput.addEventListener("input", renderChatList); modelSelect.addEventListener("change", updateContextRail);
 newPersonaBtn.addEventListener("click", () => openPersonaForm()); newUserPersonaBtn.addEventListener("click", () => openPersonaForm(null, "user"));
-clearPersonaBtn.addEventListener("click", () => clearPersona("assistant")); clearUserPersonaBtn.addEventListener("click", () => clearPersona("user"));
-personaForm.addEventListener("submit", (event) => { event.preventDefault(); savePersona(); }); personaCloseBtn.addEventListener("click", closePersonaForm);
+clearPersonaBtn.addEventListener("click", () => { void clearPersona("assistant"); }); clearUserPersonaBtn.addEventListener("click", () => { void clearPersona("user"); });
+personaForm.addEventListener("submit", (event) => { event.preventDefault(); void savePersona(); }); personaCloseBtn.addEventListener("click", closePersonaForm);
 personaModal.addEventListener("click", (event) => { if (event.target === personaModal) closePersonaForm(); });
 personaMenuButton.addEventListener("click", togglePersonaPopover); personaPopover.addEventListener("click", (event) => event.stopPropagation()); document.addEventListener("click", closePersonaPopover);
 document.addEventListener("keydown", (event) => { if (event.key === "Escape") { closePersonaPopover(); closePersonaForm(); } });

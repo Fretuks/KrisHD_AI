@@ -139,19 +139,20 @@ async function collectMarketPersona(marketId, personaType) {
     setMarketStatus(personaType === "assistant" ? "AI persona collected." : "User persona collected.", "success");
 }
 
-refreshMarketBtn.addEventListener("click", loadMarketPersonas);
+refreshMarketBtn.addEventListener("click", () => { void loadMarketPersonas(); });
 marketSearchInput.addEventListener("input", applyMarketFilter);
 marketPreviewCancel.addEventListener("click", closeMarketPreview);
 marketPreviewClose.addEventListener("click", closeMarketPreview);
 marketPreviewModal.addEventListener("click", (event) => { if (event.target === marketPreviewModal) closeMarketPreview(); });
 marketPreviewConfirm.addEventListener("click", async () => {
     if (!pendingMarketPersona) return;
-    const {id, persona_type} = pendingMarketPersona;
+    const marketId = pendingMarketPersona.id;
+    const personaType = pendingMarketPersona.persona_type;
     closeMarketPreview();
-    await collectMarketPersona(id, persona_type);
+    await collectMarketPersona(marketId, personaType);
 });
 
 window.addEventListener("load", () => {
     applyTheme(localStorage.getItem("krishd-theme") || "fakegpt");
-    loadMarketPersonas();
+    void loadMarketPersonas();
 });
