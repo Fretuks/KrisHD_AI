@@ -1,6 +1,9 @@
 const $ = (id) => document.getElementById(id);
 const authDiv = $("auth"), chatDiv = $("chat"), authMsg = $("authMsg");
 const messagesDiv = $("messages"), modelSelect = $("model");
+const modelMenuButton = $("modelMenuButton"), modelPopover = $("modelPopover"), modelBadgeName = $("modelBadgeName");
+const modelCount = $("modelCount");
+const modelHelpTitle = $("modelHelpTitle"), modelHelpBadge = $("modelHelpBadge"), modelHelpSummary = $("modelHelpSummary");
 const loginForm = $("loginForm"), registerForm = $("registerForm"), msgInput = $("msgInput"), sendBtn = $("send");
 const loginUsernameInput = $("loginUsername"), loginPasswordInput = $("loginPassword");
 const registerUsernameInput = $("registerUsername"), registerPasswordInput = $("registerPassword");
@@ -30,6 +33,11 @@ const themes = {
     "slopilot": {name: "Slopilot", short: "SP"},
     "beta-ai": {name: "Beta AI", short: "BA"},
     "confusity": {name: "Confusity", short: "CF"}
+};
+
+const defaultModelProfile = {
+    badge: "General",
+    summary: "General-purpose chat model. Start here if you are unsure which model to use."
 };
 
 async function request(url, data, method = "POST") {
@@ -116,6 +124,67 @@ function updateContextRail() {
     return modelSelect?.selectedOptions[0]?.textContent || "";
 }
 
+function getModelProfile(modelId, modelName) {
+    const haystack = `${modelId || ""} ${modelName || ""}`.toLowerCase();
+    if (haystack.includes("codellama") || haystack.includes("code")) {
+        return {
+            badge: "Coding",
+            summary: "Best for code generation, debugging, and technical explanations. Usually stronger on programming tasks than on creative chat."
+        };
+    }
+    if (haystack.includes("gemma")) {
+        return {
+            badge: "Fast",
+            summary: "A lighter general chat model. Good for quick answers and lower-latency replies, with less depth than larger models."
+        };
+    }
+    if (haystack.includes("dolphin")) {
+        return {
+            badge: "Chatty",
+            summary: "Instruction-following conversational model. Good for open-ended chat, brainstorming, and longer natural responses."
+        };
+    }
+    if (haystack.includes("mistral")) {
+        return {
+            badge: "Balanced",
+            summary: "Strong default for everyday use. Usually a good balance between speed, clarity, and response quality."
+        };
+    }
+    if (haystack.includes("catgirl") || haystack.includes("femboy") || haystack.includes("buenzli")) {
+        return {
+            badge: "Persona",
+            summary: "Specialized character-style model. Best for roleplay or stylized voice, and less reliable for factual or neutral answers."
+        };
+    }
+    return defaultModelProfile;
+}
+
+function updateModelHelp() {
+    if (!modelSelect || !modelHelpTitle || !modelHelpBadge || !modelHelpSummary) return;
+    const selectedOption = modelSelect.selectedOptions[0];
+    if (!selectedOption || selectedOption.disabled) {
+        if (modelCount) modelCount.textContent = "No models";
+        if (modelBadgeName) modelBadgeName.textContent = "Unavailable";
+        modelHelpBadge.dataset.badge = "waiting";
+        modelHelpTitle.textContent = "Choose a model";
+        modelHelpBadge.textContent = "Waiting";
+        modelHelpSummary.textContent = "Pick a model to see what it is best suited for.";
+        return;
+    }
+    if (modelCount) {
+        const totalModels = Array.from(modelSelect.options).filter((option) => !option.disabled).length;
+        modelCount.textContent = `${totalModels} ${totalModels === 1 ? "model" : "models"}`;
+    }
+    const modelId = selectedOption.value;
+    const modelName = selectedOption.textContent || modelId;
+    const profile = getModelProfile(modelId, modelName);
+    if (modelBadgeName) modelBadgeName.textContent = modelName;
+    modelHelpTitle.textContent = modelName;
+    modelHelpBadge.textContent = profile.badge;
+    modelHelpBadge.dataset.badge = profile.badge.toLowerCase();
+    modelHelpSummary.textContent = profile.summary;
+}
+
 function applyTheme(themeKey, persist = true) {
     const nextTheme = themes[themeKey] ? themeKey : "fakegpt";
     const theme = themes[nextTheme];
@@ -191,6 +260,10 @@ function openPersonaForm(persona = null, personaType = "assistant") {
 
 function closePersonaForm() { personaModal.classList.add("hidden"); editingPersonaId = null; editingPersonaType = "assistant"; personaTypeSelect.disabled = false; setPersonaFormNotice(""); }
 function closePersonaPopover() { personaPopover.classList.add("hidden"); personaMenuButton.setAttribute("aria-expanded", "false"); }
+function closeModelPopover() {
+    modelPopover.classList.add("hidden");
+    modelMenuButton.setAttribute("aria-expanded", "false");
+}
 
 function renderPersonaList(items, activeId, listElement, personaType) {
     listElement.innerHTML = "";
@@ -354,6 +427,7 @@ async function displayModels() {
     const models = Array.isArray(res.models) ? res.models : null;
     if (res.error || !models) {
         modelSelect.innerHTML = "<option>Error loading models</option>";
+        updateModelHelp();
         updateContextRail();
         return setNotice("Models could not be loaded.", "error");
     }
@@ -362,6 +436,7 @@ async function displayModels() {
         const option = document.createElement("option");
         option.value = model.model; option.textContent = model.name; option.selected = index === 0; modelSelect.appendChild(option);
     });
+    updateModelHelp();
     updateContextRail();
 }
 
@@ -421,9 +496,18 @@ async function sendMessage() {
 
 function togglePersonaPopover(event) {
     event.stopPropagation();
+    closeModelPopover();
     const isHidden = personaPopover.classList.contains("hidden");
     personaPopover.classList.toggle("hidden", !isHidden);
     personaMenuButton.setAttribute("aria-expanded", String(isHidden));
+}
+
+function toggleModelPopover(event) {
+    event.stopPropagation();
+    closePersonaPopover();
+    const isHidden = modelPopover.classList.contains("hidden");
+    modelPopover.classList.toggle("hidden", !isHidden);
+    modelMenuButton.setAttribute("aria-expanded", String(isHidden));
 }
 
 toggleButtons.forEach((btn) => btn.addEventListener("click", () => showAuthScreen(btn.dataset.target)));
@@ -441,13 +525,15 @@ msgInput.addEventListener("input", function () { this.style.height = "auto"; thi
 newChatBtn.addEventListener("click", () => { void createNewChat(); });
 renameChatBtn.addEventListener("click", () => { if (activeChatId) void renameChat(activeChatId); });
 clearChatBtn.addEventListener("click", () => { if (activeChatId) void clearChat(activeChatId); }); exportChatBtn.addEventListener("click", exportCurrentChat);
-chatSearchInput.addEventListener("input", renderChatList); modelSelect.addEventListener("change", updateContextRail);
+chatSearchInput.addEventListener("input", renderChatList); modelSelect.addEventListener("change", () => { updateModelHelp(); updateContextRail(); });
 newPersonaBtn.addEventListener("click", () => openPersonaForm()); newUserPersonaBtn.addEventListener("click", () => openPersonaForm(null, "user"));
 clearPersonaBtn.addEventListener("click", () => { void clearPersona("assistant"); }); clearUserPersonaBtn.addEventListener("click", () => { void clearPersona("user"); });
 personaForm.addEventListener("submit", (event) => { event.preventDefault(); void savePersona(); }); personaCloseBtn.addEventListener("click", closePersonaForm);
 personaModal.addEventListener("click", (event) => { if (event.target === personaModal) closePersonaForm(); });
-personaMenuButton.addEventListener("click", togglePersonaPopover); personaPopover.addEventListener("click", (event) => event.stopPropagation()); document.addEventListener("click", closePersonaPopover);
-document.addEventListener("keydown", (event) => { if (event.key === "Escape") { closePersonaPopover(); closePersonaForm(); } });
+modelMenuButton.addEventListener("click", toggleModelPopover); modelPopover.addEventListener("click", (event) => event.stopPropagation());
+personaMenuButton.addEventListener("click", togglePersonaPopover); personaPopover.addEventListener("click", (event) => event.stopPropagation());
+document.addEventListener("click", () => { closeModelPopover(); closePersonaPopover(); });
+document.addEventListener("keydown", (event) => { if (event.key === "Escape") { closeModelPopover(); closePersonaPopover(); closePersonaForm(); } });
 window.addEventListener("load", async () => {
     applyTheme(localStorage.getItem("krishd-theme") || "fakegpt", false);
     setNotice("Ready."); updateChatActionState(); await checkSession();

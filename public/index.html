@@ -115,11 +115,32 @@
                         </div>
                     </div>
                     <div class="chat-header-actions">
-                        <div class="model-select">
-                            <label for="model">Model</label>
-                            <select id="model">
-                                <option disabled selected>Loading models...</option>
-                            </select>
+                        <div class="model-menu">
+                            <button id="modelMenuButton" class="model-badge-button" type="button" aria-expanded="false" aria-controls="modelPopover">
+                                <span class="model-badge-label">Equipped Model:</span>
+                                <strong id="modelBadgeName">Loading...</strong>
+                            </button>
+                            <div id="modelPopover" class="model-popover hidden" role="dialog">
+                                <div class="model-select">
+                                    <div class="model-select-header">
+                                        <label for="model">Model</label>
+                                        <span id="modelCount" class="model-count">Loading</span>
+                                    </div>
+                                    <div class="model-select-control">
+                                        <select id="model">
+                                            <option disabled selected>Loading models...</option>
+                                        </select>
+                                        <span class="model-select-chevron" aria-hidden="true"></span>
+                                    </div>
+                                </div>
+                                <div id="modelHelp" class="model-help" aria-live="polite">
+                                    <div class="model-help-header">
+                                        <strong id="modelHelpTitle">Choose a model</strong>
+                                        <span id="modelHelpBadge" class="model-help-badge">Waiting</span>
+                                    </div>
+                                    <p id="modelHelpSummary" class="model-help-summary">Pick a model to see what it is best suited for.</p>
+                                </div>
+                            </div>
                         </div>
                         <div class="persona-menu">
                             <button id="personaMenuButton" class="secondary-action" type="button" aria-expanded="false" aria-controls="personaPopover">
