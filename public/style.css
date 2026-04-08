@@ -1413,6 +1413,30 @@ select:focus {
     min-height: 112px;
 }
 
+.dialogue-format-card {
+    display: grid;
+    gap: 8px;
+    padding: 14px 16px;
+    border-radius: 14px;
+    background: rgba(24, 32, 31, 0.05);
+    border: 1px dashed rgba(24, 32, 31, 0.16);
+}
+
+.dialogue-format-label {
+    margin: 0;
+    font-size: 0.74rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.dialogue-format-example {
+    margin: 0;
+    white-space: pre-wrap;
+    font: 600 0.92rem/1.7 "Space Grotesk", "Consolas", monospace;
+    color: var(--text);
+}
+
 .persona-actions {
     display: flex;
     justify-content: flex-end;

@@ -15,6 +15,7 @@ const personaList = $("personaList"), userPersonaList = $("userPersonaList");
 const personaForm = $("personaForm"), personaFormTitle = $("personaFormTitle"), personaTypeSelect = $("personaType");
 const personaNameInput = $("personaName"), personaPronounsInput = $("personaPronouns"), personaAppearanceInput = $("personaAppearance");
 const personaBackgroundInput = $("personaBackground"), personaDetailsInput = $("personaDetails");
+const personaExamplesField = $("personaExamplesField"), personaExampleDialoguesInput = $("personaExampleDialogues");
 const personaFormNotice = $("personaFormNotice");
 const newPersonaBtn = $("newPersona"), newUserPersonaBtn = $("newUserPersona"), clearPersonaBtn = $("clearPersona"), clearUserPersonaBtn = $("clearUserPersona");
 const activePersonaStatus = $("activePersonaStatus"), activeUserPersonaStatus = $("activeUserPersonaStatus");
@@ -253,12 +254,15 @@ function openPersonaForm(persona = null, personaType = "assistant") {
         personaTypeSelect.value = editingPersonaType; personaTypeSelect.disabled = true;
         personaNameInput.value = persona.name || ""; personaPronounsInput.value = persona.pronouns || "";
         personaAppearanceInput.value = persona.appearance || ""; personaBackgroundInput.value = persona.background || ""; personaDetailsInput.value = persona.details || "";
+        personaExampleDialoguesInput.value = persona.example_dialogues || "";
     } else {
         editingPersonaId = null; editingPersonaType = personaType;
         personaFormTitle.textContent = `Create ${personaType === "user" ? "your persona" : "AI persona"}`;
         personaTypeSelect.value = personaType; personaTypeSelect.disabled = false;
         personaNameInput.value = ""; personaPronounsInput.value = ""; personaAppearanceInput.value = ""; personaBackgroundInput.value = ""; personaDetailsInput.value = "";
+        personaExampleDialoguesInput.value = "";
     }
+    personaExamplesField.classList.toggle("hidden", personaTypeSelect.value !== "assistant");
     setPersonaFormNotice("");
     personaNameInput.focus();
 }
@@ -392,7 +396,15 @@ async function clearPersona(type) {
 }
 
 async function savePersona() {
-    const payload = {personaType: personaTypeSelect.value, name: personaNameInput.value.trim(), pronouns: personaPronounsInput.value.trim(), appearance: personaAppearanceInput.value.trim(), background: personaBackgroundInput.value.trim(), details: personaDetailsInput.value.trim()};
+    const payload = {
+        personaType: personaTypeSelect.value,
+        name: personaNameInput.value.trim(),
+        pronouns: personaPronounsInput.value.trim(),
+        appearance: personaAppearanceInput.value.trim(),
+        background: personaBackgroundInput.value.trim(),
+        details: personaDetailsInput.value.trim(),
+        exampleDialogues: personaTypeSelect.value === "assistant" ? personaExampleDialoguesInput.value.trim() : ""
+    };
     if (!payload.name) return setPersonaFormNotice("Persona name is required.", "error");
     const res = editingPersonaId ? await put(`/personas/${editingPersonaId}`, payload) : await post("/personas", payload);
     if (res.error) return setPersonaFormNotice(res.error, "error");
@@ -622,6 +634,11 @@ chatSearchInput.addEventListener("input", renderChatList); modelSelect.addEventL
 newPersonaBtn.addEventListener("click", () => openPersonaForm()); newUserPersonaBtn.addEventListener("click", () => openPersonaForm(null, "user"));
 clearPersonaBtn.addEventListener("click", () => { void clearPersona("assistant"); }); clearUserPersonaBtn.addEventListener("click", () => { void clearPersona("user"); });
 personaForm.addEventListener("submit", (event) => { event.preventDefault(); void savePersona(); }); personaCloseBtn.addEventListener("click", closePersonaForm);
+personaTypeSelect.addEventListener("change", () => {
+    const isAssistant = personaTypeSelect.value === "assistant";
+    personaExamplesField.classList.toggle("hidden", !isAssistant);
+    if (!isAssistant) personaExampleDialoguesInput.value = "";
+});
 personaModal.addEventListener("click", (event) => { if (event.target === personaModal) closePersonaForm(); });
 popupConfirmBtn.addEventListener("click", () => {
     if (popupMode === "prompt") {

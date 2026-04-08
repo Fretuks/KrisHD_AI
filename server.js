@@ -199,6 +199,8 @@ db.prepare(`
             TEXT,
         details
             TEXT,
+        example_dialogues
+            TEXT,
         persona_type
             TEXT
             DEFAULT
@@ -271,6 +273,8 @@ db.prepare(`
         background
             TEXT,
         details
+            TEXT,
+        example_dialogues
             TEXT,
         persona_type
             TEXT
@@ -371,6 +375,7 @@ const listPersonasByTypeStmt = db.prepare(`
            appearance,
            background,
            details,
+           example_dialogues,
            persona_type,
            source_market_id,
            source_creator_username,
@@ -383,7 +388,7 @@ const listPersonasByTypeStmt = db.prepare(`
 `);
 
 const getPersonaStmt = db.prepare(`
-    SELECT id, name, pronouns, appearance, background, details, persona_type
+    SELECT id, name, pronouns, appearance, background, details, example_dialogues, persona_type
     FROM personas
     WHERE id = ?
       AND username = ?
@@ -396,6 +401,7 @@ const getPersonaForPublishStmt = db.prepare(`
            appearance,
            background,
            details,
+           example_dialogues,
            persona_type,
            source_market_id,
            source_creator_username
@@ -405,11 +411,11 @@ const getPersonaForPublishStmt = db.prepare(`
 `);
 
 const insertPersonaStmt = db.prepare(
-    "INSERT INTO personas (username, name, pronouns, appearance, background, details, persona_type) VALUES (?, ?, ?, ?, ?, ?, ?)"
+    "INSERT INTO personas (username, name, pronouns, appearance, background, details, example_dialogues, persona_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
 );
 
 const insertMarketPersonaStmt = db.prepare(
-    "INSERT INTO personas (username, name, pronouns, appearance, background, details, persona_type, source_market_id, source_creator_username) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    "INSERT INTO personas (username, name, pronouns, appearance, background, details, example_dialogues, persona_type, source_market_id, source_creator_username) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 );
 
 const getPersonaBySourceMarketStmt = db.prepare(`
@@ -426,6 +432,7 @@ const updatePersonaStmt = db.prepare(`
         appearance = ?,
         background = ?,
         details    = ?,
+        example_dialogues = ?,
         updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
       AND username = ?
@@ -452,14 +459,14 @@ const setActiveUserPersonaStmt = db.prepare(`
 `);
 
 const getActivePersonaStmt = db.prepare(`
-    SELECT p.id, p.name, p.pronouns, p.appearance, p.background, p.details
+    SELECT p.id, p.name, p.pronouns, p.appearance, p.background, p.details, p.example_dialogues
     FROM user_settings us
              JOIN personas p ON p.id = us.active_persona_id
     WHERE us.username = ?
 `);
 
 const getActiveUserPersonaStmt = db.prepare(`
-    SELECT p.id, p.name, p.pronouns, p.appearance, p.background, p.details
+    SELECT p.id, p.name, p.pronouns, p.appearance, p.background, p.details, p.example_dialogues
     FROM user_settings us
              JOIN personas p ON p.id = us.active_user_persona_id
     WHERE us.username = ?
@@ -474,6 +481,7 @@ const listMarketPersonasStmt = db.prepare(`
            appearance,
            background,
            details,
+           example_dialogues,
            persona_type,
            usage_count,
            created_at,
@@ -491,6 +499,7 @@ const getMarketPersonaStmt = db.prepare(`
            appearance,
            background,
            details,
+           example_dialogues,
            persona_type,
            usage_count
     FROM persona_market
@@ -506,6 +515,7 @@ const getMarketPersonaByPersonaIdStmt = db.prepare(`
            appearance,
            background,
            details,
+           example_dialogues,
            persona_type
     FROM persona_market
     WHERE persona_id = ?
@@ -514,13 +524,14 @@ const getMarketPersonaByPersonaIdStmt = db.prepare(`
 
 const upsertMarketPersonaStmt = db.prepare(`
     INSERT INTO persona_market (persona_id, creator_username, name, pronouns, appearance, background, details,
-                                persona_type)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                                example_dialogues, persona_type)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(persona_id, creator_username) DO UPDATE SET name         = excluded.name,
                                                             pronouns     = excluded.pronouns,
                                                             appearance   = excluded.appearance,
                                                             background   = excluded.background,
                                                             details      = excluded.details,
+                                                            example_dialogues = excluded.example_dialogues,
                                                             persona_type = excluded.persona_type,
                                                             updated_at   = CURRENT_TIMESTAMP
 `);
@@ -644,6 +655,10 @@ const hasSourceCreatorUsername = personaColumns.some(column => column.name === "
 if (!hasSourceCreatorUsername) {
     db.prepare("ALTER TABLE personas ADD COLUMN source_creator_username TEXT").run();
 }
+const hasExampleDialogues = personaColumns.some(column => column.name === "example_dialogues");
+if (!hasExampleDialogues) {
+    db.prepare("ALTER TABLE personas ADD COLUMN example_dialogues TEXT").run();
+}
 
 const userSettingsColumns = db.prepare("PRAGMA table_info(user_settings)").all();
 const hasActiveUserPersona = userSettingsColumns.some(column => column.name === "active_user_persona_id");
@@ -659,6 +674,10 @@ if (!hasPersonaIdColumn) {
 const hasUsageCount = marketColumns.some(column => column.name === "usage_count");
 if (!hasUsageCount) {
     db.prepare("ALTER TABLE persona_market ADD COLUMN usage_count INTEGER DEFAULT 0").run();
+}
+const hasMarketExampleDialogues = marketColumns.some(column => column.name === "example_dialogues");
+if (!hasMarketExampleDialogues) {
+    db.prepare("ALTER TABLE persona_market ADD COLUMN example_dialogues TEXT").run();
 }
 db.prepare("UPDATE persona_market SET usage_count = 0 WHERE usage_count IS NULL").run();
 
@@ -787,7 +806,8 @@ const PERSONA_FIELD_LIMITS = {
     pronouns: 40,
     appearance: 9000,
     background: 9000,
-    details: 9000
+    details: 9000,
+    exampleDialogues: 12000
 };
 
 const blockedPersonaPatterns = [
@@ -803,7 +823,8 @@ const validatePersonaPayload = (payload) => {
         pronouns: normalizePersonaField(payload?.pronouns),
         appearance: normalizePersonaField(payload?.appearance),
         background: normalizePersonaField(payload?.background),
-        details: normalizePersonaField(payload?.details)
+        details: normalizePersonaField(payload?.details),
+        exampleDialogues: payload?.personaType === "assistant" ? normalizePersonaField(payload?.exampleDialogues) : null
     };
 
     if (!sanitized.name) {
@@ -822,7 +843,8 @@ const validatePersonaPayload = (payload) => {
         sanitized.pronouns,
         sanitized.appearance,
         sanitized.background,
-        sanitized.details
+        sanitized.details,
+        sanitized.exampleDialogues
     ].filter(Boolean).join("\n");
 
     if (blockedPersonaPatterns.some((pattern) => pattern.test(combinedText))) {
@@ -848,6 +870,11 @@ const buildPersonaPrompt = (persona) => {
     if (persona.appearance) lines.push(`Appearance: ${persona.appearance}`);
     if (persona.background) lines.push(`Background: ${persona.background}`);
     if (persona.details) lines.push(`Additional Traits: ${persona.details}`);
+    if (persona.example_dialogues) {
+        lines.push("", "EXAMPLE DIALOGUES:");
+        lines.push("Use these examples to mirror tone, cadence, and phrasing without rigidly repeating them.");
+        lines.push(persona.example_dialogues);
+    }
     return lines.join("\n");
 };
 
@@ -979,7 +1006,7 @@ app.post("/personas", requireLogin, (req, res) => {
     if (validation.error) {
         return res.status(400).json({error: validation.error});
     }
-    const {name, pronouns, appearance, background, details} = validation.sanitized;
+    const {name, pronouns, appearance, background, details, exampleDialogues} = validation.sanitized;
     const personaId = insertPersonaStmt.run(
         user,
         name,
@@ -987,6 +1014,7 @@ app.post("/personas", requireLogin, (req, res) => {
         appearance,
         background,
         details,
+        exampleDialogues,
         personaType
     ).lastInsertRowid;
     const persona = getPersonaStmt.get(personaId, user);
@@ -1000,13 +1028,14 @@ app.put("/personas/:id", requireLogin, (req, res) => {
     if (validation.error) {
         return res.status(400).json({error: validation.error});
     }
-    const {name, pronouns, appearance, background, details} = validation.sanitized;
+    const {name, pronouns, appearance, background, details, exampleDialogues} = validation.sanitized;
     const result = updatePersonaStmt.run(
         name,
         pronouns,
         appearance,
         background,
         details,
+        exampleDialogues,
         personaId,
         user
     );
@@ -1112,6 +1141,7 @@ app.post("/personas/:id/publish", requireLogin, (req, res) => {
         persona.appearance,
         persona.background,
         persona.details,
+        persona.example_dialogues,
         persona.persona_type
     );
     const marketPersona = getMarketPersonaByPersonaIdStmt.get(personaId, user);
@@ -1156,6 +1186,7 @@ app.post("/personas/market/:id/collect", requireLogin, (req, res) => {
         marketPersona.appearance,
         marketPersona.background,
         marketPersona.details,
+        marketPersona.example_dialogues,
         marketPersona.persona_type,
         marketId,
         marketPersona.creator_username

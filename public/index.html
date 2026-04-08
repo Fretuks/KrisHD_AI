@@ -240,6 +240,16 @@
                     <span>Details</span>
                     <textarea id="personaDetails" rows="4" placeholder="Personality traits, voice, goals, quirks, boundaries, style"></textarea>
                 </label>
+                <label id="personaExamplesField" class="field field-wide hidden">
+                    <span>Example dialogues</span>
+                    <div class="dialogue-format-card" aria-hidden="true">
+                        <p class="dialogue-format-label">Format</p>
+                        <pre class="dialogue-format-example">{{character}}: Hello, my name is marc
+{{user}}: Hi, Marc!
+{{character}}: Nice to meet you</pre>
+                    </div>
+                    <textarea id="personaExampleDialogues" rows="5" placeholder="Write example exchanges that define the AI's tone, phrasing, pacing, and personality."></textarea>
+                </label>
             </div>
             <div class="persona-actions">
                 <button id="personaSave" type="submit" class="primary-action">Save persona</button>
