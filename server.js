@@ -785,9 +785,9 @@ const normalizePersonaField = (value) => {
 const PERSONA_FIELD_LIMITS = {
     name: 80,
     pronouns: 40,
-    appearance: 400,
-    background: 1000,
-    details: 1200
+    appearance: 2000,
+    background: 2000,
+    details: 2000
 };
 
 const blockedPersonaPatterns = [
