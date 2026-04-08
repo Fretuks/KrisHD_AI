@@ -19,12 +19,16 @@ const personaFormNotice = $("personaFormNotice");
 const newPersonaBtn = $("newPersona"), newUserPersonaBtn = $("newUserPersona"), clearPersonaBtn = $("clearPersona"), clearUserPersonaBtn = $("clearUserPersona");
 const activePersonaStatus = $("activePersonaStatus"), activeUserPersonaStatus = $("activeUserPersonaStatus");
 const personaModal = $("personaModal"), personaCloseBtn = $("personaClose"), personaMenuButton = $("personaMenuButton"), personaPopover = $("personaPopover");
+const popupModal = $("popupModal"), popupCloseBtn = $("popupClose"), popupCancelBtn = $("popupCancel"), popupConfirmBtn = $("popupConfirm");
+const popupTitle = $("popupTitle"), popupEyebrow = $("popupEyebrow"), popupDescription = $("popupDescription"), popupField = $("popupField");
+const popupInputLabel = $("popupInputLabel"), popupInput = $("popupInput");
 const authScreens = document.querySelectorAll(".auth-screen"), toggleButtons = document.querySelectorAll(".auth-toggle .toggle");
 const themeNameTargets = document.querySelectorAll("[data-theme-name]"), themeLogoTargets = document.querySelectorAll("[data-theme-logo]");
 
 let isProcessing = false, activeChatId = null, editingPersonaId = null, editingPersonaType = "assistant", currentUsername = "";
 let chatSessions = [], currentMessages = [], assistantPersonas = [], userPersonas = [];
 let activePersonaId = null, activeUserPersonaId = null, currentSummary = null, publishedPersonaIds = new Set();
+let popupResolver = null, popupMode = null, popupLastFocus = null;
 
 const themes = {
     "fakegpt": {name: "FakeGPT", short: "FG"},
@@ -241,6 +245,7 @@ function setActivePersonaStatus() {
 
 function openPersonaForm(persona = null, personaType = "assistant") {
     closePersonaPopover();
+    closePopup(false);
     personaModal.classList.remove("hidden");
     if (persona) {
         editingPersonaId = persona.id; editingPersonaType = persona.persona_type || "assistant";
@@ -263,6 +268,61 @@ function closePersonaPopover() { personaPopover.classList.add("hidden"); persona
 function closeModelPopover() {
     modelPopover.classList.add("hidden");
     modelMenuButton.setAttribute("aria-expanded", "false");
+}
+function isPopupOpen() { return popupModal && !popupModal.classList.contains("hidden"); }
+function finishPopup(result) {
+    if (typeof popupResolver === "function") popupResolver(result);
+    popupResolver = null;
+    popupMode = null;
+}
+function closePopup(resolveValue = null) {
+    if (!popupModal || popupModal.classList.contains("hidden")) return;
+    popupModal.classList.add("hidden");
+    popupField.classList.add("hidden");
+    popupInput.value = "";
+    popupConfirmBtn.disabled = false;
+    const nextFocus = popupLastFocus;
+    popupLastFocus = null;
+    finishPopup(resolveValue);
+    if (nextFocus instanceof HTMLElement) nextFocus.focus();
+}
+function openPopup(options) {
+    if (!popupModal) return Promise.resolve(null);
+    if (isPopupOpen()) closePopup(null);
+    popupLastFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    popupMode = options.mode;
+    popupEyebrow.textContent = options.eyebrow || "Action";
+    popupTitle.textContent = options.title || "Confirm action";
+    popupDescription.textContent = options.description || "";
+    popupConfirmBtn.textContent = options.confirmLabel || "Confirm";
+    popupCancelBtn.textContent = options.cancelLabel || "Cancel";
+    popupConfirmBtn.classList.toggle("danger", Boolean(options.danger));
+    popupField.classList.toggle("hidden", options.mode !== "prompt");
+    if (options.mode === "prompt") {
+        popupInputLabel.textContent = options.label || "Value";
+        popupInput.value = options.value || "";
+        popupInput.placeholder = options.placeholder || "";
+    } else {
+        popupInput.value = "";
+    }
+    popupModal.classList.remove("hidden");
+    return new Promise((resolve) => {
+        popupResolver = resolve;
+        requestAnimationFrame(() => {
+            if (options.mode === "prompt") {
+                popupInput.focus();
+                popupInput.select();
+            } else {
+                popupConfirmBtn.focus();
+            }
+        });
+    });
+}
+function confirmPopup(options) {
+    return openPopup({...options, mode: "confirm"}).then((result) => Boolean(result));
+}
+function promptPopup(options) {
+    return openPopup({...options, mode: "prompt"}).then((result) => typeof result === "string" ? result : null);
 }
 
 function renderPersonaList(items, activeId, listElement, personaType) {
@@ -342,7 +402,15 @@ async function savePersona() {
 
 async function deletePersona(id) {
     const persona = assistantPersonas.find((item) => item.id === id) || userPersonas.find((item) => item.id === id);
-    if (!persona || !window.confirm(`Delete persona "${persona.name}"?`)) return;
+    if (!persona) return;
+    const confirmed = await confirmPopup({
+        eyebrow: persona.persona_type === "user" ? "Your persona" : "AI persona",
+        title: "Delete persona",
+        description: `Delete "${persona.name}"? This removes it from your library and any active slot.`,
+        confirmLabel: "Delete",
+        danger: true
+    });
+    if (!confirmed) return;
     const res = await del(`/personas/${id}`);
     if (res.error) return setNotice(res.error, "error");
     await loadPersonas(); setNotice("Persona deleted.", "success");
@@ -384,7 +452,16 @@ async function createNewChat() {
 }
 
 async function renameChat(id) {
-    const chat = getChatById(id), nextTitle = chat ? window.prompt("Rename chat", chat.title) : "";
+    const chat = getChatById(id);
+    const nextTitle = chat ? await promptPopup({
+        eyebrow: "Conversation",
+        title: "Rename chat",
+        description: "Choose a new title for this thread.",
+        label: "Chat title",
+        value: chat.title,
+        placeholder: "New chat",
+        confirmLabel: "Save"
+    }) : "";
     const title = (nextTitle || "").trim();
     if (!chat || !title) return;
     const res = await put(`/chats/${id}`, {title});
@@ -394,7 +471,15 @@ async function renameChat(id) {
 
 async function clearChat(id) {
     const chat = getChatById(id);
-    if (!chat || !window.confirm(`Clear all messages in "${chat.title}"?`)) return;
+    if (!chat) return;
+    const confirmed = await confirmPopup({
+        eyebrow: "Conversation",
+        title: "Clear messages",
+        description: `Clear all messages in "${chat.title}"? The chat will stay, but its history will be removed.`,
+        confirmLabel: "Clear",
+        danger: true
+    });
+    if (!confirmed) return;
     const res = await post(`/chats/${id}/clear`, {});
     if (res.error) return setNotice(res.error, "error");
     currentMessages = []; renderMessages(); await loadSummary(); setNotice("Chat cleared.", "success");
@@ -412,7 +497,15 @@ function exportCurrentChat() {
 
 async function deleteChat(id) {
     const chat = getChatById(id);
-    if (!chat || !window.confirm(`Delete "${chat.title}"? This cannot be undone.`)) return;
+    if (!chat) return;
+    const confirmed = await confirmPopup({
+        eyebrow: "Conversation",
+        title: "Delete chat",
+        description: `Delete "${chat.title}"? This permanently removes the conversation.`,
+        confirmLabel: "Delete",
+        danger: true
+    });
+    if (!confirmed) return;
     const res = await del(`/chats/${id}`);
     if (res.error) return setNotice(res.error, "error");
     chatSessions = chatSessions.filter((item) => item.id !== id);
@@ -530,10 +623,33 @@ newPersonaBtn.addEventListener("click", () => openPersonaForm()); newUserPersona
 clearPersonaBtn.addEventListener("click", () => { void clearPersona("assistant"); }); clearUserPersonaBtn.addEventListener("click", () => { void clearPersona("user"); });
 personaForm.addEventListener("submit", (event) => { event.preventDefault(); void savePersona(); }); personaCloseBtn.addEventListener("click", closePersonaForm);
 personaModal.addEventListener("click", (event) => { if (event.target === personaModal) closePersonaForm(); });
+popupConfirmBtn.addEventListener("click", () => {
+    if (popupMode === "prompt") {
+        closePopup(popupInput.value);
+        return;
+    }
+    closePopup(true);
+});
+popupCancelBtn.addEventListener("click", () => closePopup(false));
+popupCloseBtn.addEventListener("click", () => closePopup(false));
+popupModal.addEventListener("click", (event) => { if (event.target === popupModal) closePopup(false); });
+popupInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+        event.preventDefault();
+        closePopup(popupInput.value);
+    }
+});
 modelMenuButton.addEventListener("click", toggleModelPopover); modelPopover.addEventListener("click", (event) => event.stopPropagation());
 personaMenuButton.addEventListener("click", togglePersonaPopover); personaPopover.addEventListener("click", (event) => event.stopPropagation());
 document.addEventListener("click", () => { closeModelPopover(); closePersonaPopover(); });
-document.addEventListener("keydown", (event) => { if (event.key === "Escape") { closeModelPopover(); closePersonaPopover(); closePersonaForm(); } });
+document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+        closeModelPopover();
+        closePersonaPopover();
+        closePersonaForm();
+        closePopup(false);
+    }
+});
 window.addEventListener("load", async () => {
     applyTheme(localStorage.getItem("krishd-theme") || "fakegpt", false);
     setNotice("Ready."); updateChatActionState(); await checkSession();

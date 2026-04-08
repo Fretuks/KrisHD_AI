@@ -1352,6 +1352,29 @@ select:focus {
     gap: 18px;
 }
 
+.popup-card {
+    width: min(520px, 95vw);
+    display: grid;
+    gap: 18px;
+}
+
+.popup-content {
+    display: grid;
+    gap: 14px;
+}
+
+.popup-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.popup-actions .secondary-action,
+.popup-actions button {
+    min-width: 132px;
+}
+
 .persona-modal-heading {
     display: grid;
     gap: 4px;
