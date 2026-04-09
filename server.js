@@ -448,10 +448,10 @@ const insertChatMessageStmt = db.prepare(
 );
 
 const getChatMessagesStmt = db.prepare(`
-                    SELECT role, content
+                    SELECT id, role, content
                     FROM chat_messages
                     WHERE chat_id = ?
-                    ORDER BY datetime(created_at)
+                    ORDER BY id
         `
     )
 ;
@@ -459,11 +459,71 @@ const getRecentChatMessagesStmt = db.prepare(`
                     SELECT role, content
                     FROM chat_messages
                     WHERE chat_id = ?
-                    ORDER BY datetime(created_at) DESC
+                    ORDER BY id DESC
                     LIMIT 20
         `
     )
 ;
+
+const getRecentChatMessagesUpToIdStmt = db.prepare(`
+                    SELECT role, content
+                    FROM chat_messages
+                    WHERE chat_id = ?
+                      AND id <= ?
+                    ORDER BY id DESC
+                    LIMIT 20
+        `
+    )
+;
+
+const getChatMessageByIdStmt = db.prepare(`
+                    SELECT id, role, content
+                    FROM chat_messages
+                    WHERE id = ?
+                      AND chat_id = ?
+        `
+    )
+;
+
+const getChatMessageByIndexStmt = db.prepare(`
+                    SELECT id, role, content
+                    FROM chat_messages
+                    WHERE chat_id = ?
+                    ORDER BY id
+                    LIMIT 1 OFFSET ?
+        `
+    )
+;
+
+const getLatestChatMessageStmt = db.prepare(`
+                    SELECT id, role, content
+                    FROM chat_messages
+                    WHERE chat_id = ?
+                    ORDER BY id DESC
+                    LIMIT 1
+        `
+    )
+;
+
+const getPreviousUserMessageStmt = db.prepare(`
+                    SELECT id, role, content
+                    FROM chat_messages
+                    WHERE chat_id = ?
+                      AND role = 'user'
+                      AND id < ?
+                    ORDER BY id DESC
+                    LIMIT 1
+        `
+    )
+;
+
+const updateChatMessageStmt = db.prepare(
+    "UPDATE chat_messages SET content = ? WHERE id = ? AND chat_id = ?"
+);
+
+const deleteChatMessageStmt = db.prepare(
+    "DELETE FROM chat_messages WHERE id = ? AND chat_id = ?"
+);
 
 const deleteChatMessagesStmt = db.prepare(
     "DELETE FROM chat_messages WHERE chat_id = ?"
@@ -1072,7 +1132,9 @@ const buildRoleplayDirectionPrompt = ({assistantPersona, userPersona, scenarioPr
         "Make the assistant's first instinct, language, and priorities fit their persona exactly.",
         "Use the user persona as interaction context so the assistant addresses them in a fitting way.",
         "Avoid generic openings, meta commentary, and requests for permission to begin.",
-        "Do not write dialogue or internal thoughts for the user.",
+        "Do not write dialogue, internal thoughts, choices, or actions for the user.",
+        "Never output any lines like 'User:' or 'You:' and never narrate what the user does.",
+        "The opening must contain only the assistant character's own spoken words and optional self-actions.",
         "Prefer a concrete opening beat over vague exposition.",
         "Include a subtle hook, tension, invitation, or problem that gives the user something to respond to.",
         "",
@@ -1103,9 +1165,65 @@ const buildRoleplayOpenerPrompt = ({assistantPersona, userPersona, scenarioPromp
         `Address ${userName} naturally within the scene.`,
         "The message should establish the situation immediately instead of explaining setup out of character.",
         "Use 1 to 3 short paragraphs. Sensory detail is allowed, but keep momentum.",
+        "Write only the assistant character's words and optional self-actions.",
+        "Do not write any user dialogue, user thoughts, or user actions.",
+        "Do not use labels such as 'User:' or 'You:'.",
         "End with a line, question, action, or reveal that gives the user an obvious way to answer.",
         `Keep this scene continuity in mind: ${sceneSummary}`
     ].join("\n");
+};
+
+const escapeRegExp = (value) => String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const containsUserVoiceInRoleplayOpener = (opener, userPersona) => {
+    const text = String(opener || "").trim();
+    if (!text) return true;
+
+    const userName = (userPersona?.name || "").trim();
+    const nameParts = userName ? userName.split(/\s+/).filter(Boolean).slice(0, 2) : [];
+    const tokens = ["user", "you", ...nameParts].filter(Boolean).map(escapeRegExp);
+    if (!tokens.length) return false;
+
+    const labelPattern = new RegExp(`(^|\\n)\\s*(?:${tokens.join("|")})\\s*:`, "i");
+    if (labelPattern.test(text)) return true;
+
+    const userActionPattern = new RegExp(
+        `(^|\\n)\\s*(?:\\*\\s*)?(?:${tokens.join("|")})\\s+` +
+        "(?:say|says|said|ask|asks|asked|reply|replies|replied|think|thinks|thought|feel|feels|felt|walk|walks|walked|step|steps|stepped|look|looks|looked|nod|nods|nodded|smile|smiles|smiled|enter|enters|entered|turn|turns|turned)\\b",
+        "i"
+    );
+    return userActionPattern.test(text);
+};
+
+const generateRoleplayOpener = async ({selectedModel = "mistral:latest", assistantPersona, userPersona, scenarioPrompt, sceneSummary}) => {
+    const baseMessages = [
+        {role: "system", content: buildPersonaPrompt(assistantPersona)},
+        ...(userPersona ? [{role: "system", content: buildUserPersonaPrompt(userPersona)}] : []),
+        {role: "system", content: buildRoleplayDirectionPrompt({assistantPersona, userPersona, scenarioPrompt, sceneSummary})},
+        {role: "user", content: buildRoleplayOpenerPrompt({assistantPersona, userPersona, scenarioPrompt, sceneSummary})}
+    ];
+
+    let opener = await generateModelReply(selectedModel, baseMessages);
+    if (!containsUserVoiceInRoleplayOpener(opener, userPersona)) {
+        return opener;
+    }
+
+    const retryMessages = [
+        ...baseMessages,
+        {role: "assistant", content: opener || ""},
+        {
+            role: "user",
+            content: "Rewrite this opening. Hard rule: only the assistant character may speak or act. Never write user speech, thoughts, actions, or labels like 'User:'/'You:'."
+        }
+    ];
+    opener = await generateModelReply(selectedModel, retryMessages);
+    return opener;
+};
+
+const getChatMessageByIndex = (chatId, index) => {
+    const safeIndex = Number(index);
+    if (!Number.isInteger(safeIndex) || safeIndex < 0) return null;
+    return getChatMessageByIndexStmt.get(chatId, safeIndex) || null;
 };
 
 const createPersonaChat = (user, persona, userPersonaId = null, scenarioPrompt = null, scenarioSummary = null) => {
@@ -1268,6 +1386,80 @@ app.get("/chats/:id/messages", requireLogin, (req, res) => {
     }
     const messages = getChatMessagesStmt.all(chatId);
     res.json({messages, chat: session});
+});
+
+app.put("/chats/:id/messages/:messageId", requireLogin, (req, res) => {
+    const user = req.session.user;
+    const chatId = Number(req.params.id);
+    const messageId = Number(req.params.messageId);
+    const content = String(req.body?.content || "").trim();
+    const session = getChatSessionStmt.get(chatId, user);
+    if (!session) {
+        return res.status(404).json({error: "Chat not found"});
+    }
+    if (!content) {
+        return res.status(400).json({error: "Message content is required"});
+    }
+    const result = updateChatMessageStmt.run(content, messageId, chatId);
+    if (result.changes === 0) {
+        return res.status(404).json({error: "Message not found"});
+    }
+    touchChatSessionStmt.run(chatId, user);
+    const message = getChatMessageByIdStmt.get(messageId, chatId);
+    res.json({message});
+});
+
+app.put("/chats/:id/messages/by-index/:index", requireLogin, (req, res) => {
+    const user = req.session.user;
+    const chatId = Number(req.params.id);
+    const content = String(req.body?.content || "").trim();
+    const session = getChatSessionStmt.get(chatId, user);
+    if (!session) {
+        return res.status(404).json({error: "Chat not found"});
+    }
+    if (!content) {
+        return res.status(400).json({error: "Message content is required"});
+    }
+    const target = getChatMessageByIndex(chatId, req.params.index);
+    if (!target) {
+        return res.status(404).json({error: "Message not found"});
+    }
+    updateChatMessageStmt.run(content, target.id, chatId);
+    touchChatSessionStmt.run(chatId, user);
+    const message = getChatMessageByIdStmt.get(target.id, chatId);
+    res.json({message});
+});
+
+app.delete("/chats/:id/messages/:messageId", requireLogin, (req, res) => {
+    const user = req.session.user;
+    const chatId = Number(req.params.id);
+    const messageId = Number(req.params.messageId);
+    const session = getChatSessionStmt.get(chatId, user);
+    if (!session) {
+        return res.status(404).json({error: "Chat not found"});
+    }
+    const result = deleteChatMessageStmt.run(messageId, chatId);
+    if (result.changes === 0) {
+        return res.status(404).json({error: "Message not found"});
+    }
+    touchChatSessionStmt.run(chatId, user);
+    res.json({message: "Message deleted"});
+});
+
+app.delete("/chats/:id/messages/by-index/:index", requireLogin, (req, res) => {
+    const user = req.session.user;
+    const chatId = Number(req.params.id);
+    const session = getChatSessionStmt.get(chatId, user);
+    if (!session) {
+        return res.status(404).json({error: "Chat not found"});
+    }
+    const target = getChatMessageByIndex(chatId, req.params.index);
+    if (!target) {
+        return res.status(404).json({error: "Message not found"});
+    }
+    deleteChatMessageStmt.run(target.id, chatId);
+    touchChatSessionStmt.run(chatId, user);
+    res.json({message: "Message deleted"});
 });
 
 app.post("/chats/:id/clear", requireLogin, (req, res) => {
@@ -1511,7 +1703,7 @@ app.post("/personas/market/:id/collect", requireLogin, (req, res) => {
     res.json({persona, activeUserPersonaId});
 });
 
-app.post("/personas/market/:id/chat", requireLogin, (req, res) => {
+app.post("/personas/market/:id/chat", requireLogin, async (req, res) => {
     const user = req.session.user;
     const marketId = Number(req.params.id);
     const userPersonaId = req.body?.userPersonaId ? Number(req.body.userPersonaId) : null;
@@ -1565,18 +1757,23 @@ app.post("/personas/market/:id/chat", requireLogin, (req, res) => {
     }
     updateChatSessionSceneStmt.run(scenarioPrompt, sceneSummary, chat.id, user);
     chat = getChatSessionStmt.get(chat.id, user);
-    Promise.resolve(generateModelReply("mistral:latest", [
-        {role: "system", content: buildPersonaPrompt(persona)},
-        ...(userPersona ? [{role: "system", content: buildUserPersonaPrompt(userPersona)}] : []),
-        {role: "system", content: buildRoleplayDirectionPrompt({assistantPersona: persona, userPersona, scenarioPrompt, sceneSummary})},
-        {role: "user", content: buildRoleplayOpenerPrompt({assistantPersona: persona, userPersona, scenarioPrompt, sceneSummary})}
-    ])).then((opener) => {
+    try {
+        const opener = await generateRoleplayOpener({
+            selectedModel: "mistral:latest",
+            assistantPersona: persona,
+            userPersona,
+            scenarioPrompt,
+            sceneSummary
+        });
+        if (!opener || containsUserVoiceInRoleplayOpener(opener, userPersona)) {
+            return res.json({persona, chat, existing: false, generatedInitialMessage: false});
+        }
         insertChatMessageStmt.run(chat.id, "bot", opener);
         touchChatSessionStmt.run(chat.id, user);
-        res.json({persona, chat: getChatSessionStmt.get(chat.id, user), existing: false, generatedInitialMessage: true, opener});
-    }).catch(() => {
-        res.json({persona, chat, existing: false, generatedInitialMessage: false});
-    });
+        return res.json({persona, chat: getChatSessionStmt.get(chat.id, user), existing: false, generatedInitialMessage: true, opener});
+    } catch {
+        return res.json({persona, chat, existing: false, generatedInitialMessage: false});
+    }
 });
 
 app.post("/roleplays/start", requireLogin, async (req, res) => {
@@ -1621,24 +1818,15 @@ app.post("/roleplays/start", requireLogin, async (req, res) => {
     updateChatSessionSceneStmt.run(scenarioPrompt, sceneSummary, chat.id, user);
     chat = getChatSessionStmt.get(chat.id, user);
 
-    const messagesPayload = [
-        {role: "system", content: buildPersonaPrompt(assistantPersona)}
-    ];
-    if (userPersona) {
-        messagesPayload.push({role: "system", content: buildUserPersonaPrompt(userPersona)});
-    }
-    messagesPayload.push({
-        role: "system",
-        content: buildRoleplayDirectionPrompt({assistantPersona, userPersona, scenarioPrompt, sceneSummary})
-    });
-    messagesPayload.push({
-        role: "user",
-        content: buildRoleplayOpenerPrompt({assistantPersona, userPersona, scenarioPrompt, sceneSummary})
-    });
-
     try {
-        const opener = await generateModelReply(selectedModel, messagesPayload);
-        if (!opener) {
+        const opener = await generateRoleplayOpener({
+            selectedModel,
+            assistantPersona,
+            userPersona,
+            scenarioPrompt,
+            sceneSummary
+        });
+        if (!opener || containsUserVoiceInRoleplayOpener(opener, userPersona)) {
             return res.status(500).json({error: "Failed to generate the character opener"});
         }
         insertChatMessageStmt.run(chat.id, "bot", opener);
@@ -1712,6 +1900,151 @@ app.post("/chat", requireLogin, async (req, res) => {
     } catch (err) {
         console.error("AI chat error:", err);
         res.status(500).json({error: "AI request failed"});
+    }
+});
+
+app.post("/chats/:id/messages/:messageId/retry", requireLogin, async (req, res) => {
+    const user = req.session.user;
+    const chatId = Number(req.params.id);
+    const messageId = Number(req.params.messageId);
+    const selectedModel = req.body?.model || "mistral:latest";
+    const session = getChatSessionStmt.get(chatId, user);
+    if (!session) {
+        return res.status(404).json({error: "Chat not found"});
+    }
+
+    const targetMessage = getChatMessageByIdStmt.get(messageId, chatId);
+    if (!targetMessage) {
+        return res.status(404).json({error: "Message not found"});
+    }
+    const latestMessage = getLatestChatMessageStmt.get(chatId);
+    if (!latestMessage || latestMessage.id !== messageId || latestMessage.role !== "bot") {
+        return res.status(400).json({error: "Only the newest assistant message can be retried"});
+    }
+    const promptMessage = getPreviousUserMessageStmt.get(chatId, messageId);
+    if (!promptMessage) {
+        return res.status(400).json({error: "No previous user prompt found for retry"});
+    }
+
+    try {
+        const activePersona = getAssistantPersonaForChatStmt.get(chatId, user);
+        const activeUserPersona = getUserPersonaForChatStmt.get(chatId, user) || getActiveUserPersonaStmt.get(user);
+        const sceneSummary = session.scenario_summary;
+        const scenarioPrompt = session.scenario_prompt;
+        const conversation = getRecentChatMessagesUpToIdStmt.all(chatId, promptMessage.id).reverse();
+        const messagesPayload = [];
+        if (activePersona) {
+            messagesPayload.push({
+                role: "system",
+                content: buildPersonaPrompt(activePersona)
+            });
+        }
+        if (activeUserPersona) {
+            messagesPayload.push({
+                role: "system",
+                content: buildUserPersonaPrompt(activeUserPersona)
+            });
+        }
+        if (activePersona && sceneSummary) {
+            messagesPayload.push({
+                role: "system",
+                content: buildRoleplayDirectionPrompt({
+                    assistantPersona: activePersona,
+                    userPersona: activeUserPersona,
+                    scenarioPrompt,
+                    sceneSummary
+                })
+            });
+        }
+        messagesPayload.push(
+            ...conversation.map((m) => ({
+                role: m.role === "bot" ? "assistant" : "user",
+                content: m.content
+            }))
+        );
+
+        const fullReply = await generateModelReply(selectedModel, messagesPayload);
+        if (!fullReply) {
+            return res.status(500).json({error: "Failed to regenerate message"});
+        }
+        updateChatMessageStmt.run(fullReply, messageId, chatId);
+        touchChatSessionStmt.run(chatId, user);
+        return res.json({message: {id: messageId, role: "bot", content: fullReply}, promptMessageId: promptMessage.id});
+    } catch (err) {
+        console.error("Retry error:", err);
+        return res.status(500).json({error: "Failed to regenerate message"});
+    }
+});
+
+app.post("/chats/:id/messages/by-index/:index/retry", requireLogin, async (req, res) => {
+    const user = req.session.user;
+    const chatId = Number(req.params.id);
+    const selectedModel = req.body?.model || "mistral:latest";
+    const session = getChatSessionStmt.get(chatId, user);
+    if (!session) {
+        return res.status(404).json({error: "Chat not found"});
+    }
+
+    const targetMessage = getChatMessageByIndex(chatId, req.params.index);
+    if (!targetMessage) {
+        return res.status(404).json({error: "Message not found"});
+    }
+    const latestMessage = getLatestChatMessageStmt.get(chatId);
+    if (!latestMessage || latestMessage.id !== targetMessage.id || latestMessage.role !== "bot") {
+        return res.status(400).json({error: "Only the newest assistant message can be retried"});
+    }
+    const promptMessage = getPreviousUserMessageStmt.get(chatId, targetMessage.id);
+    if (!promptMessage) {
+        return res.status(400).json({error: "No previous user prompt found for retry"});
+    }
+
+    try {
+        const activePersona = getAssistantPersonaForChatStmt.get(chatId, user);
+        const activeUserPersona = getUserPersonaForChatStmt.get(chatId, user) || getActiveUserPersonaStmt.get(user);
+        const sceneSummary = session.scenario_summary;
+        const scenarioPrompt = session.scenario_prompt;
+        const conversation = getRecentChatMessagesUpToIdStmt.all(chatId, promptMessage.id).reverse();
+        const messagesPayload = [];
+        if (activePersona) {
+            messagesPayload.push({
+                role: "system",
+                content: buildPersonaPrompt(activePersona)
+            });
+        }
+        if (activeUserPersona) {
+            messagesPayload.push({
+                role: "system",
+                content: buildUserPersonaPrompt(activeUserPersona)
+            });
+        }
+        if (activePersona && sceneSummary) {
+            messagesPayload.push({
+                role: "system",
+                content: buildRoleplayDirectionPrompt({
+                    assistantPersona: activePersona,
+                    userPersona: activeUserPersona,
+                    scenarioPrompt,
+                    sceneSummary
+                })
+            });
+        }
+        messagesPayload.push(
+            ...conversation.map((m) => ({
+                role: m.role === "bot" ? "assistant" : "user",
+                content: m.content
+            }))
+        );
+
+        const fullReply = await generateModelReply(selectedModel, messagesPayload);
+        if (!fullReply) {
+            return res.status(500).json({error: "Failed to regenerate message"});
+        }
+        updateChatMessageStmt.run(fullReply, targetMessage.id, chatId);
+        touchChatSessionStmt.run(chatId, user);
+        return res.json({message: {id: targetMessage.id, role: "bot", content: fullReply}, promptMessageId: promptMessage.id});
+    } catch (err) {
+        console.error("Retry error:", err);
+        return res.status(500).json({error: "Failed to regenerate message"});
     }
 });
 

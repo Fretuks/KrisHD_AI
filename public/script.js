@@ -10,6 +10,7 @@ const registerUsernameInput = $("registerUsername"), registerPasswordInput = $("
 const loginSubmit = $("loginSubmit"), registerSubmit = $("registerSubmit");
 const chatList = $("chatList"), chatSearchInput = $("chatSearch"), newChatBtn = $("newChat");
 const startRoleplayBtn = $("startRoleplay");
+const chatListLoading = $("chatListLoading"), chatListLoadingText = $("chatListLoadingText");
 const renameChatBtn = $("renameChat"), clearChatBtn = $("clearChat"), exportChatBtn = $("exportChat");
 const activeChatTitle = $("activeChatTitle"), sessionUser = $("sessionUser");
 const contextChipButton = $("contextChipButton"), contextPopover = $("contextPopover"), contextSummaryLabel = $("contextSummaryLabel");
@@ -46,6 +47,8 @@ let roleplayPresetCharacterId = null;
 let noticeTimer = null;
 let workspaceMode = localStorage.getItem("krishd-workspace-mode") || "basic";
 let onboardingStep = 1, onboardingIntent = "ask";
+let chatLoadingDepth = 0;
+let messageRetryState = new Map();
 
 const onboardingPrompts = {
     ask: ["Explain this topic in simple terms.", "Compare these options and recommend one."],
@@ -111,6 +114,21 @@ function setPersonaFormNotice(message = "", state = "") {
     }
     personaFormNotice.textContent = message;
     personaFormNotice.className = state ? `status ${state}` : "status";
+}
+
+function setChatLoading(active, message = "Loading chats...") {
+    if (!chatListLoading || !chatListLoadingText) return;
+    if (active) {
+        chatLoadingDepth += 1;
+        chatListLoadingText.textContent = message;
+        chatListLoading.classList.remove("hidden");
+        return;
+    }
+    chatLoadingDepth = Math.max(0, chatLoadingDepth - 1);
+    if (chatLoadingDepth === 0) {
+        chatListLoading.classList.add("hidden");
+        chatListLoadingText.textContent = "Loading chats...";
+    }
 }
 
 function applyWorkspaceMode(nextMode, persist = true) {
@@ -245,16 +263,6 @@ function updateRoleplaySuggestions() {
     });
 }
 function getQuickPromptsForChat(chat) {
-    if (chat?.assistant_persona_id) {
-        const characterName = chat.assistant_persona_name || chat.title || "the character";
-        const userName = chat.user_persona_name || "me";
-        return [
-            `Stay in character and describe what ${characterName} notices about ${userName} right now.`,
-            `Push the scene forward with a new complication.`,
-            `Respond with sharper tension and more specific detail.`,
-            `Let ${characterName} reveal what they actually want from me.`
-        ];
-    }
     return [];
 }
 function renderQuickPrompts() {
@@ -295,7 +303,195 @@ function updateSendState() {
     sendBtn.disabled = isProcessing || !hasText;
 }
 
-function addMessage(content, isUser = false, isLoading = false) {
+function getNewestMessage() {
+    return currentMessages.length ? currentMessages[currentMessages.length - 1] : null;
+}
+
+function getMessageIndexById(messageId) {
+    return currentMessages.findIndex((message) => message.id === messageId);
+}
+
+async function resolveMessageTarget(messageId, fallbackIndex = -1) {
+    if (messageId) {
+        const index = getMessageIndexById(messageId);
+        if (index >= 0) {
+            return {index, message: currentMessages[index]};
+        }
+    }
+    if (activeChatId) {
+        await setActiveChat(activeChatId);
+    }
+    if (messageId) {
+        const index = getMessageIndexById(messageId);
+        if (index >= 0) {
+            return {index, message: currentMessages[index]};
+        }
+    }
+    if (fallbackIndex >= 0 && fallbackIndex < currentMessages.length) {
+        return {index: fallbackIndex, message: currentMessages[fallbackIndex]};
+    }
+    return null;
+}
+
+function getMessageEndpoint(target, suffix = "") {
+    if (!activeChatId || !target) return "";
+    if (target.message?.id) return `/chats/${activeChatId}/messages/${target.message.id}${suffix}`;
+    if (target.index >= 0) return `/chats/${activeChatId}/messages/by-index/${target.index}${suffix}`;
+    return "";
+}
+
+function getPreviousUserMessageId(messageId) {
+    const index = getMessageIndexById(messageId);
+    if (index <= 0) return null;
+    for (let i = index - 1; i >= 0; i -= 1) {
+        if (currentMessages[i].role === "user" && currentMessages[i].id) {
+            return currentMessages[i].id;
+        }
+    }
+    return null;
+}
+
+function ensureRetryState(message) {
+    if (!message?.id) return null;
+    let state = messageRetryState.get(message.id);
+    if (!state) {
+        state = {
+            variants: [message.content || ""],
+            activeIndex: 0,
+            retriesUsed: 0,
+            promptMessageId: getPreviousUserMessageId(message.id)
+        };
+        messageRetryState.set(message.id, state);
+    }
+    return state;
+}
+
+async function editChatMessage(messageId, fallbackIndex = -1) {
+    const target = await resolveMessageTarget(messageId, fallbackIndex);
+    if (!target) return setNotice("Message is not ready yet. Try again.", "error");
+    const {index, message} = target;
+    const nextContent = await promptPopup({
+        eyebrow: message.role === "user" ? "Your message" : "Assistant message",
+        title: "Edit message",
+        description: "Update this message.",
+        label: "Message",
+        value: message.content,
+        confirmLabel: "Save"
+    });
+    const content = (nextContent || "").trim();
+    if (!content) return;
+    const endpoint = getMessageEndpoint(target);
+    if (!endpoint) return setNotice("Message is not ready yet. Try again.", "error");
+    const res = await put(endpoint, {content});
+    if (res.error || !res.message) {
+        return setNotice(res.error || "Unable to edit message.", "error");
+    }
+    currentMessages[index].id = res.message.id || currentMessages[index].id;
+    currentMessages[index].content = res.message.content;
+    const retryState = message.id ? messageRetryState.get(message.id) : null;
+    if (retryState) {
+        retryState.variants[retryState.activeIndex] = res.message.content;
+    }
+    renderMessages();
+    setNotice("Message updated.", "success");
+}
+
+async function deleteChatMessage(messageId, fallbackIndex = -1) {
+    const target = await resolveMessageTarget(messageId, fallbackIndex);
+    if (!target) return setNotice("Message is not ready yet. Try again.", "error");
+    const {index, message} = target;
+    const confirmed = await confirmPopup({
+        eyebrow: message.role === "user" ? "Your message" : "Assistant message",
+        title: "Delete message",
+        description: "Delete this message from the chat?",
+        confirmLabel: "Delete",
+        danger: true
+    });
+    if (!confirmed) return;
+    const endpoint = getMessageEndpoint(target);
+    if (!endpoint) return setNotice("Message is not ready yet. Try again.", "error");
+    const res = await del(endpoint);
+    if (res.error) return setNotice(res.error, "error");
+    currentMessages = currentMessages.filter((item) => item.id !== message.id);
+    if (message.id) {
+        messageRetryState.delete(message.id);
+        for (const [key, state] of messageRetryState.entries()) {
+            if (state.promptMessageId === message.id) {
+                messageRetryState.delete(key);
+            }
+        }
+    }
+    renderMessages();
+    await loadSummary();
+    setNotice("Message deleted.", "success");
+}
+
+async function retryLatestAssistantMessage(messageId, fallbackIndex = -1) {
+    const target = await resolveMessageTarget(messageId, fallbackIndex);
+    if (!target) return setNotice("Message is not ready yet. Try again.", "error");
+    const newest = getNewestMessage();
+    const sameNewest = target.index === currentMessages.length - 1;
+    if (!newest || !sameNewest || newest.role !== "bot") {
+        return setNotice("Only the newest assistant message can be retried.", "error");
+    }
+    const state = ensureRetryState(newest) || {variants: [newest.content || ""], activeIndex: 0, retriesUsed: 0, promptMessageId: null};
+    if (!state || state.retriesUsed >= 5) {
+        return setNotice("Retry limit reached (5).", "error");
+    }
+    setLoadingState(true);
+    setNotice("Regenerating reply...");
+    try {
+        const endpoint = getMessageEndpoint(target, "/retry");
+        if (!endpoint) return setNotice("Message is not ready yet. Try again.", "error");
+        const res = await post(endpoint, {model: modelSelect.value});
+        if (res.error || !res.message?.content) {
+            return setNotice(res.error || "Unable to retry message.", "error");
+        }
+        state.retriesUsed += 1;
+        state.promptMessageId = res.promptMessageId || state.promptMessageId;
+        state.variants.push(res.message.content);
+        state.activeIndex = state.variants.length - 1;
+        const updateIndex = target.message?.id ? getMessageIndexById(target.message.id) : target.index;
+        if (updateIndex >= 0) {
+            currentMessages[updateIndex].id = res.message.id || currentMessages[updateIndex].id;
+            currentMessages[updateIndex].content = res.message.content;
+        }
+        renderMessages();
+        setNotice(`Reply regenerated (${state.retriesUsed}/5).`, "success");
+    } finally {
+        setLoadingState(false);
+    }
+}
+
+async function switchRetryVariant(messageId, direction, fallbackIndex = -1) {
+    const target = await resolveMessageTarget(messageId, fallbackIndex);
+    if (!target) return setNotice("Message is not ready yet. Try again.", "error");
+    const newest = getNewestMessage();
+    const sameNewest = target.index === currentMessages.length - 1;
+    if (!newest || !sameNewest || newest.role !== "bot") {
+        return setNotice("Variants can only be switched on the newest assistant message.", "error");
+    }
+    const state = target.message?.id ? messageRetryState.get(target.message.id) : null;
+    if (!state || state.variants.length < 2) return;
+    const nextIndex = state.activeIndex + direction;
+    if (nextIndex < 0 || nextIndex >= state.variants.length) return;
+    const targetContent = state.variants[nextIndex];
+    const endpoint = getMessageEndpoint(target);
+    if (!endpoint) return setNotice("Message is not ready yet. Try again.", "error");
+    const res = await put(endpoint, {content: targetContent});
+    if (res.error || !res.message) {
+        return setNotice(res.error || "Unable to switch variant.", "error");
+    }
+    state.activeIndex = nextIndex;
+    const updateIndex = target.message?.id ? getMessageIndexById(target.message.id) : target.index;
+    if (updateIndex >= 0) {
+        currentMessages[updateIndex].id = res.message.id || currentMessages[updateIndex].id;
+        currentMessages[updateIndex].content = res.message.content;
+    }
+    renderMessages();
+}
+
+function addMessage(contentOrMessage, isUser = false, isLoading = false, options = {}) {
     const msgDiv = document.createElement("div");
     msgDiv.className = `msg ${isUser ? "user" : "bot"}${isLoading ? " loading" : ""}`;
     if (isLoading) {
@@ -312,12 +508,78 @@ function addMessage(content, isUser = false, isLoading = false) {
                 </div>
             </div>`;
     } else {
-        const header = document.createElement("div"), body = document.createElement("div");
+        const message = typeof contentOrMessage === "object" && contentOrMessage
+            ? contentOrMessage
+            : {id: null, role: isUser ? "user" : "bot", content: String(contentOrMessage || "")};
+        const isMessageUser = message.role === "user";
+        msgDiv.className = `msg ${isMessageUser ? "user" : "bot"}`;
+        const header = document.createElement("div"), body = document.createElement("div"), actions = document.createElement("div");
         header.className = "msg-header"; body.className = "msg-content";
+        actions.className = "msg-actions";
         const activeChat = getChatById(activeChatId);
-        header.textContent = isUser ? "You" : (activeChat?.assistant_persona_name || "Assistant");
-        setMessageContent(body, content);
+        header.textContent = isMessageUser ? "You" : (activeChat?.assistant_persona_name || "Assistant");
+        setMessageContent(body, message.content);
+
+        const editBtn = document.createElement("button");
+        editBtn.type = "button";
+        editBtn.className = "msg-action-btn";
+        editBtn.textContent = "Edit";
+        editBtn.addEventListener("click", () => {
+            void editChatMessage(message.id, options.messageIndex ?? -1);
+        });
+        actions.appendChild(editBtn);
+
+        const deleteBtn = document.createElement("button");
+        deleteBtn.type = "button";
+        deleteBtn.className = "msg-action-btn";
+        deleteBtn.textContent = "Delete";
+        deleteBtn.addEventListener("click", () => {
+            void deleteChatMessage(message.id, options.messageIndex ?? -1);
+        });
+        actions.appendChild(deleteBtn);
+
+        if (options.isNewest && message.role === "bot") {
+            const state = message.id ? ensureRetryState(message) : {retriesUsed: 0, variants: [], activeIndex: 0};
+            const retryBtn = document.createElement("button");
+            retryBtn.type = "button";
+            retryBtn.className = "msg-action-btn";
+            retryBtn.textContent = `Retry (${state.retriesUsed}/5)`;
+            retryBtn.disabled = state.retriesUsed >= 5 || isProcessing;
+            retryBtn.addEventListener("click", () => {
+                void retryLatestAssistantMessage(message.id, options.messageIndex ?? -1);
+            });
+            actions.appendChild(retryBtn);
+
+            if (state.variants.length > 1) {
+                const prevBtn = document.createElement("button");
+                prevBtn.type = "button";
+                prevBtn.className = "msg-action-btn";
+                prevBtn.textContent = "Prev";
+                prevBtn.disabled = state.activeIndex <= 0;
+                prevBtn.addEventListener("click", () => {
+                    void switchRetryVariant(message.id, -1, options.messageIndex ?? -1);
+                });
+
+                const nextBtn = document.createElement("button");
+                nextBtn.type = "button";
+                nextBtn.className = "msg-action-btn";
+                nextBtn.textContent = "Next";
+                nextBtn.disabled = state.activeIndex >= state.variants.length - 1;
+                nextBtn.addEventListener("click", () => {
+                    void switchRetryVariant(message.id, 1, options.messageIndex ?? -1);
+                });
+
+                const indexBadge = document.createElement("span");
+                indexBadge.className = "msg-variant-index";
+                indexBadge.textContent = `${state.activeIndex + 1}/${state.variants.length}`;
+                actions.append(prevBtn, indexBadge, nextBtn);
+            }
+        }
+
         msgDiv.append(header, body);
+        if (actions.childElementCount) {
+            msgDiv.appendChild(actions);
+        }
     }
     messagesDiv.appendChild(msgDiv);
     messagesDiv.scrollTop = messagesDiv.scrollHeight;
@@ -330,7 +592,10 @@ function renderMessages() {
     if (!currentMessages.length && (!chat || chat.assistant_persona_id)) {
         renderMessageEmptyState();
     } else {
-        currentMessages.forEach((msg) => addMessage(msg.content, msg.role === "user"));
+        currentMessages.forEach((msg, index) => addMessage(msg, msg.role === "user", false, {
+            messageIndex: index,
+            isNewest: index === currentMessages.length - 1
+        }));
     }
     updateChatParticipants();
     updateChatActionState();
@@ -889,22 +1154,33 @@ function showAuthScreen(target) {
 }
 
 async function setActiveChat(id) {
+    setChatLoading(true, "Opening chat...");
     activeChatId = id;
+    messageRetryState = new Map();
     updateWorkspaceCopy(); renderChatList(); updateChatActionState();
     const res = await get(`/chats/${id}/messages`);
-    if (res.error) return setNotice(res.error, "error");
+    if (res.error) {
+        setChatLoading(false);
+        return setNotice(res.error, "error");
+    }
     const existing = getChatById(id);
     if (res.chat && existing) Object.assign(existing, res.chat);
     currentMessages = res.messages || []; renderMessages();
     updateSendState();
+    setChatLoading(false);
 }
 
 async function loadChatSessions() {
+    setChatLoading(true, "Loading chats...");
     const res = await get("/chats");
-    if (res.error) return setNotice(res.error, "error");
+    if (res.error) {
+        setChatLoading(false);
+        return setNotice(res.error, "error");
+    }
     chatSessions = res.chats || []; renderChatList();
     if (chatSessions.length) {
         const preferredChatId = (requestedChatId && getChatById(requestedChatId)) ? requestedChatId : activeChatId && getChatById(activeChatId) ? activeChatId : chatSessions[0].id;
+        setChatLoading(false);
         return setActiveChat(preferredChatId);
     }
     activeChatId = null;
@@ -912,21 +1188,29 @@ async function loadChatSessions() {
     renderMessages();
     updateWorkspaceCopy();
     updateSendState();
+    setChatLoading(false);
     return setNotice("Pick a starting action to begin.", "success");
 }
 
 async function createNewChat() {
+    setChatLoading(true, "Creating chat...");
     const res = await post("/chats", {title: "New chat"});
-    if (res.error || !res.chat) return setNotice(res.error || "Unable to create chat.", "error");
+    if (res.error || !res.chat) {
+        setChatLoading(false);
+        return setNotice(res.error || "Unable to create chat.", "error");
+    }
     chatSessions.unshift(res.chat); await loadSummary(); renderChatList(); await setActiveChat(res.chat.id); setNotice("New chat created.", "success");
     msgInput.focus();
+    setChatLoading(false);
 }
 
 async function startRoleplay() {
+    setChatLoading(true, "Starting roleplay...");
     const assistantPersonaId = Number(roleplayCharacterSelect.value);
     const userPersonaId = roleplayUserPersonaSelect.value ? Number(roleplayUserPersonaSelect.value) : null;
     const scenarioPrompt = roleplayScenarioInput?.value.trim() || "";
     if (!assistantPersonaId) {
+        setChatLoading(false);
         return setRoleplayStarterNotice("Choose a character to start the roleplay.", "error");
     }
     roleplayStarterConfirm.disabled = true;
@@ -939,12 +1223,14 @@ async function startRoleplay() {
     });
     roleplayStarterConfirm.disabled = false;
     if (res.error || !res.chat) {
+        setChatLoading(false);
         return setRoleplayStarterNotice(res.error || "Unable to start roleplay.", "error");
     }
     closeRoleplayStarter();
     await loadChatSessions();
     await setActiveChat(res.chat.id);
     setNotice(res.generatedInitialMessage ? "Roleplay started with a fresh scene." : "Roleplay reopened.", "success");
+    setChatLoading(false);
 }
 
 async function renameChat(id) {
@@ -978,6 +1264,7 @@ async function clearChat(id) {
     if (!confirmed) return;
     const res = await post(`/chats/${id}/clear`, {});
     if (res.error) return setNotice(res.error, "error");
+    messageRetryState = new Map();
     currentMessages = []; renderMessages(); await loadSummary(); setNotice("Chat cleared.", "success");
 }
 
@@ -992,8 +1279,12 @@ function exportCurrentChat() {
 }
 
 async function deleteChat(id) {
+    setChatLoading(true, "Deleting chat...");
     const chat = getChatById(id);
-    if (!chat) return;
+    if (!chat) {
+        setChatLoading(false);
+        return;
+    }
     const confirmed = await confirmPopup({
         eyebrow: "Conversation",
         title: "Delete chat",
@@ -1001,14 +1292,22 @@ async function deleteChat(id) {
         confirmLabel: "Delete",
         danger: true
     });
-    if (!confirmed) return;
+    if (!confirmed) {
+        setChatLoading(false);
+        return;
+    }
     const res = await del(`/chats/${id}`);
-    if (res.error) return setNotice(res.error, "error");
+    if (res.error) {
+        setChatLoading(false);
+        return setNotice(res.error, "error");
+    }
     chatSessions = chatSessions.filter((item) => item.id !== id);
     if (activeChatId === id) { activeChatId = null; currentMessages = []; renderMessages(); }
+    messageRetryState = new Map();
     await loadSummary(); renderChatList();
     if (chatSessions.length) await setActiveChat(chatSessions[0].id); else await createNewChat();
     setNotice("Chat deleted.", "success");
+    setChatLoading(false);
 }
 
 async function displayModels() {
@@ -1073,8 +1372,7 @@ async function sendMessage() {
         const res = await post("/chat", {message, model: modelSelect.value, chatId: activeChatId});
         if (messagesDiv.contains(loadingMsg)) messagesDiv.removeChild(loadingMsg);
         if (res.reply) {
-            currentMessages.push({role: "bot", content: res.reply});
-            addMessage(res.reply);
+            await setActiveChat(activeChatId);
             await loadSummary();
             markOnboardingCompleted();
             maybeShowPersonaNudge();
@@ -1138,6 +1436,7 @@ registerForm.addEventListener("submit", (event) => { event.preventDefault(); voi
 $("logout").addEventListener("click", async () => {
     await post("/logout", {}); chatDiv.style.display = "none"; authDiv.style.display = "grid";
     activeChatId = null; currentUsername = ""; currentSummary = null; chatSessions = []; currentMessages = []; assistantPersonas = []; userPersonas = [];
+    messageRetryState = new Map();
     activeUserPersonaId = null; publishedPersonaIds = new Set(); messagesDiv.innerHTML = ""; renderChatList(); updateChatActionState();
     updateComposerPlaceholder();
     updateSendState();

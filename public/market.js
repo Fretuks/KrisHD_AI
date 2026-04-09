@@ -18,6 +18,8 @@ const marketPreviewDetails = $("marketPreviewDetails");
 const marketPreviewExampleDialogues = $("marketPreviewExampleDialogues");
 const marketPreviewUserPersonaField = $("marketPreviewUserPersonaField");
 const marketPreviewUserPersonaSelect = $("marketPreviewUserPersonaSelect");
+const marketPreviewScenarioField = $("marketPreviewScenarioField");
+const marketPreviewScenario = $("marketPreviewScenario");
 const marketPreviewConfirm = $("marketPreviewConfirm");
 const marketPreviewClose = $("marketPreviewClose");
 const marketPersonaModal = $("marketPersonaModal");
@@ -112,10 +114,45 @@ function formatPersonaField(value) {
     return value && value.trim() ? value.trim() : "Not provided.";
 }
 
+function setCollapsiblePreviewText(element, value, maxLength = 220) {
+    const text = formatPersonaField(value);
+    element.dataset.fullText = text;
+    let toggle = element.nextElementSibling;
+    if (!toggle || !toggle.classList.contains("market-preview-toggle")) {
+        toggle = document.createElement("button");
+        toggle.type = "button";
+        toggle.className = "market-preview-toggle hidden";
+        element.insertAdjacentElement("afterend", toggle);
+        toggle.addEventListener("click", () => {
+            const isExpanded = element.dataset.expanded === "true";
+            element.dataset.expanded = isExpanded ? "false" : "true";
+            if (element.dataset.expanded === "true") {
+                element.textContent = element.dataset.fullText;
+                toggle.textContent = "Show less";
+            } else {
+                element.textContent = `${element.dataset.fullText.slice(0, maxLength).trimEnd()}...`;
+                toggle.textContent = "Show more";
+            }
+        });
+    }
+
+    const shouldCollapse = text !== "Not provided." && text.length > maxLength;
+    element.dataset.expanded = "false";
+    if (shouldCollapse) {
+        element.textContent = `${text.slice(0, maxLength).trimEnd()}...`;
+        toggle.textContent = "Show more";
+        toggle.classList.remove("hidden");
+    } else {
+        element.textContent = text;
+        toggle.classList.add("hidden");
+    }
+}
+
 function closeMarketPreview() {
     marketPreviewModal.classList.add("hidden");
     pendingMarketPersona = null;
     marketPreviewUserPersonaSelect.innerHTML = "";
+    marketPreviewScenario.value = "";
 }
 
 function populateUserPersonaChoices() {
@@ -151,14 +188,15 @@ function openMarketPreview(persona) {
     pendingMarketPersona = persona;
     marketPreviewName.textContent = persona.name;
     marketPreviewMeta.textContent = buildPersonaMeta(persona);
-    marketPreviewPronouns.textContent = formatPersonaField(persona.pronouns);
-    marketPreviewAppearance.textContent = formatPersonaField(persona.appearance);
-    marketPreviewBackground.textContent = formatPersonaField(persona.background);
-    marketPreviewDetails.textContent = formatPersonaField(persona.details);
-    marketPreviewExampleDialogues.textContent = formatPersonaField(persona.example_dialogues);
+    setCollapsiblePreviewText(marketPreviewPronouns, persona.pronouns, 80);
+    setCollapsiblePreviewText(marketPreviewAppearance, persona.appearance);
+    setCollapsiblePreviewText(marketPreviewBackground, persona.background);
+    setCollapsiblePreviewText(marketPreviewDetails, persona.details);
+    setCollapsiblePreviewText(marketPreviewExampleDialogues, persona.example_dialogues);
 
     const isAssistant = persona.persona_type === "assistant";
     marketPreviewUserPersonaField.classList.toggle("hidden", !isAssistant);
+    marketPreviewScenarioField.classList.toggle("hidden", !isAssistant);
     marketPreviewConfirm.textContent = isAssistant ? "Start roleplay" : "Collect persona";
     if (isAssistant) {
         populateUserPersonaChoices();
@@ -303,7 +341,7 @@ async function collectMarketPersona(marketId) {
     setMarketStatus("User Persona collected.", "success");
 }
 
-async function startMarketPersonaChat(marketId, userPersonaSelection) {
+async function startMarketPersonaChat(marketId, userPersonaSelection, scenarioPrompt = "") {
     if (!userPersonaSelection) {
         setMarketStatus("Choose who you are before starting roleplay.", "error");
         return;
@@ -315,7 +353,10 @@ async function startMarketPersonaChat(marketId, userPersonaSelection) {
 
     setMarketStatus("Starting AI Character chat...");
     const userPersonaId = userPersonaSelection === "self" ? null : Number(userPersonaSelection);
-    const res = await post(`/personas/market/${marketId}/chat`, {userPersonaId});
+    const res = await post(`/personas/market/${marketId}/chat`, {
+        userPersonaId,
+        scenarioPrompt: scenarioPrompt.trim()
+    });
     if (res.error || !res.chat) {
         setMarketStatus(res.error || "Unable to start chat.", "error");
         return;
@@ -385,7 +426,11 @@ marketPreviewConfirm.addEventListener("click", async () => {
     if (!pendingMarketPersona) return;
     const marketId = pendingMarketPersona.id;
     if (pendingMarketPersona.persona_type === "assistant") {
-        await startMarketPersonaChat(marketId, marketPreviewUserPersonaSelect.value || "self");
+        await startMarketPersonaChat(
+            marketId,
+            marketPreviewUserPersonaSelect.value || "self",
+            marketPreviewScenario.value || ""
+        );
         closeMarketPreview();
         return;
     }
