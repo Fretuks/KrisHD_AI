@@ -631,6 +631,26 @@ select:focus {
     padding-right: 4px;
 }
 
+.chat-loading {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(24, 32, 31, 0.08);
+    background: rgba(24, 32, 31, 0.04);
+    color: var(--text-soft);
+    font-size: 0.9rem;
+}
+
+.chat-loading-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    background: var(--brand);
+    animation: pulse 1s ease-in-out infinite;
+}
+
 .chat-item,
 .persona-item {
     display: grid;
@@ -704,6 +724,24 @@ select:focus {
     box-shadow: none;
 }
 
+.secondary-action.active {
+    background: rgba(164, 85, 45, 0.18);
+    border-color: rgba(164, 85, 45, 0.34);
+}
+
+.action-pair {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    width: 100%;
+}
+
+.action-pair .secondary-action,
+.action-pair button {
+    width: 100%;
+    min-width: 0;
+}
+
 .danger {
     background: linear-gradient(145deg, #b34b40, #8f3026);
 }
@@ -715,6 +753,30 @@ select:focus {
 .sidebar-footer-stack {
     display: grid;
     gap: 10px;
+}
+
+.tools-details {
+    border: 1px solid rgba(24, 32, 31, 0.08);
+    border-radius: 14px;
+    background: rgba(24, 32, 31, 0.04);
+    padding: 8px 10px;
+}
+
+.tools-details summary {
+    cursor: pointer;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.tools-links {
+    display: grid;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.tools-details .session-chip,
+.tools-details button {
+    margin-top: 10px;
 }
 
 .session-chip {
@@ -818,6 +880,34 @@ select:focus {
     margin-top: 8px;
 }
 
+.chat-context {
+    position: relative;
+    margin-top: 8px;
+}
+
+.context-chip-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
+    padding: 8px 12px;
+    border-radius: 999px;
+    background: rgba(24, 32, 31, 0.06);
+    color: var(--text);
+    border: 1px solid rgba(24, 32, 31, 0.12);
+}
+
+.context-chip-button span {
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.context-chip-button strong {
+    font-size: 0.9rem;
+}
+
 .sidebar-header-actions {
     justify-content: flex-end;
     flex-wrap: wrap;
@@ -827,6 +917,10 @@ select:focus {
     flex-wrap: wrap;
     justify-content: flex-end;
     align-self: end;
+}
+
+.chat-actions-menu {
+    position: relative;
 }
 
 .chat-header {
@@ -1066,6 +1160,37 @@ select:focus {
     min-height: 0;
 }
 
+.messages-empty {
+    margin: auto 0;
+    padding: 20px;
+    border-radius: 16px;
+    background: var(--surface-strong);
+    border: 1px dashed var(--line-strong);
+    display: grid;
+    gap: 10px;
+}
+
+.messages-empty-title {
+    font-size: 1.2rem;
+}
+
+.messages-empty-copy {
+    margin: 0;
+    color: var(--text-soft);
+    line-height: 1.5;
+}
+
+.messages-empty-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.messages-empty-actions .primary-action,
+.messages-empty-actions .secondary-action {
+    width: auto;
+}
+
 .msg {
     max-width: min(78%, 780px);
     padding: 14px 16px;
@@ -1283,7 +1408,8 @@ select:focus {
 }
 
 .chat-header-actions .model-menu,
-.chat-header-actions .persona-menu {
+.chat-header-actions .persona-menu,
+.chat-header-actions .chat-actions-menu {
     display: flex;
     align-items: stretch;
     align-self: stretch;
@@ -1389,6 +1515,17 @@ select:focus {
 
 .hidden {
     display: none !important;
+}
+
+.onboarding-card {
+    width: min(640px, 94vw);
+    display: grid;
+    gap: 14px;
+}
+
+.onboarding-choices {
+    display: grid;
+    gap: 10px;
 }
 
 .modal-overlay {
@@ -2395,6 +2532,16 @@ body[data-theme="beta-ai"] .persona-form .field {
         display: grid;
         grid-template-columns: 1fr;
     }
+
+    .messages-empty-actions {
+        display: grid;
+        grid-template-columns: 1fr;
+    }
+
+    .messages-empty-actions .primary-action,
+    .messages-empty-actions .secondary-action {
+        width: 100%;
+    }
 }
 
 @media (max-width: 560px) {
@@ -2431,6 +2578,10 @@ body[data-theme="beta-ai"] .persona-form .field {
     .chat-header-actions .model-select select {
         width: 100%;
         min-width: 0;
+    }
+
+    .action-pair {
+        grid-template-columns: 1fr;
     }
 
     .model-popover {

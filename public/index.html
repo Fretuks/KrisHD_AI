@@ -22,7 +22,7 @@
             </div>
             <div class="hero-grid">
                 <article class="hero-panel">
-                    <p>Log in to continue your chats. Personas, shared presets, and theme changes are available after sign-in.</p>
+                    <p>Sign in to start a chat immediately, then add personas when you want richer roleplay.</p>
                 </article>
             </div>
         </div>
@@ -80,10 +80,11 @@
                     <div class="sidebar-header">
                         <div>
                             <p class="eyebrow">Chats</p>
-                            <h2>Stories & chats</h2>
+                            <h2>Conversations</h2>
                         </div>
-                        <div class="sidebar-header-actions">
+                        <div class="sidebar-header-actions action-pair">
                             <button id="newChat" class="secondary-action" type="button">New chat</button>
+                            <button id="startRoleplay" class="secondary-action" type="button">Start roleplay</button>
                         </div>
                     </div>
                     <label class="field compact-field">
@@ -92,14 +93,26 @@
                     </label>
                 </div>
                 <div id="chatList" class="chat-list"></div>
+                <div id="chatListLoading" class="chat-loading hidden" role="status" aria-live="polite">
+                    <span class="chat-loading-dot" aria-hidden="true"></span>
+                    <span id="chatListLoadingText">Loading chats...</span>
+                </div>
                 <div class="sidebar-footer sidebar-footer-stack">
-                    <a href="/market" class="secondary-action">Persona Market</a>
-                    <a href="/settings" class="secondary-action">Settings</a>
-                    <div class="session-chip">
-                        <span class="session-chip-label">Signed in as</span>
-                        <strong id="sessionUser">-</strong>
-                    </div>
-                    <button id="logout" type="button">Logout</button>
+                    <details id="toolsDetails" class="tools-details">
+                        <summary>Tools</summary>
+                        <div class="tools-links">
+                            <a href="/market" class="secondary-action">Browse personas</a>
+                            <a href="/settings" class="secondary-action">Settings</a>
+                        </div>
+                    </details>
+                    <details id="accountDetails" class="tools-details">
+                        <summary>Account</summary>
+                        <div class="session-chip">
+                            <span class="session-chip-label">Signed in as</span>
+                            <strong id="sessionUser">-</strong>
+                        </div>
+                        <button id="logout" type="button">Logout</button>
+                    </details>
                 </div>
             </aside>
 
@@ -109,17 +122,20 @@
                         <div class="chat-title">
                             <p class="eyebrow">Conversation</p>
                             <h2 id="activeChatTitle">New chat</h2>
-                            <div id="chatParticipants" class="chat-participants">
-                                <span id="chatModePill" class="context-pill chat-mode-pill">Assistant mode</span>
-                                <span id="chatCharacterPill" class="context-pill hidden">Character: none</span>
-                                <span id="chatUserPersonaPill" class="context-pill hidden">User persona: none</span>
-                                <span id="chatScenePill" class="context-pill hidden">Scene: none</span>
+                            <div class="chat-context">
+                                <button id="contextChipButton" class="context-chip-button" type="button" aria-expanded="false" aria-controls="contextPopover">
+                                    <span>Context</span>
+                                    <strong id="contextSummaryLabel">Assistant</strong>
+                                </button>
+                                <div id="contextPopover" class="persona-popover hidden" role="dialog">
+                                    <div id="chatParticipants" class="chat-participants">
+                                        <span id="chatModePill" class="context-pill chat-mode-pill">Assistant mode</span>
+                                        <span id="chatCharacterPill" class="context-pill hidden">Character: none</span>
+                                        <span id="chatUserPersonaPill" class="context-pill hidden">User persona: none</span>
+                                        <span id="chatScenePill" class="context-pill hidden">Scene: none</span>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-                        <div class="chat-toolbar">
-                            <button id="renameChat" class="icon-button" type="button">Rename</button>
-                            <button id="clearChat" class="icon-button" type="button">Clear</button>
-                            <button id="exportChat" class="icon-button" type="button">Export</button>
                         </div>
                     </div>
                     <div class="chat-header-actions">
@@ -172,6 +188,26 @@
                                 </div>
                             </div>
                         </div>
+                        <div class="chat-actions-menu">
+                            <button id="chatActionsMenuButton" class="secondary-action" type="button" aria-expanded="false" aria-controls="chatActionsPopover">
+                                More
+                            </button>
+                            <div id="chatActionsPopover" class="persona-popover hidden" role="dialog">
+                                <div class="persona-section">
+                                    <div class="persona-section-header">
+                                        <div>
+                                            <p class="eyebrow">Conversation</p>
+                                            <h2>Actions</h2>
+                                        </div>
+                                    </div>
+                                    <div class="persona-item-actions">
+                                        <button id="renameChat" class="icon-button" type="button">Rename</button>
+                                        <button id="clearChat" class="icon-button" type="button">Clear</button>
+                                        <button id="exportChat" class="icon-button" type="button">Export</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </header>
 
@@ -179,7 +215,7 @@
 
                 <div class="input-shell input-shell-focus">
                     <div class="input-meta">
-                        <p class="composer-hint">Enter sends. Shift+Enter adds a new line.</p>
+                        <p class="composer-hint">Enter to send · Shift+Enter for new line</p>
                         <p id="appNotice" class="status inline-status hidden" aria-live="polite"></p>
                     </div>
                     <div id="quickPrompts" class="quick-prompts" aria-label="Suggested starters"></div>
@@ -263,31 +299,30 @@
             <button id="roleplayStarterClose" type="button" class="icon-button">Close</button>
         </div>
         <div class="roleplay-starter-intro">
-            <p class="persona-helper">Pick a character, optionally choose who you are in the scene, and the character will open the conversation with the first message.</p>
+            <p class="persona-helper">Pick a character, choose who you are in the scene, and generate an opening message in one step.</p>
         </div>
         <p id="roleplayStarterNotice" class="status hidden"></p>
         <div class="roleplay-starter-actions">
             <button id="roleplayNewPersona" class="secondary-action" type="button">Create AI Character</button>
-            <a href="/settings" class="secondary-action">Settings</a>
         </div>
         <div class="persona-form-grid">
             <label class="field field-wide">
-                <span>Character</span>
+                <span>1. Character</span>
                 <select id="roleplayCharacterSelect"></select>
             </label>
             <label class="field field-wide">
-                <span>User persona</span>
+                <span>2. You in the scene</span>
                 <select id="roleplayUserPersonaSelect"></select>
             </label>
             <label class="field field-wide">
-                <span>Scenario seed</span>
+                <span>3. Optional opening direction</span>
                 <textarea id="roleplayScenarioInput" rows="3" placeholder="Optional. Describe the kind of opening scene you want, such as a setting, conflict, relationship dynamic, or mood."></textarea>
             </label>
         </div>
         <div id="roleplayStarterSuggestions" class="quick-prompts" aria-label="Scenario suggestions"></div>
         <div class="popup-actions">
             <button id="roleplayStarterCancel" type="button" class="secondary-action">Cancel</button>
-            <button id="roleplayStarterConfirm" type="button">Start roleplay</button>
+            <button id="roleplayStarterConfirm" type="button">Create opening scene</button>
         </div>
     </div>
 </div>
@@ -311,6 +346,24 @@
         <div class="popup-actions">
             <button id="popupCancel" type="button" class="secondary-action">Cancel</button>
             <button id="popupConfirm" type="button">Confirm</button>
+        </div>
+    </div>
+</div>
+
+<div id="onboardingModal" class="modal-overlay hidden">
+    <div class="modal-card onboarding-card">
+        <div class="modal-header">
+            <div class="persona-modal-heading">
+                <p class="eyebrow">Get started</p>
+                <h3 id="onboardingTitle">What do you want to do?</h3>
+            </div>
+            <button id="onboardingSkip" type="button" class="icon-button">Skip</button>
+        </div>
+        <p id="onboardingSubtitle" class="subtitle">Pick one path to set up your first successful chat.</p>
+        <div id="onboardingChoices" class="onboarding-choices"></div>
+        <div class="popup-actions">
+            <button id="onboardingBack" type="button" class="secondary-action hidden">Back</button>
+            <button id="onboardingContinue" type="button">Continue</button>
         </div>
     </div>
 </div>

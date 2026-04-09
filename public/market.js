@@ -1,13 +1,13 @@
 const $ = (id) => document.getElementById(id);
 const marketPersonaList = $("marketPersonaList");
 const marketUserPersonaList = $("marketUserPersonaList");
-const marketOwnedPersonaList = $("marketOwnedPersonaList");
 const refreshMarketBtn = $("refreshMarket");
 const marketStatus = $("marketStatus");
 const marketSearchInput = $("marketSearch");
 const marketViewButtons = document.querySelectorAll("[data-market-view]");
 const marketPanels = document.querySelectorAll("[data-market-panel]");
-const marketCreatePersonaBtn = $("marketCreatePersona");
+const marketCreateAiCharacterBtn = $("marketCreateAiCharacter");
+const marketCreateUserPersonaBtn = $("marketCreateUserPersona");
 const marketPreviewModal = $("marketPreviewModal");
 const marketPreviewName = $("marketPreviewName");
 const marketPreviewMeta = $("marketPreviewMeta");
@@ -45,9 +45,10 @@ const themes = {
 let allMarketPersonas = [];
 let assistantPersonas = [];
 let userPersonas = [];
-let publishedPersonaIds = new Set();
 let pendingMarketPersona = null;
 let editingPersonaId = null;
+let activeUserPersonaId = null;
+let activeMarketView = "ai-characters";
 
 async function request(url, data, method = "POST") {
     try {
@@ -65,7 +66,6 @@ async function request(url, data, method = "POST") {
 const get = (url) => request(url, null, "GET");
 const post = (url, data) => request(url, data, "POST");
 const put = (url, data) => request(url, data, "PUT");
-const del = (url) => request(url, null, "DELETE");
 
 function applyTheme(themeKey) {
     const nextTheme = themes[themeKey] ? themeKey : "fakegpt";
@@ -92,11 +92,14 @@ function setPersonaFormNotice(message = "", state = "") {
 }
 
 function setMarketView(view) {
-    marketViewButtons.forEach((item) => item.classList.toggle("active", item.dataset.marketView === view));
-    marketPanels.forEach((panel) => panel.classList.toggle("active", panel.dataset.marketPanel === view));
+    const normalizedView = view === "user-personas" ? "user-personas" : "ai-characters";
+    activeMarketView = normalizedView;
+    marketViewButtons.forEach((item) => item.classList.toggle("active", item.dataset.marketView === normalizedView));
+    marketPanels.forEach((panel) => panel.classList.toggle("active", panel.dataset.marketPanel === normalizedView));
     const params = new URLSearchParams(window.location.search);
-    params.set("view", view);
+    params.set("view", normalizedView);
     history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
+    applyMarketFilter();
 }
 
 function buildPersonaMeta(persona) {
@@ -113,7 +116,6 @@ function closeMarketPreview() {
     marketPreviewModal.classList.add("hidden");
     pendingMarketPersona = null;
     marketPreviewUserPersonaSelect.innerHTML = "";
-    marketPreviewConfirm.classList.add("hidden");
 }
 
 function populateUserPersonaChoices() {
@@ -121,7 +123,7 @@ function populateUserPersonaChoices() {
 
     const promptOption = document.createElement("option");
     promptOption.value = "";
-    promptOption.textContent = "Choose who you are";
+    promptOption.textContent = "Choose who you are in this roleplay";
     promptOption.disabled = true;
     promptOption.selected = true;
     marketPreviewUserPersonaSelect.appendChild(promptOption);
@@ -135,6 +137,7 @@ function populateUserPersonaChoices() {
         const option = document.createElement("option");
         option.value = String(persona.id);
         option.textContent = persona.name;
+        option.selected = persona.id === activeUserPersonaId;
         marketPreviewUserPersonaSelect.appendChild(option);
     });
 
@@ -156,9 +159,13 @@ function openMarketPreview(persona) {
 
     const isAssistant = persona.persona_type === "assistant";
     marketPreviewUserPersonaField.classList.toggle("hidden", !isAssistant);
-    marketPreviewConfirm.textContent = isAssistant ? "Start chat" : "Collect as user persona";
-    marketPreviewConfirm.classList.toggle("hidden", isAssistant);
-    if (isAssistant) populateUserPersonaChoices();
+    marketPreviewConfirm.textContent = isAssistant ? "Start roleplay" : "Collect persona";
+    if (isAssistant) {
+        populateUserPersonaChoices();
+        marketPreviewConfirm.classList.add("hidden");
+    } else {
+        marketPreviewConfirm.classList.remove("hidden");
+    }
     marketPreviewModal.classList.remove("hidden");
 }
 
@@ -210,65 +217,23 @@ function renderMarketList(items, listElement, type) {
         meta.textContent = buildPersonaMeta(persona);
 
         detailsBtn.type = "button";
-        detailsBtn.textContent = "View";
+        detailsBtn.textContent = "Preview";
         detailsBtn.addEventListener("click", () => openMarketPreview(persona));
+
+        if (type !== "assistant") {
+            const quickActionBtn = document.createElement("button");
+            quickActionBtn.type = "button";
+            quickActionBtn.textContent = "Collect";
+            quickActionBtn.addEventListener("click", () => {
+                void collectMarketPersona(persona.id);
+            });
+            actions.appendChild(quickActionBtn);
+        }
 
         titleRow.append(title, tag);
         actions.appendChild(detailsBtn);
         item.append(titleRow, meta, actions);
         listElement.appendChild(item);
-    });
-}
-
-function renderOwnedPersonaList() {
-    marketOwnedPersonaList.innerHTML = "";
-    if (!assistantPersonas.length) {
-        const empty = document.createElement("p");
-        empty.className = "status persona-status";
-        empty.textContent = "No AI Characters yet. Create one to get started.";
-        marketOwnedPersonaList.appendChild(empty);
-        return;
-    }
-
-    assistantPersonas.forEach((persona) => {
-        const item = document.createElement("div");
-        const titleRow = document.createElement("div");
-        const title = document.createElement("h4");
-        const tag = document.createElement("span");
-        const meta = document.createElement("p");
-        const actions = document.createElement("div");
-
-        item.className = "persona-item";
-        titleRow.className = "persona-title-row";
-        actions.className = "persona-item-actions";
-        tag.className = "persona-role-tag ai";
-        tag.textContent = "AI Character";
-        title.textContent = persona.name;
-        meta.textContent = formatPersonaField(persona.pronouns) === "Not provided." ? "Pronouns: n/a" : `Pronouns: ${persona.pronouns}`;
-
-        [
-            ["Edit", () => openPersonaForm(persona)],
-            [publishedPersonaIds.has(persona.id) ? "Update listing" : "Publish", () => publishPersona(persona.id)],
-            ["Delete", () => deletePersona(persona.id)]
-        ].forEach(([label, handler]) => {
-            const button = document.createElement("button");
-            button.type = "button";
-            button.textContent = label;
-            button.addEventListener("click", handler);
-            actions.appendChild(button);
-        });
-
-        if (publishedPersonaIds.has(persona.id)) {
-            const unpublish = document.createElement("button");
-            unpublish.type = "button";
-            unpublish.textContent = "Unpublish";
-            unpublish.addEventListener("click", () => unpublishPersona(persona.id));
-            actions.appendChild(unpublish);
-        }
-
-        titleRow.append(title, tag);
-        item.append(titleRow, meta, actions);
-        marketOwnedPersonaList.appendChild(item);
     });
 }
 
@@ -283,15 +248,24 @@ function filterMarketPersonas() {
 
 function applyMarketFilter() {
     const filtered = filterMarketPersonas();
-    renderMarketList(filtered.filter((persona) => persona.persona_type === "assistant"), marketPersonaList, "assistant");
-    renderMarketList(filtered.filter((persona) => persona.persona_type === "user"), marketUserPersonaList, "user");
-    renderOwnedPersonaList();
+    const assistantItems = filtered.filter((persona) => persona.persona_type === "assistant");
+    const userItems = filtered.filter((persona) => persona.persona_type === "user");
+    renderMarketList(assistantItems, marketPersonaList, "assistant");
+    renderMarketList(userItems, marketUserPersonaList, "user");
 
     if (marketSearchInput.value.trim() && !filtered.length) {
         setMarketStatus("No personas match your search.", "error");
         return;
     }
-    setMarketStatus(`${filtered.length} persona${filtered.length === 1 ? "" : "s"} shown.`);
+    if (activeMarketView === "ai-characters") {
+        setMarketStatus(`${assistantItems.length} AI Character${assistantItems.length === 1 ? "" : "s"} ready for roleplay.`);
+        return;
+    }
+    if (activeMarketView === "user-personas") {
+        setMarketStatus(`${userItems.length} User Persona${userItems.length === 1 ? "" : "s"} available to collect.`);
+        return;
+    }
+    setMarketStatus(`${assistantItems.length + userItems.length} persona${assistantItems.length + userItems.length === 1 ? "" : "s"} shown.`);
 }
 
 async function loadOwnedPersonas() {
@@ -299,7 +273,7 @@ async function loadOwnedPersonas() {
     if (res.error) return false;
     assistantPersonas = res.assistantPersonas || [];
     userPersonas = res.userPersonas || [];
-    publishedPersonaIds = new Set(res.publishedPersonaIds || []);
+    activeUserPersonaId = res.activeUserPersonaId || null;
     return true;
 }
 
@@ -330,8 +304,12 @@ async function collectMarketPersona(marketId) {
 }
 
 async function startMarketPersonaChat(marketId, userPersonaSelection) {
+    if (!userPersonaSelection) {
+        setMarketStatus("Choose who you are before starting roleplay.", "error");
+        return;
+    }
     if (userPersonaSelection === "create_new") {
-        window.location.href = "/settings?view=my-personas&create=user";
+        window.location.href = "/settings?view=my-roleplay-companions&create=user";
         return;
     }
 
@@ -372,38 +350,8 @@ async function savePersona() {
 
     await loadMarketPersonas();
     closePersonaForm();
-    setMarketView("my-personas");
+    setMarketView("ai-characters");
     setMarketStatus(editingPersonaId ? "AI Character updated." : "AI Character created.", "success");
-}
-
-async function deletePersona(id) {
-    const res = await del(`/personas/${id}`);
-    if (res.error) {
-        setMarketStatus(res.error, "error");
-        return;
-    }
-    await loadMarketPersonas();
-    setMarketStatus("AI Character deleted.", "success");
-}
-
-async function publishPersona(id) {
-    const res = await post(`/personas/${id}/publish`, {});
-    if (res.error) {
-        setMarketStatus(res.error, "error");
-        return;
-    }
-    await loadMarketPersonas();
-    setMarketStatus("AI Character published.", "success");
-}
-
-async function unpublishPersona(id) {
-    const res = await post(`/personas/${id}/unpublish`, {});
-    if (res.error) {
-        setMarketStatus(res.error, "error");
-        return;
-    }
-    await loadMarketPersonas();
-    setMarketStatus("AI Character unpublished.", "success");
 }
 
 refreshMarketBtn.addEventListener("click", () => {
@@ -413,7 +361,14 @@ marketSearchInput.addEventListener("input", applyMarketFilter);
 marketViewButtons.forEach((button) => {
     button.addEventListener("click", () => setMarketView(button.dataset.marketView));
 });
-marketCreatePersonaBtn.addEventListener("click", () => openPersonaForm());
+if (marketCreateAiCharacterBtn) {
+    marketCreateAiCharacterBtn.addEventListener("click", () => openPersonaForm());
+}
+if (marketCreateUserPersonaBtn) {
+    marketCreateUserPersonaBtn.addEventListener("click", () => {
+        window.location.href = "/settings?view=my-roleplay-companions&create=user";
+    });
+}
 marketPreviewClose.addEventListener("click", closeMarketPreview);
 marketPreviewModal.addEventListener("click", (event) => {
     if (event.target === marketPreviewModal) closeMarketPreview();
@@ -421,7 +376,7 @@ marketPreviewModal.addEventListener("click", (event) => {
 marketPreviewUserPersonaSelect.addEventListener("change", () => {
     if (!pendingMarketPersona || pendingMarketPersona.persona_type !== "assistant") return;
     if (marketPreviewUserPersonaSelect.value === "create_new") {
-        window.location.href = "/settings?view=my-personas&create=user";
+        window.location.href = "/settings?view=my-roleplay-companions&create=user";
         return;
     }
     marketPreviewConfirm.classList.toggle("hidden", !marketPreviewUserPersonaSelect.value);
@@ -430,7 +385,7 @@ marketPreviewConfirm.addEventListener("click", async () => {
     if (!pendingMarketPersona) return;
     const marketId = pendingMarketPersona.id;
     if (pendingMarketPersona.persona_type === "assistant") {
-        await startMarketPersonaChat(marketId, marketPreviewUserPersonaSelect.value || "");
+        await startMarketPersonaChat(marketId, marketPreviewUserPersonaSelect.value || "self");
         closeMarketPreview();
         return;
     }
@@ -451,5 +406,8 @@ window.addEventListener("load", async () => {
     const params = new URLSearchParams(window.location.search);
     setMarketView(params.get("view") || "ai-characters");
     await loadMarketPersonas();
-    if (params.get("create") === "assistant") openPersonaForm();
+    if (params.get("create") === "assistant") {
+        setMarketView("ai-characters");
+        openPersonaForm();
+    }
 });

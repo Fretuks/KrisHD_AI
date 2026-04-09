@@ -1,6 +1,7 @@
 const $ = (id) => document.getElementById(id);
 const settingsNotice = $("settingsNotice");
 const settingsThemeSelect = $("settingsThemeSelect");
+const workspaceModeSelect = $("workspaceModeSelect");
 const currentUsernameInput = $("currentUsername");
 const newUsernameInput = $("newUsername");
 const usernamePasswordInput = $("usernamePassword");
@@ -13,8 +14,6 @@ const settingsNavItems = document.querySelectorAll("[data-settings-view]");
 const settingsPanels = document.querySelectorAll("[data-settings-panel]");
 const createAiCharacterBtn = $("createAiCharacter");
 const createUserPersonaBtn = $("createUserPersona");
-const quickCreateAiCharacterBtn = $("quickCreateAiCharacter");
-const quickCreateUserPersonaBtn = $("quickCreateUserPersona");
 const settingsAiCharacterList = $("settingsAiCharacterList");
 const settingsUserPersonaList = $("settingsUserPersonaList");
 const settingsPersonaModal = $("settingsPersonaModal");
@@ -88,10 +87,11 @@ function applyTheme(themeKey, persist = true) {
 }
 
 function setSettingsView(view) {
-    settingsNavItems.forEach((item) => item.classList.toggle("active", item.dataset.settingsView === view));
-    settingsPanels.forEach((panel) => panel.classList.toggle("active", panel.dataset.settingsPanel === view));
+    const normalizedView = ["my-ai-characters", "my-personas"].includes(view) ? "my-roleplay-companions" : view;
+    settingsNavItems.forEach((item) => item.classList.toggle("active", item.dataset.settingsView === normalizedView));
+    settingsPanels.forEach((panel) => panel.classList.toggle("active", panel.dataset.settingsPanel === normalizedView));
     const params = new URLSearchParams(window.location.search);
-    params.set("view", view);
+    params.set("view", normalizedView);
     history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
 }
 
@@ -248,7 +248,7 @@ async function savePersona() {
 
     await loadPersonas();
     closePersonaModal();
-    setSettingsView(payload.personaType === "assistant" ? "my-ai-characters" : "my-personas");
+    setSettingsView("my-roleplay-companions");
     setNotice(wasEditing ? "Persona updated." : "Persona created.", "success");
 }
 
@@ -329,16 +329,13 @@ settingsThemeSelect.addEventListener("change", (event) => {
     applyTheme(event.target.value);
     setNotice("Theme updated.", "success");
 });
+workspaceModeSelect.addEventListener("change", (event) => {
+    const mode = event.target.value === "advanced" ? "advanced" : "basic";
+    localStorage.setItem("krishd-workspace-mode", mode);
+    setNotice(`Workspace mode set to ${mode}.`, "success");
+});
 
 settingsNavItems.forEach((item) => item.addEventListener("click", () => setSettingsView(item.dataset.settingsView)));
-quickCreateAiCharacterBtn.addEventListener("click", () => {
-    setSettingsView("my-ai-characters");
-    openPersonaModal(null, "assistant");
-});
-quickCreateUserPersonaBtn.addEventListener("click", () => {
-    setSettingsView("my-personas");
-    openPersonaModal(null, "user");
-});
 createAiCharacterBtn.addEventListener("click", () => openPersonaModal(null, "assistant"));
 createUserPersonaBtn.addEventListener("click", () => openPersonaModal(null, "user"));
 settingsPersonaClose.addEventListener("click", closePersonaModal);
@@ -353,6 +350,7 @@ settingsPersonaForm.addEventListener("submit", (event) => {
 
 window.addEventListener("load", async () => {
     applyTheme(localStorage.getItem("krishd-theme") || "fakegpt", false);
+    workspaceModeSelect.value = localStorage.getItem("krishd-workspace-mode") || "basic";
     const params = new URLSearchParams(window.location.search);
     const view = params.get("view") || "personal";
     setSettingsView(view);
@@ -361,10 +359,10 @@ window.addEventListener("load", async () => {
 
     const create = params.get("create");
     if (create === "assistant") {
-        setSettingsView("my-ai-characters");
+        setSettingsView("my-roleplay-companions");
         openPersonaModal(null, "assistant");
     } else if (create === "user") {
-        setSettingsView("my-personas");
+        setSettingsView("my-roleplay-companions");
         openPersonaModal(null, "user");
     }
 });

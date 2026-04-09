@@ -15,7 +15,7 @@
         <div>
             <p class="eyebrow">Shared personas</p>
             <h1><span data-theme-name>FakeGPT</span> Market</h1>
-            <p class="subtitle">Browse shared AI Characters and User Personas, or manage your own AI Characters.</p>
+            <p class="subtitle">Find characters and personas for roleplay, then start with an explicit persona choice.</p>
         </div>
         <div class="market-header-actions">
             <button id="refreshMarket" class="secondary-action" type="button">Refresh</button>
@@ -35,7 +35,6 @@
         <aside class="settings-nav" aria-label="Market sections">
             <button class="settings-nav-item active" type="button" data-market-view="ai-characters">AI Characters</button>
             <button class="settings-nav-item" type="button" data-market-view="user-personas">User Personas</button>
-            <button class="settings-nav-item" type="button" data-market-view="my-personas">My Personas</button>
         </aside>
 
         <div class="settings-content">
@@ -45,8 +44,9 @@
                         <div>
                             <p class="eyebrow">Discover</p>
                             <h2>AI Characters</h2>
-                            <p class="subtitle">Find shared characters to start roleplay chats with.</p>
+                            <p class="subtitle">Pick a character, choose your persona, and start roleplay.</p>
                         </div>
+                        <button id="marketCreateAiCharacter" type="button" class="secondary-action">Create AI Character</button>
                     </div>
                     <div id="marketPersonaList" class="persona-list"></div>
                 </div>
@@ -58,24 +58,11 @@
                         <div>
                             <p class="eyebrow">Discover</p>
                             <h2>User Personas</h2>
-                            <p class="subtitle">Browse shared user personas you can collect for roleplay context.</p>
+                            <p class="subtitle">Collect personas you can use as your identity in roleplay scenes.</p>
                         </div>
+                        <button id="marketCreateUserPersona" type="button" class="secondary-action">Create User Persona</button>
                     </div>
                     <div id="marketUserPersonaList" class="persona-list"></div>
-                </div>
-            </section>
-
-            <section class="settings-view" data-market-panel="my-personas">
-                <div class="settings-panel">
-                    <div class="settings-section-header">
-                        <div>
-                            <p class="eyebrow">Manage</p>
-                            <h2>My Personas</h2>
-                            <p class="subtitle">Create and manage your own AI Characters.</p>
-                        </div>
-                        <button id="marketCreatePersona" type="button" class="secondary-action">Create persona</button>
-                    </div>
-                    <div id="marketOwnedPersonaList" class="persona-list"></div>
                 </div>
             </section>
         </div>
@@ -118,7 +105,7 @@
         </div>
         <div class="market-preview-actions">
             <label id="marketPreviewUserPersonaField" class="field market-preview-user-field hidden">
-                <span>Talk as</span>
+                <span>You in this roleplay</span>
                 <select id="marketPreviewUserPersonaSelect"></select>
             </label>
             <button id="marketPreviewConfirm" type="button" class="primary-action">Take persona</button>

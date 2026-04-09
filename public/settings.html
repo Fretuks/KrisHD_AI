@@ -25,16 +25,10 @@
 
     <p id="settingsNotice" class="status">Loading settings...</p>
 
-    <section class="settings-quick-actions">
-        <button id="quickCreateAiCharacter" type="button" class="primary-action">Create AI Character</button>
-        <button id="quickCreateUserPersona" type="button" class="secondary-action">Create User Persona</button>
-    </section>
-
     <section class="settings-layout">
         <aside class="settings-nav" aria-label="Settings sections">
             <button class="settings-nav-item active" type="button" data-settings-view="personal">Personal</button>
-            <button class="settings-nav-item" type="button" data-settings-view="my-ai-characters">My AI Characters</button>
-            <button class="settings-nav-item" type="button" data-settings-view="my-personas">My Personas</button>
+            <button class="settings-nav-item" type="button" data-settings-view="my-roleplay-companions">My Roleplay Companions</button>
             <button class="settings-nav-item" type="button" data-settings-view="design">Design</button>
         </aside>
 
@@ -89,30 +83,22 @@
                 </div>
             </section>
 
-            <section class="settings-view" data-settings-panel="my-ai-characters">
+            <section class="settings-view" data-settings-panel="my-roleplay-companions">
                 <div class="settings-panel">
                     <div class="settings-section-header">
                         <div>
                             <p class="eyebrow">Create & manage</p>
-                            <h2>My AI Characters</h2>
+                            <h2>My Roleplay Companions</h2>
                             <p class="subtitle">Build characters for roleplay chats and publish them to the market when they are ready.</p>
                         </div>
-                        <button id="createAiCharacter" type="button" class="secondary-action">Create AI Character</button>
-                    </div>
-                    <div id="settingsAiCharacterList" class="persona-list"></div>
-                </div>
-            </section>
-
-            <section class="settings-view" data-settings-panel="my-personas">
-                <div class="settings-panel">
-                    <div class="settings-section-header">
-                        <div>
-                            <p class="eyebrow">Create & manage</p>
-                            <h2>My Personas</h2>
-                            <p class="subtitle">Create the personas you want to speak as, then set one as default for faster roleplay setup.</p>
+                        <div class="market-header-actions action-pair">
+                            <button id="createAiCharacter" type="button" class="secondary-action">Create AI Character</button>
+                            <button id="createUserPersona" type="button" class="secondary-action">Create User Persona</button>
                         </div>
-                        <button id="createUserPersona" type="button" class="secondary-action">Create user persona</button>
                     </div>
+                    <h3>AI Characters</h3>
+                    <div id="settingsAiCharacterList" class="persona-list"></div>
+                    <h3>User Personas</h3>
                     <div id="settingsUserPersonaList" class="persona-list"></div>
                 </div>
             </section>
@@ -136,6 +122,13 @@
                                 <option value="slopilot">Slopilot</option>
                                 <option value="beta-ai">Beta AI</option>
                                 <option value="confusity">Confusity</option>
+                            </select>
+                        </label>
+                        <label class="field">
+                            <span>Workspace mode</span>
+                            <select id="workspaceModeSelect">
+                                <option value="basic">Basic</option>
+                                <option value="advanced">Advanced</option>
                             </select>
                         </label>
                     </div>

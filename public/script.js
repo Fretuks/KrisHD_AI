@@ -9,8 +9,11 @@ const loginUsernameInput = $("loginUsername"), loginPasswordInput = $("loginPass
 const registerUsernameInput = $("registerUsername"), registerPasswordInput = $("registerPassword");
 const loginSubmit = $("loginSubmit"), registerSubmit = $("registerSubmit");
 const chatList = $("chatList"), chatSearchInput = $("chatSearch"), newChatBtn = $("newChat");
+const startRoleplayBtn = $("startRoleplay");
 const renameChatBtn = $("renameChat"), clearChatBtn = $("clearChat"), exportChatBtn = $("exportChat");
 const activeChatTitle = $("activeChatTitle"), sessionUser = $("sessionUser");
+const contextChipButton = $("contextChipButton"), contextPopover = $("contextPopover"), contextSummaryLabel = $("contextSummaryLabel");
+const chatActionsMenuButton = $("chatActionsMenuButton"), chatActionsPopover = $("chatActionsPopover");
 const chatModePill = $("chatModePill"), chatCharacterPill = $("chatCharacterPill"), chatUserPersonaPill = $("chatUserPersonaPill"), chatScenePill = $("chatScenePill");
 const personaList = $("personaList"), userPersonaList = $("userPersonaList");
 const personaForm = $("personaForm"), personaFormTitle = $("personaFormTitle"), personaTypeSelect = $("personaType");
@@ -28,8 +31,11 @@ const popupModal = $("popupModal"), popupCloseBtn = $("popupClose"), popupCancel
 const popupTitle = $("popupTitle"), popupEyebrow = $("popupEyebrow"), popupDescription = $("popupDescription"), popupField = $("popupField");
 const popupInputLabel = $("popupInputLabel"), popupInput = $("popupInput");
 const appNotice = $("appNotice"), quickPrompts = $("quickPrompts");
+const onboardingModal = $("onboardingModal"), onboardingTitle = $("onboardingTitle"), onboardingSubtitle = $("onboardingSubtitle");
+const onboardingChoices = $("onboardingChoices"), onboardingBack = $("onboardingBack"), onboardingContinue = $("onboardingContinue"), onboardingSkip = $("onboardingSkip");
 const authScreens = document.querySelectorAll(".auth-screen"), toggleButtons = document.querySelectorAll(".auth-toggle .toggle");
 const themeNameTargets = document.querySelectorAll("[data-theme-name]"), themeLogoTargets = document.querySelectorAll("[data-theme-logo]");
+const modelMenu = document.querySelector(".model-menu"), personaMenu = document.querySelector(".persona-menu");
 const requestedChatId = Number(new URLSearchParams(window.location.search).get("chat")) || null;
 
 let isProcessing = false, activeChatId = null, editingPersonaId = null, editingPersonaType = "assistant", currentUsername = "";
@@ -38,6 +44,14 @@ let activeUserPersonaId = null, currentSummary = null, publishedPersonaIds = new
 let popupResolver = null, popupMode = null, popupLastFocus = null;
 let roleplayPresetCharacterId = null;
 let noticeTimer = null;
+let workspaceMode = localStorage.getItem("krishd-workspace-mode") || "basic";
+let onboardingStep = 1, onboardingIntent = "ask";
+
+const onboardingPrompts = {
+    ask: ["Explain this topic in simple terms.", "Compare these options and recommend one."],
+    brainstorm: ["Give me 10 practical ideas for this problem.", "Suggest 3 creative directions and tradeoffs."],
+    roleplay: ["Start a roleplay scene with immediate tension.", "Give me a dramatic opening with clear stakes."]
+};
 
 const themes = {
     "fakegpt": {name: "FakeGPT", short: "FG"},
@@ -97,6 +111,90 @@ function setPersonaFormNotice(message = "", state = "") {
     }
     personaFormNotice.textContent = message;
     personaFormNotice.className = state ? `status ${state}` : "status";
+}
+
+function applyWorkspaceMode(nextMode, persist = true) {
+    workspaceMode = nextMode === "advanced" ? "advanced" : "basic";
+    document.body.dataset.workspaceMode = workspaceMode;
+    if (persist) localStorage.setItem("krishd-workspace-mode", workspaceMode);
+    if (workspaceMode === "basic") {
+        closeModelPopover();
+        closePersonaPopover();
+    }
+    if (modelMenu) modelMenu.classList.toggle("hidden", workspaceMode === "basic");
+    if (personaMenu) personaMenu.classList.toggle("hidden", workspaceMode === "basic");
+    updateComposerPlaceholder();
+    renderQuickPrompts();
+}
+
+function hasCompletedOnboarding() {
+    return localStorage.getItem("krishd-onboarding-complete") === "true";
+}
+
+function markOnboardingCompleted() {
+    localStorage.setItem("krishd-onboarding-complete", "true");
+    closeOnboarding();
+}
+
+function closeOnboarding() {
+    if (!onboardingModal) return;
+    onboardingModal.classList.add("hidden");
+}
+
+function renderOnboardingStep() {
+    if (!onboardingChoices || !onboardingTitle || !onboardingSubtitle) return;
+    onboardingChoices.innerHTML = "";
+    onboardingBack.classList.toggle("hidden", onboardingStep === 1);
+    onboardingContinue.classList.toggle("hidden", onboardingStep === 2);
+    if (onboardingStep === 1) {
+        onboardingTitle.textContent = "What do you want to do?";
+        onboardingSubtitle.textContent = "Choose one path. You can switch anytime.";
+        [["ask", "Ask questions"], ["brainstorm", "Brainstorm ideas"], ["roleplay", "Roleplay with a character"]].forEach(([key, label]) => {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = `secondary-action${onboardingIntent === key ? " active" : ""}`;
+            button.textContent = label;
+            button.addEventListener("click", () => {
+                onboardingIntent = key;
+                renderOnboardingStep();
+            });
+            onboardingChoices.appendChild(button);
+        });
+        return;
+    }
+    onboardingTitle.textContent = "Choose a starter";
+    onboardingSubtitle.textContent = "Pick one template and send your first message.";
+    onboardingPrompts[onboardingIntent].forEach((template) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "secondary-action";
+        button.textContent = template;
+        button.addEventListener("click", async () => {
+            if (onboardingIntent === "roleplay") {
+                closeOnboarding();
+                if (assistantPersonas.length) {
+                    openRoleplayStarter();
+                } else {
+                    openPersonaForm(null, "assistant");
+                }
+                return;
+            }
+            if (!activeChatId) await createNewChat();
+            msgInput.value = template;
+            msgInput.dispatchEvent(new Event("input"));
+            msgInput.focus();
+            closeOnboarding();
+        });
+        onboardingChoices.appendChild(button);
+    });
+}
+
+function maybeShowOnboarding() {
+    if (!onboardingModal || hasCompletedOnboarding()) return;
+    onboardingStep = 1;
+    onboardingIntent = "ask";
+    renderOnboardingStep();
+    onboardingModal.classList.remove("hidden");
 }
 function setMessageContent(el, content) {
     const markdownParser = window.marked;
@@ -163,9 +261,10 @@ function renderQuickPrompts() {
     if (!quickPrompts) return;
     const activeChat = getChatById(activeChatId);
     const prompts = getQuickPromptsForChat(activeChat);
+    const visiblePrompts = workspaceMode === "basic" ? prompts.slice(0, 3) : prompts;
     quickPrompts.innerHTML = "";
-    quickPrompts.classList.toggle("hidden", prompts.length === 0);
-    prompts.forEach((prompt) => {
+    quickPrompts.classList.toggle("hidden", visiblePrompts.length === 0);
+    visiblePrompts.forEach((prompt) => {
         const button = document.createElement("button");
         button.type = "button";
         button.className = "prompt-chip";
@@ -180,9 +279,20 @@ function renderQuickPrompts() {
 }
 function updateComposerPlaceholder() {
     const activeChat = getChatById(activeChatId);
-    msgInput.placeholder = activeChat?.assistant_persona_id
-        ? "Reply in the scene..."
-        : "Type your message...";
+    if (!activeChat) {
+        msgInput.placeholder = "Create a chat to begin...";
+        return;
+    }
+    if (activeChat.assistant_persona_id) {
+        msgInput.placeholder = "Continue the scene...";
+        return;
+    }
+    msgInput.placeholder = workspaceMode === "basic" ? "Ask anything..." : "Type your message...";
+}
+
+function updateSendState() {
+    const hasText = Boolean(msgInput.value.trim());
+    sendBtn.disabled = isProcessing || !hasText;
 }
 
 function addMessage(content, isUser = false, isLoading = false) {
@@ -216,11 +326,76 @@ function addMessage(content, isUser = false, isLoading = false) {
 
 function renderMessages() {
     messagesDiv.innerHTML = "";
-    currentMessages.forEach((msg) => addMessage(msg.content, msg.role === "user"));
+    const chat = getChatById(activeChatId);
+    if (!currentMessages.length && (!chat || chat.assistant_persona_id)) {
+        renderMessageEmptyState();
+    } else {
+        currentMessages.forEach((msg) => addMessage(msg.content, msg.role === "user"));
+    }
     updateChatParticipants();
     updateChatActionState();
     renderQuickPrompts();
     updateComposerPlaceholder();
+}
+
+function createStarterAction(label, className, handler) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = className;
+    button.textContent = label;
+    button.addEventListener("click", handler);
+    return button;
+}
+
+function createMessageStarterPrompt(label, prompt) {
+    return createStarterAction(label, "secondary-action", async () => {
+        if (!activeChatId) await createNewChat();
+        msgInput.value = prompt;
+        msgInput.dispatchEvent(new Event("input"));
+        msgInput.focus();
+    });
+}
+
+function renderMessageEmptyState() {
+    const empty = document.createElement("section");
+    const title = document.createElement("h3");
+    const description = document.createElement("p");
+    const actions = document.createElement("div");
+    const chat = getChatById(activeChatId);
+
+    empty.className = "messages-empty";
+    title.className = "messages-empty-title";
+    description.className = "messages-empty-copy";
+    actions.className = "messages-empty-actions";
+
+    if (!chat) {
+        title.textContent = "Start your first conversation";
+        description.textContent = "Create a chat, or jump directly into roleplay.";
+        actions.append(
+            createStarterAction("New chat", "primary-action", () => { void createNewChat(); }),
+            createStarterAction("Start roleplay", "secondary-action", () => {
+                if (assistantPersonas.length) {
+                    openRoleplayStarter();
+                    return;
+                }
+                openPersonaForm(null, "assistant");
+            }),
+            createMessageStarterPrompt("Try a starter prompt", "Help me plan my day in 3 steps.")
+        );
+    } else if (chat.assistant_persona_id) {
+        title.textContent = "Your scene is ready";
+        description.textContent = "Send your first line, or use a prompt to set the tone.";
+        actions.append(
+            createMessageStarterPrompt("Add tension", "Open with a tense line that raises the stakes immediately."),
+            createMessageStarterPrompt("Set the scene", "Describe what your character notices first in this scene."),
+            createStarterAction("Pick another roleplay setup", "secondary-action", () => openRoleplayStarter())
+        );
+    } else {
+        return;
+    }
+
+    empty.append(title, description, actions);
+    messagesDiv.appendChild(empty);
 }
 
 function updateWorkspaceCopy() {
@@ -255,6 +430,7 @@ function updateChatParticipants() {
         chatCharacterPill.classList.add("hidden");
         chatUserPersonaPill.classList.add("hidden");
         chatScenePill.classList.add("hidden");
+        if (contextSummaryLabel) contextSummaryLabel.textContent = "None";
         return;
     }
     if (chat.assistant_persona_id) {
@@ -274,12 +450,14 @@ function updateChatParticipants() {
         } else {
             chatScenePill.classList.add("hidden");
         }
+        if (contextSummaryLabel) contextSummaryLabel.textContent = chat.assistant_persona_name || "Roleplay";
         return;
     }
     chatModePill.textContent = "Assistant mode";
     chatCharacterPill.classList.add("hidden");
     chatUserPersonaPill.classList.add("hidden");
     chatScenePill.classList.add("hidden");
+    if (contextSummaryLabel) contextSummaryLabel.textContent = "Assistant";
 }
 
 function updateContextRail() {
@@ -367,6 +545,14 @@ function updateChatActionState() {
     exportChatBtn.disabled = !hasChat || currentMessages.length === 0;
 }
 
+function maybeShowPersonaNudge() {
+    if (localStorage.getItem("krishd-persona-nudge-shown") === "true") return;
+    const assistantOnlyChats = chatSessions.filter((chat) => !chat.assistant_persona_id).length;
+    if (assistantOnlyChats < 3) return;
+    localStorage.setItem("krishd-persona-nudge-shown", "true");
+    setNotice("Want to personalize responses? Try personas in Tools.", "success");
+}
+
 function renderChatList() {
     const query = chatSearchInput.value.trim().toLowerCase();
     const filtered = chatSessions.filter((chat) => !query || chat.title.toLowerCase().includes(query));
@@ -437,9 +623,31 @@ function openPersonaForm(persona = null, personaType = "assistant") {
 
 function closePersonaForm() { personaModal.classList.add("hidden"); editingPersonaId = null; editingPersonaType = "assistant"; personaTypeSelect.disabled = false; setPersonaFormNotice(""); }
 function closePersonaPopover() { personaPopover.classList.add("hidden"); personaMenuButton.setAttribute("aria-expanded", "false"); }
+function closeContextPopover() {
+    if (!contextPopover || !contextChipButton) return;
+    contextPopover.classList.add("hidden");
+    contextChipButton.setAttribute("aria-expanded", "false");
+}
+function closeChatActionsPopover() {
+    if (!chatActionsPopover || !chatActionsMenuButton) return;
+    chatActionsPopover.classList.add("hidden");
+    chatActionsMenuButton.setAttribute("aria-expanded", "false");
+}
+function closeAuxiliaryPopovers() {
+    closeModelPopover();
+    closePersonaPopover();
+    closeContextPopover();
+    closeChatActionsPopover();
+}
 function populateRoleplayStarter() {
     if (!roleplayCharacterSelect || !roleplayUserPersonaSelect) return;
     roleplayCharacterSelect.innerHTML = "";
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = "Choose AI Character";
+    placeholder.disabled = true;
+    placeholder.selected = true;
+    roleplayCharacterSelect.appendChild(placeholder);
     assistantPersonas.forEach((persona) => {
         const option = document.createElement("option");
         option.value = String(persona.id);
@@ -447,10 +655,13 @@ function populateRoleplayStarter() {
         option.selected = persona.id === roleplayPresetCharacterId;
         roleplayCharacterSelect.appendChild(option);
     });
+    if (roleplayPresetCharacterId) {
+        roleplayCharacterSelect.value = String(roleplayPresetCharacterId);
+    }
     roleplayUserPersonaSelect.innerHTML = "";
     const noneOption = document.createElement("option");
     noneOption.value = "";
-    noneOption.textContent = "No user persona";
+    noneOption.textContent = "Myself (no user persona)";
     roleplayUserPersonaSelect.appendChild(noneOption);
     userPersonas.forEach((persona) => {
         const option = document.createElement("option");
@@ -459,11 +670,17 @@ function populateRoleplayStarter() {
         option.selected = persona.id === activeUserPersonaId;
         roleplayUserPersonaSelect.appendChild(option);
     });
+    if (assistantPersonas.length === 0) {
+        setRoleplayStarterNotice("Create an AI Character first, then start roleplay.", "error");
+        roleplayStarterConfirm.disabled = true;
+    } else {
+        setRoleplayStarterNotice("");
+        roleplayStarterConfirm.disabled = false;
+    }
     updateRoleplaySuggestions();
 }
 function openRoleplayStarter(characterId = null) {
-    closePersonaPopover();
-    closeModelPopover();
+    closeAuxiliaryPopovers();
     roleplayPresetCharacterId = characterId;
     populateRoleplayStarter();
     if (roleplayScenarioInput) roleplayScenarioInput.value = "";
@@ -480,6 +697,7 @@ function closeRoleplayStarter() {
     setRoleplayStarterNotice("");
 }
 function closeModelPopover() {
+    if (!modelPopover || !modelMenuButton) return;
     modelPopover.classList.add("hidden");
     modelMenuButton.setAttribute("aria-expanded", "false");
 }
@@ -653,13 +871,15 @@ async function publishPersona(id) { const res = await post(`/personas/${id}/publ
 async function unpublishPersona(id) { const res = await post(`/personas/${id}/unpublish`, {}); if (res.error) return setNotice(res.error, "error"); await loadPersonas(); setNotice("Persona unpublished.", "success"); }
 
 function setLoadingState(loading) {
-    isProcessing = loading; sendBtn.disabled = loading; msgInput.disabled = loading;
+    isProcessing = loading;
+    msgInput.disabled = loading;
     sendBtn.classList.toggle("loading", loading);
     if (loading) {
         msgInput.placeholder = "Processing response...";
     } else {
         updateComposerPlaceholder();
     }
+    updateSendState();
 }
 
 function showAuthScreen(target) {
@@ -676,6 +896,7 @@ async function setActiveChat(id) {
     const existing = getChatById(id);
     if (res.chat && existing) Object.assign(existing, res.chat);
     currentMessages = res.messages || []; renderMessages();
+    updateSendState();
 }
 
 async function loadChatSessions() {
@@ -686,13 +907,19 @@ async function loadChatSessions() {
         const preferredChatId = (requestedChatId && getChatById(requestedChatId)) ? requestedChatId : activeChatId && getChatById(activeChatId) ? activeChatId : chatSessions[0].id;
         return setActiveChat(preferredChatId);
     }
-    return createNewChat();
+    activeChatId = null;
+    currentMessages = [];
+    renderMessages();
+    updateWorkspaceCopy();
+    updateSendState();
+    return setNotice("Pick a starting action to begin.", "success");
 }
 
 async function createNewChat() {
     const res = await post("/chats", {title: "New chat"});
     if (res.error || !res.chat) return setNotice(res.error || "Unable to create chat.", "error");
     chatSessions.unshift(res.chat); await loadSummary(); renderChatList(); await setActiveChat(res.chat.id); setNotice("New chat created.", "success");
+    msgInput.focus();
 }
 
 async function startRoleplay() {
@@ -807,6 +1034,7 @@ async function checkSession() {
     if (!res.user) return false;
     currentUsername = res.user; authDiv.style.display = "none"; chatDiv.style.display = "block";
     await Promise.all([displayModels(), loadSummary(), loadChatSessions(), loadPersonas()]);
+    maybeShowOnboarding();
     msgInput.focus(); return true;
 }
 
@@ -820,6 +1048,7 @@ async function handleAuth(endpoint, credentials) {
     if (endpoint === "login") {
         currentUsername = username; authDiv.style.display = "none"; chatDiv.style.display = "block";
         await Promise.all([displayModels(), loadSummary(), loadChatSessions(), loadPersonas()]);
+        maybeShowOnboarding();
         setNotice("Ready.", "success"); msgInput.focus();
     } else {
         setAuthMessage("Registration successful. You can now log in.", "success");
@@ -844,7 +1073,12 @@ async function sendMessage() {
         const res = await post("/chat", {message, model: modelSelect.value, chatId: activeChatId});
         if (messagesDiv.contains(loadingMsg)) messagesDiv.removeChild(loadingMsg);
         if (res.reply) {
-            currentMessages.push({role: "bot", content: res.reply}); addMessage(res.reply); await loadSummary(); setNotice("Reply received.", "success");
+            currentMessages.push({role: "bot", content: res.reply});
+            addMessage(res.reply);
+            await loadSummary();
+            markOnboardingCompleted();
+            maybeShowPersonaNudge();
+            setNotice("Reply received.", "success");
         } else {
             addMessage(`[Error: ${res.error}]`); setNotice(res.error || "Failed to generate reply.", "error");
         }
@@ -859,6 +1093,8 @@ async function sendMessage() {
 function togglePersonaPopover(event) {
     event.stopPropagation();
     closeModelPopover();
+    closeContextPopover();
+    closeChatActionsPopover();
     const isHidden = personaPopover.classList.contains("hidden");
     personaPopover.classList.toggle("hidden", !isHidden);
     personaMenuButton.setAttribute("aria-expanded", String(isHidden));
@@ -867,9 +1103,33 @@ function togglePersonaPopover(event) {
 function toggleModelPopover(event) {
     event.stopPropagation();
     closePersonaPopover();
+    closeContextPopover();
+    closeChatActionsPopover();
     const isHidden = modelPopover.classList.contains("hidden");
     modelPopover.classList.toggle("hidden", !isHidden);
     modelMenuButton.setAttribute("aria-expanded", String(isHidden));
+}
+
+function toggleContextPopover(event) {
+    if (!contextPopover || !contextChipButton) return;
+    event.stopPropagation();
+    closeModelPopover();
+    closePersonaPopover();
+    closeChatActionsPopover();
+    const isHidden = contextPopover.classList.contains("hidden");
+    contextPopover.classList.toggle("hidden", !isHidden);
+    contextChipButton.setAttribute("aria-expanded", String(isHidden));
+}
+
+function toggleChatActionsPopover(event) {
+    if (!chatActionsPopover || !chatActionsMenuButton) return;
+    event.stopPropagation();
+    closeModelPopover();
+    closePersonaPopover();
+    closeContextPopover();
+    const isHidden = chatActionsPopover.classList.contains("hidden");
+    chatActionsPopover.classList.toggle("hidden", !isHidden);
+    chatActionsMenuButton.setAttribute("aria-expanded", String(isHidden));
 }
 
 toggleButtons.forEach((btn) => btn.addEventListener("click", () => showAuthScreen(btn.dataset.target)));
@@ -879,12 +1139,23 @@ $("logout").addEventListener("click", async () => {
     await post("/logout", {}); chatDiv.style.display = "none"; authDiv.style.display = "grid";
     activeChatId = null; currentUsername = ""; currentSummary = null; chatSessions = []; currentMessages = []; assistantPersonas = []; userPersonas = [];
     activeUserPersonaId = null; publishedPersonaIds = new Set(); messagesDiv.innerHTML = ""; renderChatList(); updateChatActionState();
+    updateComposerPlaceholder();
+    updateSendState();
     showAuthScreen("login"); setAuthMessage("Logged out.", "success"); setNotice("Ready.");
 });
 sendBtn.addEventListener("click", () => { void sendMessage(); });
 msgInput.addEventListener("keydown", (event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void sendMessage(); } });
-msgInput.addEventListener("input", function () { this.style.height = "auto"; this.style.height = `${Math.min(this.scrollHeight, 180)}px`; });
+msgInput.addEventListener("input", function () {
+    this.style.height = "auto";
+    this.style.height = `${Math.min(this.scrollHeight, 180)}px`;
+    updateSendState();
+});
 newChatBtn.addEventListener("click", () => { void createNewChat(); });
+if (startRoleplayBtn) {
+    startRoleplayBtn.addEventListener("click", () => {
+        window.location.href = "/market?view=ai-characters";
+    });
+}
 renameChatBtn.addEventListener("click", () => { if (activeChatId) void renameChat(activeChatId); });
 clearChatBtn.addEventListener("click", () => { if (activeChatId) void clearChat(activeChatId); }); exportChatBtn.addEventListener("click", exportCurrentChat);
 chatSearchInput.addEventListener("input", renderChatList); modelSelect.addEventListener("change", () => { updateModelHelp(); updateContextRail(); });
@@ -919,19 +1190,57 @@ popupInput.addEventListener("keydown", (event) => {
         closePopup(popupInput.value);
     }
 });
-modelMenuButton.addEventListener("click", toggleModelPopover); modelPopover.addEventListener("click", (event) => event.stopPropagation());
-personaMenuButton.addEventListener("click", togglePersonaPopover); personaPopover.addEventListener("click", (event) => event.stopPropagation());
-document.addEventListener("click", () => { closeModelPopover(); closePersonaPopover(); });
+if (modelMenuButton && modelPopover) {
+    modelMenuButton.addEventListener("click", toggleModelPopover);
+    modelPopover.addEventListener("click", (event) => event.stopPropagation());
+}
+if (personaMenuButton && personaPopover) {
+    personaMenuButton.addEventListener("click", togglePersonaPopover);
+    personaPopover.addEventListener("click", (event) => event.stopPropagation());
+}
+if (contextChipButton && contextPopover) {
+    contextChipButton.addEventListener("click", toggleContextPopover);
+    contextPopover.addEventListener("click", (event) => event.stopPropagation());
+}
+if (chatActionsMenuButton && chatActionsPopover) {
+    chatActionsMenuButton.addEventListener("click", toggleChatActionsPopover);
+    chatActionsPopover.addEventListener("click", (event) => event.stopPropagation());
+}
+if (onboardingContinue) {
+    onboardingContinue.addEventListener("click", () => {
+        onboardingStep = 2;
+        renderOnboardingStep();
+    });
+}
+if (onboardingBack) {
+    onboardingBack.addEventListener("click", () => {
+        onboardingStep = 1;
+        renderOnboardingStep();
+    });
+}
+if (onboardingSkip) {
+    onboardingSkip.addEventListener("click", markOnboardingCompleted);
+}
+if (onboardingModal) {
+    onboardingModal.addEventListener("click", (event) => {
+        if (event.target === onboardingModal) markOnboardingCompleted();
+    });
+}
+document.addEventListener("click", () => { closeAuxiliaryPopovers(); });
 document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
-        closeModelPopover();
-        closePersonaPopover();
+        closeAuxiliaryPopovers();
         closeRoleplayStarter();
         closePersonaForm();
         closePopup(false);
+        closeOnboarding();
     }
 });
 window.addEventListener("load", async () => {
     applyTheme(localStorage.getItem("krishd-theme") || "fakegpt", false);
-    setNotice("Ready."); updateChatActionState(); await checkSession();
+    applyWorkspaceMode(localStorage.getItem("krishd-workspace-mode") || "basic", false);
+    setNotice("Ready.");
+    updateChatActionState();
+    updateSendState();
+    await checkSession();
 });
