@@ -384,6 +384,10 @@ h2 {
     font-family: "Space Grotesk", sans-serif;
 }
 
+.chat-mode-pill {
+    font-weight: 700;
+}
+
 .auth-toggle,
 .persona-form,
 .input-shell,
@@ -589,6 +593,7 @@ select:focus {
 .chat-title-block,
 .chat-toolbar,
 .chat-header-actions,
+.sidebar-header-actions,
 .market-header,
 .market-header-actions,
 .persona-title-row,
@@ -661,6 +666,19 @@ select:focus {
     white-space: nowrap;
     font-weight: 700;
     line-height: 1.35;
+}
+
+.chat-item-copy {
+    min-width: 0;
+    display: grid;
+    gap: 4px;
+}
+
+.chat-item-meta {
+    color: var(--text-muted);
+    font-size: 0.76rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
 }
 
 .chat-item button,
@@ -790,6 +808,18 @@ select:focus {
 .chat-title {
     display: grid;
     gap: 4px;
+}
+
+.chat-participants {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 8px;
+}
+
+.sidebar-header-actions {
+    justify-content: flex-end;
+    flex-wrap: wrap;
 }
 
 .chat-toolbar {
@@ -1259,7 +1289,7 @@ select:focus {
     position: absolute;
     top: calc(100% + 10px);
     right: 0;
-    width: min(560px, 88vw);
+    width: min(460px, 88vw);
     border-radius: var(--radius-lg);
     padding: 16px;
     box-shadow: var(--shadow);
@@ -1271,6 +1301,40 @@ select:focus {
 .persona-section {
     display: grid;
     gap: 12px;
+}
+
+.character-library-card {
+    width: min(760px, 95vw);
+    display: grid;
+    gap: 18px;
+}
+
+.character-library-intro {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 16px 18px;
+    border-radius: 16px;
+    background: rgba(24, 32, 31, 0.04);
+    border: 1px solid rgba(24, 32, 31, 0.08);
+}
+
+.character-library-list {
+    max-height: min(56vh, 520px);
+}
+
+.roleplay-starter-card {
+    width: min(620px, 95vw);
+    display: grid;
+    gap: 18px;
+}
+
+.roleplay-starter-intro {
+    padding: 16px 18px;
+    border-radius: 16px;
+    background: rgba(24, 32, 31, 0.04);
+    border: 1px solid rgba(24, 32, 31, 0.08);
 }
 
 .persona-status {
@@ -1308,6 +1372,10 @@ select:focus {
 .market-header-actions,
 .market-preview-actions {
     flex-wrap: wrap;
+}
+
+.market-preview-user-field {
+    width: 100%;
 }
 
 .persona-item-actions button {
@@ -1515,6 +1583,7 @@ select:focus {
     margin: 0;
     color: var(--text);
     line-height: 1.5;
+    white-space: pre-wrap;
 }
 
 .settings-shell {

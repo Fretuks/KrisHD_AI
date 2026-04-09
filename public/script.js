@@ -11,25 +11,30 @@ const loginSubmit = $("loginSubmit"), registerSubmit = $("registerSubmit");
 const chatList = $("chatList"), chatSearchInput = $("chatSearch"), newChatBtn = $("newChat");
 const renameChatBtn = $("renameChat"), clearChatBtn = $("clearChat"), exportChatBtn = $("exportChat");
 const activeChatTitle = $("activeChatTitle"), sessionUser = $("sessionUser");
+const chatModePill = $("chatModePill"), chatCharacterPill = $("chatCharacterPill"), chatUserPersonaPill = $("chatUserPersonaPill");
 const personaList = $("personaList"), userPersonaList = $("userPersonaList");
 const personaForm = $("personaForm"), personaFormTitle = $("personaFormTitle"), personaTypeSelect = $("personaType");
 const personaNameInput = $("personaName"), personaPronounsInput = $("personaPronouns"), personaAppearanceInput = $("personaAppearance");
 const personaBackgroundInput = $("personaBackground"), personaDetailsInput = $("personaDetails");
 const personaExamplesField = $("personaExamplesField"), personaExampleDialoguesInput = $("personaExampleDialogues");
 const personaFormNotice = $("personaFormNotice");
-const newPersonaBtn = $("newPersona"), newUserPersonaBtn = $("newUserPersona"), clearPersonaBtn = $("clearPersona"), clearUserPersonaBtn = $("clearUserPersona");
+const roleplayNewPersonaBtn = $("roleplayNewPersona"), clearUserPersonaBtn = $("clearUserPersona");
 const activePersonaStatus = $("activePersonaStatus"), activeUserPersonaStatus = $("activeUserPersonaStatus");
 const personaModal = $("personaModal"), personaCloseBtn = $("personaClose"), personaMenuButton = $("personaMenuButton"), personaPopover = $("personaPopover");
+const roleplayStarterModal = $("roleplayStarterModal"), roleplayStarterClose = $("roleplayStarterClose"), roleplayStarterCancel = $("roleplayStarterCancel"), roleplayStarterConfirm = $("roleplayStarterConfirm");
+const roleplayStarterNotice = $("roleplayStarterNotice"), roleplayCharacterSelect = $("roleplayCharacterSelect"), roleplayUserPersonaSelect = $("roleplayUserPersonaSelect");
 const popupModal = $("popupModal"), popupCloseBtn = $("popupClose"), popupCancelBtn = $("popupCancel"), popupConfirmBtn = $("popupConfirm");
 const popupTitle = $("popupTitle"), popupEyebrow = $("popupEyebrow"), popupDescription = $("popupDescription"), popupField = $("popupField");
 const popupInputLabel = $("popupInputLabel"), popupInput = $("popupInput");
 const authScreens = document.querySelectorAll(".auth-screen"), toggleButtons = document.querySelectorAll(".auth-toggle .toggle");
 const themeNameTargets = document.querySelectorAll("[data-theme-name]"), themeLogoTargets = document.querySelectorAll("[data-theme-logo]");
+const requestedChatId = Number(new URLSearchParams(window.location.search).get("chat")) || null;
 
 let isProcessing = false, activeChatId = null, editingPersonaId = null, editingPersonaType = "assistant", currentUsername = "";
 let chatSessions = [], currentMessages = [], assistantPersonas = [], userPersonas = [];
-let activePersonaId = null, activeUserPersonaId = null, currentSummary = null, publishedPersonaIds = new Set();
+let activeUserPersonaId = null, currentSummary = null, publishedPersonaIds = new Set();
 let popupResolver = null, popupMode = null, popupLastFocus = null;
+let roleplayPresetCharacterId = null;
 
 const themes = {
     "fakegpt": {name: "FakeGPT", short: "FG"},
@@ -112,6 +117,7 @@ function addMessage(content, isUser = false, isLoading = false) {
 function renderMessages() {
     messagesDiv.innerHTML = "";
     currentMessages.forEach((msg) => addMessage(msg.content, msg.role === "user"));
+    updateChatParticipants();
     updateChatActionState();
 }
 
@@ -123,6 +129,45 @@ function updateWorkspaceCopy() {
     if (sessionUser) {
         sessionUser.textContent = currentUsername || "-";
     }
+    updateChatParticipants();
+}
+
+function setRoleplayStarterNotice(message = "", state = "") {
+    if (!roleplayStarterNotice) return;
+    if (!message) {
+        roleplayStarterNotice.textContent = "";
+        roleplayStarterNotice.className = "status hidden";
+        return;
+    }
+    roleplayStarterNotice.textContent = message;
+    roleplayStarterNotice.className = state ? `status ${state}` : "status";
+}
+
+function updateChatParticipants() {
+    const chat = getChatById(activeChatId);
+    if (!chatModePill || !chatCharacterPill || !chatUserPersonaPill) return;
+    if (!chat) {
+        chatModePill.textContent = "No chat selected";
+        chatCharacterPill.classList.add("hidden");
+        chatUserPersonaPill.classList.add("hidden");
+        return;
+    }
+    if (chat.assistant_persona_id) {
+        chatModePill.textContent = "Roleplay mode";
+        chatCharacterPill.textContent = `Character: ${chat.assistant_persona_name || chat.title}`;
+        chatCharacterPill.classList.remove("hidden");
+        if (chat.user_persona_id) {
+            chatUserPersonaPill.textContent = `You as: ${chat.user_persona_name || "User persona"}`;
+            chatUserPersonaPill.classList.remove("hidden");
+        } else {
+            chatUserPersonaPill.textContent = "You as: yourself";
+            chatUserPersonaPill.classList.remove("hidden");
+        }
+        return;
+    }
+    chatModePill.textContent = "Assistant mode";
+    chatCharacterPill.classList.add("hidden");
+    chatUserPersonaPill.classList.add("hidden");
 }
 
 function updateContextRail() {
@@ -203,8 +248,9 @@ function applyTheme(themeKey, persist = true) {
 }
 
 function updateChatActionState() {
-    const hasChat = Boolean(activeChatId);
-    renameChatBtn.disabled = !hasChat;
+    const activeChat = getChatById(activeChatId);
+    const hasChat = Boolean(activeChat);
+    renameChatBtn.disabled = !hasChat || Boolean(activeChat?.assistant_persona_id);
     clearChatBtn.disabled = !hasChat;
     exportChatBtn.disabled = !hasChat || currentMessages.length === 0;
 }
@@ -221,11 +267,18 @@ function renderChatList() {
         return;
     }
     filtered.forEach((chat) => {
-        const item = document.createElement("div"), title = document.createElement("span"), remove = document.createElement("button");
+        const item = document.createElement("div"), content = document.createElement("div"), title = document.createElement("span"), meta = document.createElement("small"), remove = document.createElement("button");
         item.className = `chat-item${chat.id === activeChatId ? " active" : ""}`;
-        title.textContent = chat.title; remove.type = "button"; remove.textContent = "Delete";
+        content.className = "chat-item-copy";
+        title.textContent = chat.title;
+        meta.className = "chat-item-meta";
+        meta.textContent = chat.assistant_persona_id
+            ? `Roleplay${chat.user_persona_name ? ` · ${chat.user_persona_name}` : ""}`
+            : "Assistant chat";
+        remove.type = "button"; remove.textContent = "Delete";
         remove.addEventListener("click", async (event) => { event.stopPropagation(); await deleteChat(chat.id); });
-        item.append(title, remove);
+        content.append(title, meta);
+        item.append(content, remove);
         item.addEventListener("click", () => setActiveChat(chat.id));
         chatList.appendChild(item);
     });
@@ -237,10 +290,13 @@ function updateActivePersonaStatus(items, activeId, statusEl, emptyText, prefix)
 }
 
 function setActivePersonaStatus() {
-    updateActivePersonaStatus(assistantPersonas, activePersonaId, activePersonaStatus, "No AI persona equipped.", "AI persona equipped");
-    updateActivePersonaStatus(userPersonas, activeUserPersonaId, activeUserPersonaStatus, "No user persona set.", "User persona active");
-    clearPersonaBtn.disabled = !activePersonaId;
-    clearUserPersonaBtn.disabled = !activeUserPersonaId;
+    if (activePersonaStatus) {
+        activePersonaStatus.textContent = assistantPersonas.length
+            ? "Pick a character, choose a user persona, and start the roleplay."
+            : "No characters yet. Create one to start a roleplay.";
+    }
+    updateActivePersonaStatus(userPersonas, activeUserPersonaId, activeUserPersonaStatus, "No default user persona set.", "Default user persona");
+    if (clearUserPersonaBtn) clearUserPersonaBtn.disabled = !activeUserPersonaId;
     updateContextRail();
 }
 
@@ -250,14 +306,14 @@ function openPersonaForm(persona = null, personaType = "assistant") {
     personaModal.classList.remove("hidden");
     if (persona) {
         editingPersonaId = persona.id; editingPersonaType = persona.persona_type || "assistant";
-        personaFormTitle.textContent = `Edit ${editingPersonaType === "user" ? "your persona" : "AI persona"}`;
+        personaFormTitle.textContent = `Edit ${editingPersonaType === "user" ? "your persona" : "AI Character"}`;
         personaTypeSelect.value = editingPersonaType; personaTypeSelect.disabled = true;
         personaNameInput.value = persona.name || ""; personaPronounsInput.value = persona.pronouns || "";
         personaAppearanceInput.value = persona.appearance || ""; personaBackgroundInput.value = persona.background || ""; personaDetailsInput.value = persona.details || "";
         personaExampleDialoguesInput.value = persona.example_dialogues || "";
     } else {
         editingPersonaId = null; editingPersonaType = personaType;
-        personaFormTitle.textContent = `Create ${personaType === "user" ? "your persona" : "AI persona"}`;
+        personaFormTitle.textContent = `Create ${personaType === "user" ? "your persona" : "AI Character"}`;
         personaTypeSelect.value = personaType; personaTypeSelect.disabled = false;
         personaNameInput.value = ""; personaPronounsInput.value = ""; personaAppearanceInput.value = ""; personaBackgroundInput.value = ""; personaDetailsInput.value = "";
         personaExampleDialoguesInput.value = "";
@@ -269,6 +325,45 @@ function openPersonaForm(persona = null, personaType = "assistant") {
 
 function closePersonaForm() { personaModal.classList.add("hidden"); editingPersonaId = null; editingPersonaType = "assistant"; personaTypeSelect.disabled = false; setPersonaFormNotice(""); }
 function closePersonaPopover() { personaPopover.classList.add("hidden"); personaMenuButton.setAttribute("aria-expanded", "false"); }
+function populateRoleplayStarter() {
+    if (!roleplayCharacterSelect || !roleplayUserPersonaSelect) return;
+    roleplayCharacterSelect.innerHTML = "";
+    assistantPersonas.forEach((persona) => {
+        const option = document.createElement("option");
+        option.value = String(persona.id);
+        option.textContent = persona.name;
+        option.selected = persona.id === roleplayPresetCharacterId;
+        roleplayCharacterSelect.appendChild(option);
+    });
+    roleplayUserPersonaSelect.innerHTML = "";
+    const noneOption = document.createElement("option");
+    noneOption.value = "";
+    noneOption.textContent = "No user persona";
+    roleplayUserPersonaSelect.appendChild(noneOption);
+    userPersonas.forEach((persona) => {
+        const option = document.createElement("option");
+        option.value = String(persona.id);
+        option.textContent = persona.name;
+        option.selected = persona.id === activeUserPersonaId;
+        roleplayUserPersonaSelect.appendChild(option);
+    });
+}
+function openRoleplayStarter(characterId = null) {
+    closePersonaPopover();
+    closeModelPopover();
+    roleplayPresetCharacterId = characterId;
+    populateRoleplayStarter();
+    setRoleplayStarterNotice("");
+    roleplayStarterModal.classList.remove("hidden");
+    if (roleplayCharacterSelect.options.length) roleplayCharacterSelect.focus();
+}
+function closeRoleplayStarter() {
+    if (!roleplayStarterModal) return;
+    roleplayStarterModal.classList.add("hidden");
+    roleplayPresetCharacterId = null;
+    roleplayStarterConfirm.disabled = false;
+    setRoleplayStarterNotice("");
+}
 function closeModelPopover() {
     modelPopover.classList.add("hidden");
     modelMenuButton.setAttribute("aria-expanded", "false");
@@ -330,6 +425,10 @@ function promptPopup(options) {
 }
 
 function renderPersonaList(items, activeId, listElement, personaType) {
+    if (!listElement) {
+        setActivePersonaStatus();
+        return;
+    }
     listElement.innerHTML = "";
     if (!items.length) {
         const empty = document.createElement("p");
@@ -342,10 +441,10 @@ function renderPersonaList(items, activeId, listElement, personaType) {
     items.forEach((persona) => {
         const item = document.createElement("div"), titleRow = document.createElement("div"), title = document.createElement("h4");
         const tag = document.createElement("span"), meta = document.createElement("p"), actions = document.createElement("div");
-        item.className = `persona-item${persona.id === activeId ? " active" : ""}`; titleRow.className = "persona-title-row"; actions.className = "persona-item-actions";
+        item.className = `persona-item${personaType === "user" && persona.id === activeId ? " active" : ""}`; titleRow.className = "persona-title-row"; actions.className = "persona-item-actions";
         tag.className = `persona-role-tag ${personaType === "user" ? "user" : "ai"}`; tag.textContent = personaType === "user" ? "You" : "AI";
         title.textContent = persona.name; meta.textContent = persona.pronouns ? `Pronouns: ${persona.pronouns}` : "Pronouns: n/a";
-        [["Equip", () => equipPersona(persona.id, personaType), persona.id === activeId],
+        [[personaType === "assistant" ? "Start roleplay" : "Set default", () => equipPersona(persona.id, personaType), personaType === "user" && persona.id === activeId],
             ["Edit", () => openPersonaForm(persona), false],
             [publishedPersonaIds.has(persona.id) ? "Update listing" : "Publish", () => publishPersona(persona.id), false],
             ["Delete", () => deletePersona(persona.id), false]]
@@ -371,26 +470,30 @@ async function loadPersonas() {
     const res = await get("/personas");
     if (res.error) return setNotice(res.error, "error");
     assistantPersonas = res.assistantPersonas || []; userPersonas = res.userPersonas || [];
-    activePersonaId = res.activePersonaId || null; activeUserPersonaId = res.activeUserPersonaId || null; publishedPersonaIds = new Set(res.publishedPersonaIds || []);
-    renderPersonaList(assistantPersonas, activePersonaId, personaList, "assistant");
+    activeUserPersonaId = res.activeUserPersonaId || null; publishedPersonaIds = new Set(res.publishedPersonaIds || []);
     renderPersonaList(userPersonas, activeUserPersonaId, userPersonaList, "user");
+    populateRoleplayStarter();
+    setActivePersonaStatus();
     updateWorkspaceCopy();
 }
 
 async function equipPersona(id, type) {
-    const res = await post(type === "user" ? `/personas/${id}/equip-user` : `/personas/${id}/equip`, {});
+    if (type === "assistant") {
+        openRoleplayStarter(id);
+        return;
+    }
+    const res = await post(`/personas/${id}/equip-user`, {});
     if (res.error) return setNotice(res.error, "error");
-    if (type === "user") activeUserPersonaId = id; else activePersonaId = id;
-    renderPersonaList(assistantPersonas, activePersonaId, personaList, "assistant");
+    activeUserPersonaId = id;
     renderPersonaList(userPersonas, activeUserPersonaId, userPersonaList, "user");
-    setNotice(type === "user" ? "User persona updated." : "AI persona updated.", "success");
+    setNotice("User persona updated.", "success");
 }
 
 async function clearPersona(type) {
-    const res = await post(type === "user" ? "/personas/user/clear" : "/personas/clear", {});
+    if (type !== "user") return;
+    const res = await post("/personas/user/clear", {});
     if (res.error) return setNotice(res.error, "error");
-    if (type === "user") activeUserPersonaId = null; else activePersonaId = null;
-    renderPersonaList(assistantPersonas, activePersonaId, personaList, "assistant");
+    activeUserPersonaId = null;
     renderPersonaList(userPersonas, activeUserPersonaId, userPersonaList, "user");
     setNotice("Persona cleared.", "success");
 }
@@ -409,14 +512,16 @@ async function savePersona() {
     const res = editingPersonaId ? await put(`/personas/${editingPersonaId}`, payload) : await post("/personas", payload);
     if (res.error) return setPersonaFormNotice(res.error, "error");
     const wasEditing = Boolean(editingPersonaId);
-    await loadPersonas(); closePersonaForm(); setNotice(wasEditing ? "Persona updated." : "Persona created.", "success");
+    await loadPersonas();
+    if (payload.personaType === "assistant") await loadChatSessions();
+    closePersonaForm(); setNotice(wasEditing ? "Persona updated." : "Persona created.", "success");
 }
 
 async function deletePersona(id) {
     const persona = assistantPersonas.find((item) => item.id === id) || userPersonas.find((item) => item.id === id);
     if (!persona) return;
     const confirmed = await confirmPopup({
-        eyebrow: persona.persona_type === "user" ? "Your persona" : "AI persona",
+        eyebrow: persona.persona_type === "user" ? "Your persona" : "AI Character",
         title: "Delete persona",
         description: `Delete "${persona.name}"? This removes it from your library and any active slot.`,
         confirmLabel: "Delete",
@@ -425,7 +530,9 @@ async function deletePersona(id) {
     if (!confirmed) return;
     const res = await del(`/personas/${id}`);
     if (res.error) return setNotice(res.error, "error");
-    await loadPersonas(); setNotice("Persona deleted.", "success");
+    await loadPersonas();
+    if (persona.persona_type === "assistant") await loadChatSessions();
+    setNotice("Persona deleted.", "success");
 }
 async function publishPersona(id) { const res = await post(`/personas/${id}/publish`, {}); if (res.error) return setNotice(res.error, "error"); await loadPersonas(); setNotice("Persona published.", "success"); }
 async function unpublishPersona(id) { const res = await post(`/personas/${id}/unpublish`, {}); if (res.error) return setNotice(res.error, "error"); await loadPersonas(); setNotice("Persona unpublished.", "success"); }
@@ -446,6 +553,8 @@ async function setActiveChat(id) {
     updateWorkspaceCopy(); renderChatList(); updateChatActionState();
     const res = await get(`/chats/${id}/messages`);
     if (res.error) return setNotice(res.error, "error");
+    const existing = getChatById(id);
+    if (res.chat && existing) Object.assign(existing, res.chat);
     currentMessages = res.messages || []; renderMessages();
 }
 
@@ -453,7 +562,10 @@ async function loadChatSessions() {
     const res = await get("/chats");
     if (res.error) return setNotice(res.error, "error");
     chatSessions = res.chats || []; renderChatList();
-    if (chatSessions.length) return setActiveChat(activeChatId && getChatById(activeChatId) ? activeChatId : chatSessions[0].id);
+    if (chatSessions.length) {
+        const preferredChatId = (requestedChatId && getChatById(requestedChatId)) ? requestedChatId : activeChatId && getChatById(activeChatId) ? activeChatId : chatSessions[0].id;
+        return setActiveChat(preferredChatId);
+    }
     return createNewChat();
 }
 
@@ -461,6 +573,29 @@ async function createNewChat() {
     const res = await post("/chats", {title: "New chat"});
     if (res.error || !res.chat) return setNotice(res.error || "Unable to create chat.", "error");
     chatSessions.unshift(res.chat); await loadSummary(); renderChatList(); await setActiveChat(res.chat.id); setNotice("New chat created.", "success");
+}
+
+async function startRoleplay() {
+    const assistantPersonaId = Number(roleplayCharacterSelect.value);
+    const userPersonaId = roleplayUserPersonaSelect.value ? Number(roleplayUserPersonaSelect.value) : null;
+    if (!assistantPersonaId) {
+        return setRoleplayStarterNotice("Choose a character to start the roleplay.", "error");
+    }
+    roleplayStarterConfirm.disabled = true;
+    setRoleplayStarterNotice("Starting roleplay...");
+    const res = await post("/roleplays/start", {
+        assistantPersonaId,
+        userPersonaId,
+        model: modelSelect.value
+    });
+    roleplayStarterConfirm.disabled = false;
+    if (res.error || !res.chat) {
+        return setRoleplayStarterNotice(res.error || "Unable to start roleplay.", "error");
+    }
+    closeRoleplayStarter();
+    await loadChatSessions();
+    await setActiveChat(res.chat.id);
+    setNotice(res.generatedInitialMessage ? "Roleplay started." : "Roleplay reopened.", "success");
 }
 
 async function renameChat(id) {
@@ -576,7 +711,7 @@ async function sendMessage() {
     if (!message) return;
     if (!activeChatId) await createNewChat();
     const currentChat = getChatById(activeChatId);
-    if (currentChat && currentChat.title === "New chat") {
+    if (currentChat && !currentChat.assistant_persona_id && currentChat.title === "New chat") {
         const autoTitle = message.length > 40 ? `${message.slice(0, 40)}...` : message;
         currentChat.title = autoTitle; updateWorkspaceCopy(); renderChatList(); await put(`/chats/${activeChatId}`, {title: autoTitle});
     }
@@ -621,7 +756,7 @@ registerForm.addEventListener("submit", (event) => { event.preventDefault(); voi
 $("logout").addEventListener("click", async () => {
     await post("/logout", {}); chatDiv.style.display = "none"; authDiv.style.display = "grid";
     activeChatId = null; currentUsername = ""; currentSummary = null; chatSessions = []; currentMessages = []; assistantPersonas = []; userPersonas = [];
-    activePersonaId = null; activeUserPersonaId = null; publishedPersonaIds = new Set(); messagesDiv.innerHTML = ""; renderChatList(); updateChatActionState();
+    activeUserPersonaId = null; publishedPersonaIds = new Set(); messagesDiv.innerHTML = ""; renderChatList(); updateChatActionState();
     showAuthScreen("login"); setAuthMessage("Logged out.", "success"); setNotice("Ready.");
 });
 sendBtn.addEventListener("click", () => { void sendMessage(); });
@@ -631,8 +766,8 @@ newChatBtn.addEventListener("click", () => { void createNewChat(); });
 renameChatBtn.addEventListener("click", () => { if (activeChatId) void renameChat(activeChatId); });
 clearChatBtn.addEventListener("click", () => { if (activeChatId) void clearChat(activeChatId); }); exportChatBtn.addEventListener("click", exportCurrentChat);
 chatSearchInput.addEventListener("input", renderChatList); modelSelect.addEventListener("change", () => { updateModelHelp(); updateContextRail(); });
-newPersonaBtn.addEventListener("click", () => openPersonaForm()); newUserPersonaBtn.addEventListener("click", () => openPersonaForm(null, "user"));
-clearPersonaBtn.addEventListener("click", () => { void clearPersona("assistant"); }); clearUserPersonaBtn.addEventListener("click", () => { void clearPersona("user"); });
+roleplayNewPersonaBtn.addEventListener("click", () => openPersonaForm(null, "assistant"));
+clearUserPersonaBtn.addEventListener("click", () => { void clearPersona("user"); });
 personaForm.addEventListener("submit", (event) => { event.preventDefault(); void savePersona(); }); personaCloseBtn.addEventListener("click", closePersonaForm);
 personaTypeSelect.addEventListener("change", () => {
     const isAssistant = personaTypeSelect.value === "assistant";
@@ -640,6 +775,10 @@ personaTypeSelect.addEventListener("change", () => {
     if (!isAssistant) personaExampleDialoguesInput.value = "";
 });
 personaModal.addEventListener("click", (event) => { if (event.target === personaModal) closePersonaForm(); });
+roleplayStarterClose.addEventListener("click", closeRoleplayStarter);
+roleplayStarterCancel.addEventListener("click", closeRoleplayStarter);
+roleplayStarterConfirm.addEventListener("click", () => { void startRoleplay(); });
+roleplayStarterModal.addEventListener("click", (event) => { if (event.target === roleplayStarterModal) closeRoleplayStarter(); });
 popupConfirmBtn.addEventListener("click", () => {
     if (popupMode === "prompt") {
         closePopup(popupInput.value);
@@ -663,6 +802,7 @@ document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
         closeModelPopover();
         closePersonaPopover();
+        closeRoleplayStarter();
         closePersonaForm();
         closePopup(false);
     }

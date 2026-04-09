@@ -15,7 +15,7 @@
         <div>
             <p class="eyebrow">Shared personas</p>
             <h1><span data-theme-name>FakeGPT</span> Market</h1>
-            <p class="subtitle">A plain list of personas other people decided to share.</p>
+            <p class="subtitle">Browse shared AI Characters and User Personas, or manage your own AI Characters.</p>
         </div>
         <div class="market-header-actions">
             <button id="refreshMarket" class="secondary-action" type="button">Refresh</button>
@@ -31,16 +31,55 @@
 
     <p id="marketStatus" class="status persona-status">Loading market personas...</p>
 
-    <div class="persona-market-columns market-page-columns">
-        <div class="persona-market-column">
-            <h3>AI personas</h3>
-            <div id="marketPersonaList" class="persona-list"></div>
+    <section class="settings-layout market-settings-layout">
+        <aside class="settings-nav" aria-label="Market sections">
+            <button class="settings-nav-item active" type="button" data-market-view="ai-characters">AI Characters</button>
+            <button class="settings-nav-item" type="button" data-market-view="user-personas">User Personas</button>
+            <button class="settings-nav-item" type="button" data-market-view="my-personas">My Personas</button>
+        </aside>
+
+        <div class="settings-content">
+            <section class="settings-view active" data-market-panel="ai-characters">
+                <div class="settings-panel">
+                    <div class="settings-section-header">
+                        <div>
+                            <p class="eyebrow">Discover</p>
+                            <h2>AI Characters</h2>
+                            <p class="subtitle">Find shared characters to start roleplay chats with.</p>
+                        </div>
+                    </div>
+                    <div id="marketPersonaList" class="persona-list"></div>
+                </div>
+            </section>
+
+            <section class="settings-view" data-market-panel="user-personas">
+                <div class="settings-panel">
+                    <div class="settings-section-header">
+                        <div>
+                            <p class="eyebrow">Discover</p>
+                            <h2>User Personas</h2>
+                            <p class="subtitle">Browse shared user personas you can collect for roleplay context.</p>
+                        </div>
+                    </div>
+                    <div id="marketUserPersonaList" class="persona-list"></div>
+                </div>
+            </section>
+
+            <section class="settings-view" data-market-panel="my-personas">
+                <div class="settings-panel">
+                    <div class="settings-section-header">
+                        <div>
+                            <p class="eyebrow">Manage</p>
+                            <h2>My Personas</h2>
+                            <p class="subtitle">Create and manage your own AI Characters.</p>
+                        </div>
+                        <button id="marketCreatePersona" type="button" class="secondary-action">Create persona</button>
+                    </div>
+                    <div id="marketOwnedPersonaList" class="persona-list"></div>
+                </div>
+            </section>
         </div>
-        <div class="persona-market-column">
-            <h3>User personas</h3>
-            <div id="marketUserPersonaList" class="persona-list"></div>
-        </div>
-    </div>
+    </section>
 </div>
 
 <div id="marketPreviewModal" class="modal-overlay hidden">
@@ -71,12 +110,72 @@
                     <h4>Details</h4>
                     <p id="marketPreviewDetails"></p>
                 </div>
+                <div>
+                    <h4>Example dialogues</h4>
+                    <p id="marketPreviewExampleDialogues"></p>
+                </div>
             </div>
         </div>
         <div class="market-preview-actions">
+            <label id="marketPreviewUserPersonaField" class="field market-preview-user-field hidden">
+                <span>Talk as</span>
+                <select id="marketPreviewUserPersonaSelect"></select>
+            </label>
             <button id="marketPreviewConfirm" type="button" class="primary-action">Take persona</button>
-            <button id="marketPreviewCancel" type="button" class="secondary-action">Cancel</button>
         </div>
+    </div>
+</div>
+
+<div id="marketPersonaModal" class="modal-overlay hidden">
+    <div class="modal-card persona-modal-card">
+        <div class="modal-header">
+            <div class="persona-modal-heading">
+                <p class="eyebrow">AI Character editor</p>
+                <h3 id="marketPersonaFormTitle">Create AI Character</h3>
+            </div>
+            <button id="marketPersonaClose" type="button" class="icon-button">Close</button>
+        </div>
+        <form id="marketPersonaForm" class="persona-form">
+            <div class="persona-form-intro">
+                <p class="persona-helper">Create or update your AI Characters for roleplay chats and marketplace publishing.</p>
+            </div>
+            <p id="marketPersonaFormNotice" class="status hidden"></p>
+            <div class="persona-form-grid">
+                <label class="field">
+                    <span>Character name</span>
+                    <input id="marketPersonaName" placeholder="Character name" required/>
+                </label>
+                <label class="field">
+                    <span>Pronouns</span>
+                    <input id="marketPersonaPronouns" placeholder="e.g. she/her, they/them"/>
+                </label>
+                <label class="field field-wide">
+                    <span>Appearance</span>
+                    <textarea id="marketPersonaAppearance" rows="3" placeholder="Describe their look"></textarea>
+                </label>
+                <label class="field field-wide">
+                    <span>Background</span>
+                    <textarea id="marketPersonaBackground" rows="3" placeholder="Backstory, history, role, or origins"></textarea>
+                </label>
+                <label class="field field-wide">
+                    <span>Details</span>
+                    <textarea id="marketPersonaDetails" rows="4" placeholder="Personality traits, voice, goals, quirks, boundaries, style"></textarea>
+                </label>
+                <label class="field field-wide">
+                    <span>Example dialogues</span>
+                    <div class="dialogue-format-card" aria-hidden="true">
+                        <p class="dialogue-format-label">Format</p>
+                        <pre class="dialogue-format-example">{{character}}: Hello, my name is marc
+{{user}}: Hi, Marc!
+{{character}}: Nice to meet you</pre>
+                    </div>
+                    <textarea id="marketPersonaExampleDialogues" rows="5" placeholder="Write example exchanges that define the character's tone, phrasing, pacing, and personality."></textarea>
+                </label>
+            </div>
+            <div class="persona-actions">
+                <button id="marketPersonaSave" type="submit" class="primary-action">Save AI Character</button>
+            </div>
+        </form>
     </div>
 </div>
 <script src="market.js" defer></script>

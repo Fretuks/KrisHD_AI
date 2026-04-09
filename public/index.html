@@ -80,9 +80,11 @@
                     <div class="sidebar-header">
                         <div>
                             <p class="eyebrow">Chats</p>
-                            <h2>Saved threads</h2>
+                            <h2>Stories & chats</h2>
                         </div>
-                        <button id="newChat" class="secondary-action" type="button">New</button>
+                        <div class="sidebar-header-actions">
+                            <button id="newChat" class="secondary-action" type="button">New chat</button>
+                        </div>
                     </div>
                     <label class="field compact-field">
                         <span>Search</span>
@@ -107,6 +109,11 @@
                         <div class="chat-title">
                             <p class="eyebrow">Conversation</p>
                             <h2 id="activeChatTitle">New chat</h2>
+                            <div id="chatParticipants" class="chat-participants">
+                                <span id="chatModePill" class="context-pill chat-mode-pill">Assistant mode</span>
+                                <span id="chatCharacterPill" class="context-pill hidden">Character: none</span>
+                                <span id="chatUserPersonaPill" class="context-pill hidden">User persona: none</span>
+                            </div>
                         </div>
                         <div class="chat-toolbar">
                             <button id="renameChat" class="icon-button" type="button">Rename</button>
@@ -144,24 +151,9 @@
                         </div>
                         <div class="persona-menu">
                             <button id="personaMenuButton" class="secondary-action" type="button" aria-expanded="false" aria-controls="personaPopover">
-                                Personas
+                                You
                             </button>
                             <div id="personaPopover" class="persona-popover hidden" role="dialog">
-                                <div class="persona-section">
-                                    <div class="persona-section-header">
-                                        <div>
-                                            <p class="eyebrow">Assistant</p>
-                                            <h2>AI persona</h2>
-                                            <p class="persona-guidance">Changes the assistant's tone and character.</p>
-                                        </div>
-                                        <div class="persona-section-actions">
-                                            <button id="newPersona" class="secondary-action" type="button">New AI</button>
-                                            <button id="clearPersona" class="secondary-action" type="button">Clear</button>
-                                        </div>
-                                    </div>
-                                    <p id="activePersonaStatus" class="status persona-status">No AI persona equipped.</p>
-                                    <div id="personaList" class="persona-list"></div>
-                                </div>
                                 <div class="persona-section">
                                     <div class="persona-section-header">
                                         <div>
@@ -170,11 +162,11 @@
                                             <p class="persona-guidance">Adds context for how the assistant should read you.</p>
                                         </div>
                                         <div class="persona-section-actions">
-                                            <button id="newUserPersona" class="secondary-action" type="button">New you</button>
                                             <button id="clearUserPersona" class="secondary-action" type="button">Clear</button>
+                                            <a href="/settings" class="secondary-action">Manage</a>
                                         </div>
                                     </div>
-                                    <p id="activeUserPersonaStatus" class="status persona-status">No user persona set.</p>
+                                    <p id="activeUserPersonaStatus" class="status persona-status">No default user persona set.</p>
                                     <div id="userPersonaList" class="persona-list"></div>
                                 </div>
                             </div>
@@ -205,18 +197,18 @@
                 <p class="eyebrow">Persona editor</p>
                 <h3 id="personaFormTitle">Create persona</h3>
             </div>
-            <button id="personaClose" type="button" class="icon-button">Cancel</button>
+            <button id="personaClose" type="button" class="icon-button">Close</button>
         </div>
         <form id="personaForm" class="persona-form">
             <div class="persona-form-intro">
-                <p class="persona-helper">AI personas shape the assistant. User personas add context for how replies should read you.</p>
+                <p class="persona-helper">AI Characters shape who you talk to. User personas add context for who you are in the scene.</p>
             </div>
             <p id="personaFormNotice" class="status hidden"></p>
             <div class="persona-form-grid">
                 <label class="field field-wide">
                     <span>Persona for</span>
                     <select id="personaType">
-                        <option value="assistant">AI persona</option>
+                        <option value="assistant">AI Character</option>
                         <option value="user">Your persona</option>
                     </select>
                 </label>
@@ -255,6 +247,40 @@
                 <button id="personaSave" type="submit" class="primary-action">Save persona</button>
             </div>
         </form>
+    </div>
+</div>
+
+<div id="roleplayStarterModal" class="modal-overlay hidden">
+    <div class="modal-card roleplay-starter-card">
+        <div class="modal-header">
+            <div class="persona-modal-heading">
+                <p class="eyebrow">Start roleplay</p>
+                <h3>Choose your scene</h3>
+            </div>
+            <button id="roleplayStarterClose" type="button" class="icon-button">Close</button>
+        </div>
+        <div class="roleplay-starter-intro">
+            <p class="persona-helper">Pick a character, optionally choose who you are in the scene, and the character will open the conversation with the first message.</p>
+        </div>
+        <p id="roleplayStarterNotice" class="status hidden"></p>
+        <div class="roleplay-starter-actions">
+            <button id="roleplayNewPersona" class="secondary-action" type="button">New persona</button>
+            <a href="/settings" class="secondary-action">Settings</a>
+        </div>
+        <div class="persona-form-grid">
+            <label class="field field-wide">
+                <span>Character</span>
+                <select id="roleplayCharacterSelect"></select>
+            </label>
+            <label class="field field-wide">
+                <span>User persona</span>
+                <select id="roleplayUserPersonaSelect"></select>
+            </label>
+        </div>
+        <div class="popup-actions">
+            <button id="roleplayStarterCancel" type="button" class="secondary-action">Cancel</button>
+            <button id="roleplayStarterConfirm" type="button">Start roleplay</button>
+        </div>
     </div>
 </div>
 

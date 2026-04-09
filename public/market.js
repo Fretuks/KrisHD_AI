@@ -1,11 +1,37 @@
 const $ = (id) => document.getElementById(id);
-const marketPersonaList = $("marketPersonaList"), marketUserPersonaList = $("marketUserPersonaList");
-const refreshMarketBtn = $("refreshMarket"), marketStatus = $("marketStatus"), marketSearchInput = $("marketSearch");
-const marketPreviewModal = $("marketPreviewModal"), marketPreviewName = $("marketPreviewName"), marketPreviewMeta = $("marketPreviewMeta");
-const marketPreviewPronouns = $("marketPreviewPronouns"), marketPreviewAppearance = $("marketPreviewAppearance"), marketPreviewBackground = $("marketPreviewBackground"), marketPreviewDetails = $("marketPreviewDetails");
-const marketPreviewConfirm = $("marketPreviewConfirm"), marketPreviewCancel = $("marketPreviewCancel"), marketPreviewClose = $("marketPreviewClose");
+const marketPersonaList = $("marketPersonaList");
+const marketUserPersonaList = $("marketUserPersonaList");
+const marketOwnedPersonaList = $("marketOwnedPersonaList");
+const refreshMarketBtn = $("refreshMarket");
+const marketStatus = $("marketStatus");
+const marketSearchInput = $("marketSearch");
+const marketViewButtons = document.querySelectorAll("[data-market-view]");
+const marketPanels = document.querySelectorAll("[data-market-panel]");
+const marketCreatePersonaBtn = $("marketCreatePersona");
+const marketPreviewModal = $("marketPreviewModal");
+const marketPreviewName = $("marketPreviewName");
+const marketPreviewMeta = $("marketPreviewMeta");
+const marketPreviewPronouns = $("marketPreviewPronouns");
+const marketPreviewAppearance = $("marketPreviewAppearance");
+const marketPreviewBackground = $("marketPreviewBackground");
+const marketPreviewDetails = $("marketPreviewDetails");
+const marketPreviewExampleDialogues = $("marketPreviewExampleDialogues");
+const marketPreviewUserPersonaField = $("marketPreviewUserPersonaField");
+const marketPreviewUserPersonaSelect = $("marketPreviewUserPersonaSelect");
+const marketPreviewConfirm = $("marketPreviewConfirm");
+const marketPreviewClose = $("marketPreviewClose");
+const marketPersonaModal = $("marketPersonaModal");
+const marketPersonaClose = $("marketPersonaClose");
+const marketPersonaForm = $("marketPersonaForm");
+const marketPersonaFormTitle = $("marketPersonaFormTitle");
+const marketPersonaFormNotice = $("marketPersonaFormNotice");
+const marketPersonaName = $("marketPersonaName");
+const marketPersonaPronouns = $("marketPersonaPronouns");
+const marketPersonaAppearance = $("marketPersonaAppearance");
+const marketPersonaBackground = $("marketPersonaBackground");
+const marketPersonaDetails = $("marketPersonaDetails");
+const marketPersonaExampleDialogues = $("marketPersonaExampleDialogues");
 const themeNameTargets = document.querySelectorAll("[data-theme-name]");
-let allMarketPersonas = [], pendingMarketPersona = null;
 
 const themes = {
     "fakegpt": {name: "FakeGPT"},
@@ -16,9 +42,20 @@ const themes = {
     "confusity": {name: "Confusity"}
 };
 
+let allMarketPersonas = [];
+let assistantPersonas = [];
+let userPersonas = [];
+let publishedPersonaIds = new Set();
+let pendingMarketPersona = null;
+let editingPersonaId = null;
+
 async function request(url, data, method = "POST") {
     try {
-        const res = await fetch(url, {method, headers: {"Content-Type": "application/json"}, body: data ? JSON.stringify(data) : undefined});
+        const res = await fetch(url, {
+            method,
+            headers: {"Content-Type": "application/json"},
+            body: data ? JSON.stringify(data) : undefined
+        });
         return await res.json();
     } catch {
         return {error: "Network error - please try again."};
@@ -27,12 +64,16 @@ async function request(url, data, method = "POST") {
 
 const get = (url) => request(url, null, "GET");
 const post = (url, data) => request(url, data, "POST");
+const put = (url, data) => request(url, data, "PUT");
+const del = (url) => request(url, null, "DELETE");
 
 function applyTheme(themeKey) {
     const nextTheme = themes[themeKey] ? themeKey : "fakegpt";
     document.body.dataset.theme = nextTheme;
     document.title = `${themes[nextTheme].name} Market`;
-    themeNameTargets.forEach((target) => { target.textContent = themes[nextTheme].name; });
+    themeNameTargets.forEach((target) => {
+        target.textContent = themes[nextTheme].name;
+    });
 }
 
 function setMarketStatus(message, state = "") {
@@ -40,9 +81,28 @@ function setMarketStatus(message, state = "") {
     marketStatus.className = state ? `status persona-status ${state}` : "status persona-status";
 }
 
+function setPersonaFormNotice(message = "", state = "") {
+    if (!message) {
+        marketPersonaFormNotice.textContent = "";
+        marketPersonaFormNotice.className = "status hidden";
+        return;
+    }
+    marketPersonaFormNotice.textContent = message;
+    marketPersonaFormNotice.className = state ? `status ${state}` : "status";
+}
+
+function setMarketView(view) {
+    marketViewButtons.forEach((item) => item.classList.toggle("active", item.dataset.marketView === view));
+    marketPanels.forEach((panel) => panel.classList.toggle("active", panel.dataset.marketPanel === view));
+    const params = new URLSearchParams(window.location.search);
+    params.set("view", view);
+    history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
+}
+
 function buildPersonaMeta(persona) {
+    const creator = persona.creator_username || "You";
     const pronouns = persona.pronouns ? `Pronouns: ${persona.pronouns}` : "Pronouns: n/a";
-    return `${persona.creator_username} | ${pronouns}`;
+    return `${creator} | ${pronouns}`;
 }
 
 function formatPersonaField(value) {
@@ -52,6 +112,74 @@ function formatPersonaField(value) {
 function closeMarketPreview() {
     marketPreviewModal.classList.add("hidden");
     pendingMarketPersona = null;
+    marketPreviewUserPersonaSelect.innerHTML = "";
+    marketPreviewConfirm.classList.add("hidden");
+}
+
+function populateUserPersonaChoices() {
+    marketPreviewUserPersonaSelect.innerHTML = "";
+
+    const promptOption = document.createElement("option");
+    promptOption.value = "";
+    promptOption.textContent = "Choose who you are";
+    promptOption.disabled = true;
+    promptOption.selected = true;
+    marketPreviewUserPersonaSelect.appendChild(promptOption);
+
+    const selfOption = document.createElement("option");
+    selfOption.value = "self";
+    selfOption.textContent = "Yourself (no persona)";
+    marketPreviewUserPersonaSelect.appendChild(selfOption);
+
+    userPersonas.forEach((persona) => {
+        const option = document.createElement("option");
+        option.value = String(persona.id);
+        option.textContent = persona.name;
+        marketPreviewUserPersonaSelect.appendChild(option);
+    });
+
+    const createOption = document.createElement("option");
+    createOption.value = "create_new";
+    createOption.textContent = "Create new persona";
+    marketPreviewUserPersonaSelect.appendChild(createOption);
+}
+
+function openMarketPreview(persona) {
+    pendingMarketPersona = persona;
+    marketPreviewName.textContent = persona.name;
+    marketPreviewMeta.textContent = buildPersonaMeta(persona);
+    marketPreviewPronouns.textContent = formatPersonaField(persona.pronouns);
+    marketPreviewAppearance.textContent = formatPersonaField(persona.appearance);
+    marketPreviewBackground.textContent = formatPersonaField(persona.background);
+    marketPreviewDetails.textContent = formatPersonaField(persona.details);
+    marketPreviewExampleDialogues.textContent = formatPersonaField(persona.example_dialogues);
+
+    const isAssistant = persona.persona_type === "assistant";
+    marketPreviewUserPersonaField.classList.toggle("hidden", !isAssistant);
+    marketPreviewConfirm.textContent = isAssistant ? "Start chat" : "Collect as user persona";
+    marketPreviewConfirm.classList.toggle("hidden", isAssistant);
+    if (isAssistant) populateUserPersonaChoices();
+    marketPreviewModal.classList.remove("hidden");
+}
+
+function openPersonaForm(persona = null) {
+    editingPersonaId = persona ? persona.id : null;
+    marketPersonaFormTitle.textContent = persona ? "Edit AI Character" : "Create AI Character";
+    marketPersonaName.value = persona?.name || "";
+    marketPersonaPronouns.value = persona?.pronouns || "";
+    marketPersonaAppearance.value = persona?.appearance || "";
+    marketPersonaBackground.value = persona?.background || "";
+    marketPersonaDetails.value = persona?.details || "";
+    marketPersonaExampleDialogues.value = persona?.example_dialogues || "";
+    setPersonaFormNotice("");
+    marketPersonaModal.classList.remove("hidden");
+    marketPersonaName.focus();
+}
+
+function closePersonaForm() {
+    marketPersonaModal.classList.add("hidden");
+    editingPersonaId = null;
+    setPersonaFormNotice("");
 }
 
 function renderMarketList(items, listElement, type) {
@@ -59,7 +187,7 @@ function renderMarketList(items, listElement, type) {
     if (!items.length) {
         const empty = document.createElement("p");
         empty.className = "status persona-status";
-        empty.textContent = type === "assistant" ? "No AI personas found." : "No user personas found.";
+        empty.textContent = type === "assistant" ? "No AI Characters found." : "No User Personas found.";
         listElement.appendChild(empty);
         return;
     }
@@ -77,9 +205,10 @@ function renderMarketList(items, listElement, type) {
         titleRow.className = "persona-title-row";
         actions.className = "persona-item-actions";
         tag.className = `persona-role-tag ${type === "assistant" ? "ai" : "user"}`;
-        tag.textContent = type === "assistant" ? "AI" : "You";
+        tag.textContent = type === "assistant" ? "AI Character" : "User";
         title.textContent = persona.name;
         meta.textContent = buildPersonaMeta(persona);
+
         detailsBtn.type = "button";
         detailsBtn.textContent = "View";
         detailsBtn.addEventListener("click", () => openMarketPreview(persona));
@@ -91,11 +220,63 @@ function renderMarketList(items, listElement, type) {
     });
 }
 
+function renderOwnedPersonaList() {
+    marketOwnedPersonaList.innerHTML = "";
+    if (!assistantPersonas.length) {
+        const empty = document.createElement("p");
+        empty.className = "status persona-status";
+        empty.textContent = "No AI Characters yet. Create one to get started.";
+        marketOwnedPersonaList.appendChild(empty);
+        return;
+    }
+
+    assistantPersonas.forEach((persona) => {
+        const item = document.createElement("div");
+        const titleRow = document.createElement("div");
+        const title = document.createElement("h4");
+        const tag = document.createElement("span");
+        const meta = document.createElement("p");
+        const actions = document.createElement("div");
+
+        item.className = "persona-item";
+        titleRow.className = "persona-title-row";
+        actions.className = "persona-item-actions";
+        tag.className = "persona-role-tag ai";
+        tag.textContent = "AI Character";
+        title.textContent = persona.name;
+        meta.textContent = formatPersonaField(persona.pronouns) === "Not provided." ? "Pronouns: n/a" : `Pronouns: ${persona.pronouns}`;
+
+        [
+            ["Edit", () => openPersonaForm(persona)],
+            [publishedPersonaIds.has(persona.id) ? "Update listing" : "Publish", () => publishPersona(persona.id)],
+            ["Delete", () => deletePersona(persona.id)]
+        ].forEach(([label, handler]) => {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.textContent = label;
+            button.addEventListener("click", handler);
+            actions.appendChild(button);
+        });
+
+        if (publishedPersonaIds.has(persona.id)) {
+            const unpublish = document.createElement("button");
+            unpublish.type = "button";
+            unpublish.textContent = "Unpublish";
+            unpublish.addEventListener("click", () => unpublishPersona(persona.id));
+            actions.appendChild(unpublish);
+        }
+
+        titleRow.append(title, tag);
+        item.append(titleRow, meta, actions);
+        marketOwnedPersonaList.appendChild(item);
+    });
+}
+
 function filterMarketPersonas() {
     const query = marketSearchInput.value.trim().toLowerCase();
     if (!query) return allMarketPersonas;
     return allMarketPersonas.filter((persona) =>
-        [persona.name, persona.creator_username, persona.pronouns, persona.appearance, persona.background, persona.details]
+        [persona.name, persona.creator_username, persona.pronouns, persona.appearance, persona.background, persona.details, persona.example_dialogues]
             .some((field) => field && field.toLowerCase().includes(query))
     );
 }
@@ -104,6 +285,8 @@ function applyMarketFilter() {
     const filtered = filterMarketPersonas();
     renderMarketList(filtered.filter((persona) => persona.persona_type === "assistant"), marketPersonaList, "assistant");
     renderMarketList(filtered.filter((persona) => persona.persona_type === "user"), marketUserPersonaList, "user");
+    renderOwnedPersonaList();
+
     if (marketSearchInput.value.trim() && !filtered.length) {
         setMarketStatus("No personas match your search.", "error");
         return;
@@ -111,48 +294,162 @@ function applyMarketFilter() {
     setMarketStatus(`${filtered.length} persona${filtered.length === 1 ? "" : "s"} shown.`);
 }
 
-function openMarketPreview(persona) {
-    pendingMarketPersona = persona;
-    marketPreviewName.textContent = persona.name;
-    marketPreviewMeta.textContent = buildPersonaMeta(persona);
-    marketPreviewPronouns.textContent = formatPersonaField(persona.pronouns);
-    marketPreviewAppearance.textContent = formatPersonaField(persona.appearance);
-    marketPreviewBackground.textContent = formatPersonaField(persona.background);
-    marketPreviewDetails.textContent = formatPersonaField(persona.details);
-    marketPreviewConfirm.textContent = persona.persona_type === "assistant" ? "Collect as AI persona" : "Collect as user persona";
-    marketPreviewModal.classList.remove("hidden");
+async function loadOwnedPersonas() {
+    const res = await get("/personas");
+    if (res.error) return false;
+    assistantPersonas = res.assistantPersonas || [];
+    userPersonas = res.userPersonas || [];
+    publishedPersonaIds = new Set(res.publishedPersonaIds || []);
+    return true;
 }
 
 async function loadMarketPersonas() {
-    setMarketStatus("Loading market personas...");
-    const res = await get("/personas/market");
-    if (res.error) return setMarketStatus(res.error, "error");
-    allMarketPersonas = res.personas || [];
+    setMarketStatus("Loading personas...");
+    const [marketRes, ownedOk] = await Promise.all([get("/personas/market"), loadOwnedPersonas()]);
+    if (marketRes.error) {
+        setMarketStatus(marketRes.error, "error");
+        return;
+    }
+    if (!ownedOk) {
+        setMarketStatus("Unable to load your personas.", "error");
+        return;
+    }
+    allMarketPersonas = marketRes.personas || [];
     applyMarketFilter();
 }
 
-async function collectMarketPersona(marketId, personaType) {
-    setMarketStatus(personaType === "assistant" ? "Collecting AI persona..." : "Collecting user persona...");
+async function collectMarketPersona(marketId) {
+    setMarketStatus("Collecting User Persona...");
     const res = await post(`/personas/market/${marketId}/collect`, {equip: true});
-    if (res.error) return setMarketStatus(res.error, "error");
+    if (res.error) {
+        setMarketStatus(res.error, "error");
+        return;
+    }
     await loadMarketPersonas();
-    setMarketStatus(personaType === "assistant" ? "AI persona collected." : "User persona collected.", "success");
+    setMarketStatus("User Persona collected.", "success");
 }
 
-refreshMarketBtn.addEventListener("click", () => { void loadMarketPersonas(); });
+async function startMarketPersonaChat(marketId, userPersonaSelection) {
+    if (userPersonaSelection === "create_new") {
+        window.location.href = "/settings?view=my-personas&create=user";
+        return;
+    }
+
+    setMarketStatus("Starting AI Character chat...");
+    const userPersonaId = userPersonaSelection === "self" ? null : Number(userPersonaSelection);
+    const res = await post(`/personas/market/${marketId}/chat`, {userPersonaId});
+    if (res.error || !res.chat) {
+        setMarketStatus(res.error || "Unable to start chat.", "error");
+        return;
+    }
+    window.location.href = `/?chat=${res.chat.id}`;
+}
+
+async function savePersona() {
+    const payload = {
+        personaType: "assistant",
+        name: marketPersonaName.value.trim(),
+        pronouns: marketPersonaPronouns.value.trim(),
+        appearance: marketPersonaAppearance.value.trim(),
+        background: marketPersonaBackground.value.trim(),
+        details: marketPersonaDetails.value.trim(),
+        exampleDialogues: marketPersonaExampleDialogues.value.trim()
+    };
+
+    if (!payload.name) {
+        setPersonaFormNotice("Character name is required.", "error");
+        return;
+    }
+
+    const res = editingPersonaId
+        ? await put(`/personas/${editingPersonaId}`, payload)
+        : await post("/personas", payload);
+
+    if (res.error) {
+        setPersonaFormNotice(res.error, "error");
+        return;
+    }
+
+    await loadMarketPersonas();
+    closePersonaForm();
+    setMarketView("my-personas");
+    setMarketStatus(editingPersonaId ? "AI Character updated." : "AI Character created.", "success");
+}
+
+async function deletePersona(id) {
+    const res = await del(`/personas/${id}`);
+    if (res.error) {
+        setMarketStatus(res.error, "error");
+        return;
+    }
+    await loadMarketPersonas();
+    setMarketStatus("AI Character deleted.", "success");
+}
+
+async function publishPersona(id) {
+    const res = await post(`/personas/${id}/publish`, {});
+    if (res.error) {
+        setMarketStatus(res.error, "error");
+        return;
+    }
+    await loadMarketPersonas();
+    setMarketStatus("AI Character published.", "success");
+}
+
+async function unpublishPersona(id) {
+    const res = await post(`/personas/${id}/unpublish`, {});
+    if (res.error) {
+        setMarketStatus(res.error, "error");
+        return;
+    }
+    await loadMarketPersonas();
+    setMarketStatus("AI Character unpublished.", "success");
+}
+
+refreshMarketBtn.addEventListener("click", () => {
+    void loadMarketPersonas();
+});
 marketSearchInput.addEventListener("input", applyMarketFilter);
-marketPreviewCancel.addEventListener("click", closeMarketPreview);
+marketViewButtons.forEach((button) => {
+    button.addEventListener("click", () => setMarketView(button.dataset.marketView));
+});
+marketCreatePersonaBtn.addEventListener("click", () => openPersonaForm());
 marketPreviewClose.addEventListener("click", closeMarketPreview);
-marketPreviewModal.addEventListener("click", (event) => { if (event.target === marketPreviewModal) closeMarketPreview(); });
+marketPreviewModal.addEventListener("click", (event) => {
+    if (event.target === marketPreviewModal) closeMarketPreview();
+});
+marketPreviewUserPersonaSelect.addEventListener("change", () => {
+    if (!pendingMarketPersona || pendingMarketPersona.persona_type !== "assistant") return;
+    if (marketPreviewUserPersonaSelect.value === "create_new") {
+        window.location.href = "/settings?view=my-personas&create=user";
+        return;
+    }
+    marketPreviewConfirm.classList.toggle("hidden", !marketPreviewUserPersonaSelect.value);
+});
 marketPreviewConfirm.addEventListener("click", async () => {
     if (!pendingMarketPersona) return;
     const marketId = pendingMarketPersona.id;
-    const personaType = pendingMarketPersona.persona_type;
+    if (pendingMarketPersona.persona_type === "assistant") {
+        await startMarketPersonaChat(marketId, marketPreviewUserPersonaSelect.value || "");
+        closeMarketPreview();
+        return;
+    }
     closeMarketPreview();
-    await collectMarketPersona(marketId, personaType);
+    await collectMarketPersona(marketId);
+});
+marketPersonaClose.addEventListener("click", closePersonaForm);
+marketPersonaModal.addEventListener("click", (event) => {
+    if (event.target === marketPersonaModal) closePersonaForm();
+});
+marketPersonaForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void savePersona();
 });
 
-window.addEventListener("load", () => {
+window.addEventListener("load", async () => {
     applyTheme(localStorage.getItem("krishd-theme") || "fakegpt");
-    void loadMarketPersonas();
+    const params = new URLSearchParams(window.location.search);
+    setMarketView(params.get("view") || "ai-characters");
+    await loadMarketPersonas();
+    if (params.get("create") === "assistant") openPersonaForm();
 });

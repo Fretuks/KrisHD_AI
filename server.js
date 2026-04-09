@@ -131,6 +131,10 @@ db.prepare(`
             TEXT
             NOT
                 NULL,
+        assistant_persona_id
+            INTEGER,
+        user_persona_id
+            INTEGER,
         created_at
             DATETIME
             DEFAULT
@@ -138,7 +142,23 @@ db.prepare(`
         updated_at
             DATETIME
             DEFAULT
-                CURRENT_TIMESTAMP
+                CURRENT_TIMESTAMP,
+        FOREIGN
+            KEY
+            (
+             assistant_persona_id
+                ) REFERENCES personas
+            (
+             id
+                ) ON DELETE SET NULL,
+        FOREIGN
+            KEY
+            (
+             user_persona_id
+                ) REFERENCES personas
+            (
+             id
+                ) ON DELETE SET NULL
     )
 `).run();
 db.prepare(`
@@ -311,13 +331,26 @@ const getLegacyChatsStmt = db.prepare(`
     ORDER BY datetime(created_at)
 `);
 const insertChatSessionStmt = db.prepare(
-    "INSERT INTO chat_sessions (username, title) VALUES (?, ?)"
+    "INSERT INTO chat_sessions (username, title, assistant_persona_id, user_persona_id) VALUES (?, ?, ?, ?)"
 );
 const listChatSessionsStmt = db.prepare(`
-    SELECT id, title, created_at, updated_at
-    FROM chat_sessions
-    WHERE username = ?
-    ORDER BY datetime(updated_at) DESC
+    SELECT cs.id,
+           CASE
+               WHEN cs.assistant_persona_id IS NOT NULL THEN COALESCE(p.name, cs.title)
+               ELSE cs.title
+               END AS title,
+           cs.title AS stored_title,
+           cs.assistant_persona_id,
+           p.name AS assistant_persona_name,
+           cs.user_persona_id,
+           up.name AS user_persona_name,
+           cs.created_at,
+           cs.updated_at
+    FROM chat_sessions cs
+             LEFT JOIN personas p ON p.id = cs.assistant_persona_id
+             LEFT JOIN personas up ON up.id = cs.user_persona_id
+    WHERE cs.username = ?
+    ORDER BY datetime(cs.updated_at) DESC
 `);
 
 const countChatSessionsStmt = db.prepare(`
@@ -326,9 +359,47 @@ const countChatSessionsStmt = db.prepare(`
     WHERE username = ?
 `);
 
-const getChatSessionStmt = db.prepare(
-    "SELECT id, title FROM chat_sessions WHERE id = ? AND username = ?"
-);
+const getChatSessionStmt = db.prepare(`
+    SELECT cs.id,
+           CASE
+               WHEN cs.assistant_persona_id IS NOT NULL THEN COALESCE(p.name, cs.title)
+               ELSE cs.title
+               END AS title,
+           cs.title AS stored_title,
+           cs.assistant_persona_id,
+           p.name AS assistant_persona_name,
+           cs.user_persona_id,
+           up.name AS user_persona_name
+    FROM chat_sessions cs
+             LEFT JOIN personas p ON p.id = cs.assistant_persona_id
+             LEFT JOIN personas up ON up.id = cs.user_persona_id
+    WHERE cs.id = ?
+      AND cs.username = ?
+`);
+
+const getChatSessionByParticipantsStmt = db.prepare(`
+    SELECT cs.id,
+           CASE
+               WHEN cs.assistant_persona_id IS NOT NULL THEN COALESCE(p.name, cs.title)
+               ELSE cs.title
+               END AS title,
+           cs.title AS stored_title,
+           cs.assistant_persona_id,
+           p.name AS assistant_persona_name,
+           cs.user_persona_id,
+           up.name AS user_persona_name
+    FROM chat_sessions cs
+             LEFT JOIN personas p ON p.id = cs.assistant_persona_id
+             LEFT JOIN personas up ON up.id = cs.user_persona_id
+    WHERE cs.username = ?
+      AND cs.assistant_persona_id = ?
+      AND (
+        (cs.user_persona_id IS NULL AND ? IS NULL)
+        OR cs.user_persona_id = ?
+      )
+    ORDER BY datetime(cs.updated_at) DESC
+    LIMIT 1
+`);
 
 const updateChatSessionTitleStmt = db.prepare(
     "UPDATE chat_sessions SET title = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND username = ?"
@@ -341,6 +412,22 @@ const touchChatSessionStmt = db.prepare(
 const deleteChatSessionStmt = db.prepare(
     "DELETE FROM chat_sessions WHERE id = ? AND username = ?"
 );
+
+const clearAssistantPersonaFromChatsStmt = db.prepare(`
+    UPDATE chat_sessions
+    SET assistant_persona_id = NULL,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE username = ?
+      AND assistant_persona_id = ?
+`);
+
+const clearUserPersonaFromChatsStmt = db.prepare(`
+    UPDATE chat_sessions
+    SET user_persona_id = NULL,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE username = ?
+      AND user_persona_id = ?
+`);
 
 const insertChatMessageStmt = db.prepare(
     "INSERT INTO chat_messages (chat_id, role, content) VALUES (?, ?, ?)"
@@ -470,6 +557,22 @@ const getActiveUserPersonaStmt = db.prepare(`
     FROM user_settings us
              JOIN personas p ON p.id = us.active_user_persona_id
     WHERE us.username = ?
+`);
+
+const getAssistantPersonaForChatStmt = db.prepare(`
+    SELECT p.id, p.name, p.pronouns, p.appearance, p.background, p.details, p.example_dialogues
+    FROM chat_sessions cs
+             JOIN personas p ON p.id = cs.assistant_persona_id
+    WHERE cs.id = ?
+      AND cs.username = ?
+`);
+
+const getUserPersonaForChatStmt = db.prepare(`
+    SELECT p.id, p.name, p.pronouns, p.appearance, p.background, p.details, p.example_dialogues
+    FROM chat_sessions cs
+             JOIN personas p ON p.id = cs.user_persona_id
+    WHERE cs.id = ?
+      AND cs.username = ?
 `);
 
 const listMarketPersonasStmt = db.prepare(`
@@ -630,7 +733,7 @@ if (legacyChatsExist && migrationNeeded.count === 0) {
         "SELECT DISTINCT username FROM chats"
     ).all();
     legacyUsers.forEach(({username}) => {
-        const sessionId = insertChatSessionStmt.run(username, "Imported chat").lastInsertRowid;
+        const sessionId = insertChatSessionStmt.run(username, "Imported chat", null, null).lastInsertRowid;
         const legacyMessages = getLegacyChatsStmt.all(username);
         legacyMessages.forEach(msg => {
             insertChatMessageStmt.run(sessionId, msg.role, msg.content);
@@ -680,6 +783,16 @@ if (!hasMarketExampleDialogues) {
     db.prepare("ALTER TABLE persona_market ADD COLUMN example_dialogues TEXT").run();
 }
 db.prepare("UPDATE persona_market SET usage_count = 0 WHERE usage_count IS NULL").run();
+
+const chatSessionColumns = db.prepare("PRAGMA table_info(chat_sessions)").all();
+const hasAssistantPersonaLink = chatSessionColumns.some(column => column.name === "assistant_persona_id");
+if (!hasAssistantPersonaLink) {
+    db.prepare("ALTER TABLE chat_sessions ADD COLUMN assistant_persona_id INTEGER").run();
+}
+const hasChatUserPersonaLink = chatSessionColumns.some(column => column.name === "user_persona_id");
+if (!hasChatUserPersonaLink) {
+    db.prepare("ALTER TABLE chat_sessions ADD COLUMN user_persona_id INTEGER").run();
+}
 
 const FileStore = FileStoreFactory(session);
 app.use(bodyParser.json());
@@ -897,6 +1010,77 @@ const buildUserPersonaPrompt = (persona) => {
     return lines.join("\n");
 };
 
+const createPersonaChat = (user, persona, userPersonaId = null) => {
+    const chatId = insertChatSessionStmt.run(user, persona.name, persona.id, userPersonaId).lastInsertRowid;
+    return getChatSessionStmt.get(chatId, user);
+};
+
+const getOrCreatePersonaChat = (user, persona, userPersonaId = null) => {
+    const existing = getChatSessionByParticipantsStmt.get(user, persona.id, userPersonaId, userPersonaId);
+    if (existing) return existing;
+    const sessionCount = countChatSessionsStmt.get(user).count;
+    if (sessionCount >= 10) {
+        throw new Error("CHAT_LIMIT_REACHED");
+    }
+    return createPersonaChat(user, persona, userPersonaId);
+};
+
+const ensureModelState = (model) => {
+    if (!modelState.has(model)) {
+        modelState.set(model, {activeRequests: 0, timer: null});
+    }
+    return modelState.get(model);
+};
+
+const generateModelReply = async (selectedModel, messagesPayload) => {
+    const state = ensureModelState(selectedModel);
+    state.activeRequests++;
+    try {
+        const response = await fetch("https://ai.krishd.ch/api/chat", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({
+                model: selectedModel,
+                messages: messagesPayload,
+                stream: true
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`AI HTTP ${response.status}`);
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let fullReply = "";
+
+        while (true) {
+            const {value, done} = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, {stream: true});
+            const lines = buffer.split("\n");
+            buffer = lines.pop() || "";
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed) continue;
+                const data = JSON.parse(trimmed);
+                if (data.message?.content) fullReply += data.message.content;
+            }
+        }
+
+        if (buffer.trim()) {
+            const data = JSON.parse(buffer.trim());
+            if (data.message?.content) fullReply += data.message.content;
+        }
+
+        return fullReply.trim();
+    } finally {
+        state.activeRequests = Math.max(0, state.activeRequests - 1);
+        scheduleModelUnload(selectedModel);
+    }
+};
+
 app.get("/models", async (req, res) => {
     try {
         if (modelsCache && (Date.now() - modelsCacheAt) < MODELS_TTL_MS) {
@@ -924,14 +1108,33 @@ app.get("/chats", requireLogin, (req, res) => {
 app.post("/chats", requireLogin, (req, res) => {
     const user = req.session.user;
 
+    const assistantPersonaId = req.body?.assistantPersonaId ? Number(req.body.assistantPersonaId) : null;
+    if (assistantPersonaId) {
+        const persona = getPersonaStmt.get(assistantPersonaId, user);
+        if (!persona || persona.persona_type !== "assistant") {
+            return res.status(404).json({error: "AI Character not found"});
+        }
+        const existingChat = getChatSessionByParticipantsStmt.get(user, assistantPersonaId, null, null);
+        try {
+            const chat = getOrCreatePersonaChat(user, persona, null);
+            return res.json({chat, existing: Boolean(existingChat)});
+        } catch (error) {
+            if (error.message === "CHAT_LIMIT_REACHED") {
+                return res.status(400).json({error: "Maximum of 10 chats reached. Please delete an old chat to create a new one."});
+            }
+            throw error;
+        }
+    }
+
     const sessionCount = countChatSessionsStmt.get(user).count;
     if (sessionCount >= 10) {
         return res.status(400).json({error: "Maximum of 10 chats reached. Please delete an old chat to create a new one."});
     }
 
     const title = (req.body?.title || "New chat").trim() || "New chat";
-    const chatId = insertChatSessionStmt.run(user, title).lastInsertRowid;
-    res.json({chat: {id: chatId, title}});
+    const chatId = insertChatSessionStmt.run(user, title, null, null).lastInsertRowid;
+    const chat = getChatSessionStmt.get(chatId, user);
+    res.json({chat, existing: false});
 });
 
 app.put("/chats/:id", requireLogin, (req, res) => {
@@ -966,7 +1169,7 @@ app.get("/chats/:id/messages", requireLogin, (req, res) => {
         return res.status(404).json({error: "Chat not found"});
     }
     const messages = getChatMessagesStmt.all(chatId);
-    res.json({messages});
+    res.json({messages, chat: session});
 });
 
 app.post("/chats/:id/clear", requireLogin, (req, res) => {
@@ -990,7 +1193,6 @@ app.get("/personas", requireLogin, (req, res) => {
     res.json({
         assistantPersonas,
         userPersonas,
-        activePersonaId: activePersonas.active_persona_id ?? null,
         activeUserPersonaId: activePersonas.active_user_persona_id ?? null,
         publishedPersonaIds
     });
@@ -1054,25 +1256,39 @@ app.delete("/personas/:id", requireLogin, (req, res) => {
     if (result.changes === 0) {
         return res.status(404).json({error: "Persona not found"});
     }
-    if (activePersonas.active_persona_id === personaId) {
-        setActivePersonaStmt.run(user, null);
-    }
     if (activePersonas.active_user_persona_id === personaId) {
         setActiveUserPersonaStmt.run(user, null);
     }
+    clearAssistantPersonaFromChatsStmt.run(user, personaId);
+    clearUserPersonaFromChatsStmt.run(user, personaId);
     deleteMarketPersonaByPersonaIdStmt.run(personaId, user);
     res.json({message: "Persona deleted"});
 });
 
-app.post("/personas/:id/equip", requireLogin, (req, res) => {
+app.post("/personas/:id/chat", requireLogin, (req, res) => {
     const user = req.session.user;
     const personaId = Number(req.params.id);
+    const userPersonaId = req.body?.userPersonaId ? Number(req.body.userPersonaId) : null;
     const persona = getPersonaStmt.get(personaId, user);
     if (!persona || persona.persona_type !== "assistant") {
         return res.status(404).json({error: "Persona not found"});
     }
-    setActivePersonaStmt.run(user, personaId);
-    res.json({activePersonaId: personaId});
+    if (userPersonaId) {
+        const userPersona = getPersonaStmt.get(userPersonaId, user);
+        if (!userPersona || userPersona.persona_type !== "user") {
+            return res.status(404).json({error: "User persona not found"});
+        }
+    }
+    let chat;
+    try {
+        chat = getOrCreatePersonaChat(user, persona, userPersonaId);
+    } catch (error) {
+        if (error.message === "CHAT_LIMIT_REACHED") {
+            return res.status(400).json({error: "Maximum of 10 chats reached. Please delete an old chat to create a new one."});
+        }
+        throw error;
+    }
+    res.json({chat});
 });
 
 app.post("/personas/:id/equip-user", requireLogin, (req, res) => {
@@ -1084,12 +1300,6 @@ app.post("/personas/:id/equip-user", requireLogin, (req, res) => {
     }
     setActiveUserPersonaStmt.run(user, personaId);
     res.json({activeUserPersonaId: personaId});
-});
-
-app.post("/personas/clear", requireLogin, (req, res) => {
-    const user = req.session.user;
-    setActivePersonaStmt.run(user, null);
-    res.json({activePersonaId: null});
 });
 
 app.post("/personas/user/clear", requireLogin, (req, res) => {
@@ -1192,19 +1402,140 @@ app.post("/personas/market/:id/collect", requireLogin, (req, res) => {
         marketPersona.creator_username
     ).lastInsertRowid;
     incrementMarketUsageCountStmt.run(marketId);
-    let activePersonaId = null;
     let activeUserPersonaId = null;
     if (req.body?.equip) {
         if (marketPersona.persona_type === "user") {
             setActiveUserPersonaStmt.run(user, personaId);
             activeUserPersonaId = personaId;
-        } else {
-            setActivePersonaStmt.run(user, personaId);
-            activePersonaId = personaId;
         }
     }
     const persona = getPersonaStmt.get(personaId, user);
-    res.json({persona, activePersonaId, activeUserPersonaId});
+    res.json({persona, activeUserPersonaId});
+});
+
+app.post("/personas/market/:id/chat", requireLogin, (req, res) => {
+    const user = req.session.user;
+    const marketId = Number(req.params.id);
+    const userPersonaId = req.body?.userPersonaId ? Number(req.body.userPersonaId) : null;
+    const marketPersona = getMarketPersonaStmt.get(marketId);
+    if (!marketPersona || marketPersona.persona_type !== "assistant") {
+        return res.status(404).json({error: "Market AI Character not found"});
+    }
+    let userPersona = null;
+    if (userPersonaId) {
+        userPersona = getPersonaStmt.get(userPersonaId, user);
+        if (!userPersona || userPersona.persona_type !== "user") {
+            return res.status(404).json({error: "User persona not found"});
+        }
+    }
+
+    let personaId = null;
+    const existingPersona = getPersonaBySourceMarketStmt.get(user, marketId);
+    if (existingPersona) {
+        personaId = existingPersona.id;
+    } else {
+        personaId = insertMarketPersonaStmt.run(
+            user,
+            marketPersona.name,
+            marketPersona.pronouns,
+            marketPersona.appearance,
+            marketPersona.background,
+            marketPersona.details,
+            marketPersona.example_dialogues,
+            marketPersona.persona_type,
+            marketId,
+            marketPersona.creator_username
+        ).lastInsertRowid;
+        incrementMarketUsageCountStmt.run(marketId);
+    }
+
+    const persona = getPersonaStmt.get(personaId, user);
+    let chat;
+    try {
+        chat = getOrCreatePersonaChat(user, persona, userPersonaId);
+    } catch (error) {
+        if (error.message === "CHAT_LIMIT_REACHED") {
+            return res.status(400).json({error: "Maximum of 10 chats reached. Please delete an old chat to create a new one."});
+        }
+        throw error;
+    }
+    const existingMessages = getChatMessagesStmt.all(chat.id);
+    if (existingMessages.length > 0) {
+        return res.json({persona, chat, existing: true, generatedInitialMessage: false});
+    }
+    Promise.resolve(generateModelReply("mistral:latest", [
+        {role: "system", content: buildPersonaPrompt(persona)},
+        ...(userPersona ? [{role: "system", content: buildUserPersonaPrompt(userPersona)}] : []),
+        {role: "user", content: "Open this roleplay with the very first in-character message. Set the scene naturally, stay in persona, and do not ask for permission to begin."}
+    ])).then((opener) => {
+        insertChatMessageStmt.run(chat.id, "bot", opener);
+        touchChatSessionStmt.run(chat.id, user);
+        res.json({persona, chat, existing: false, generatedInitialMessage: true, opener});
+    }).catch(() => {
+        res.json({persona, chat, existing: false, generatedInitialMessage: false});
+    });
+});
+
+app.post("/roleplays/start", requireLogin, async (req, res) => {
+    const user = req.session.user;
+    const selectedModel = req.body?.model || "mistral:latest";
+    const assistantPersonaId = Number(req.body?.assistantPersonaId);
+    const userPersonaId = req.body?.userPersonaId ? Number(req.body.userPersonaId) : null;
+
+    if (!assistantPersonaId) {
+        return res.status(400).json({error: "assistantPersonaId is required"});
+    }
+
+    const assistantPersona = getPersonaStmt.get(assistantPersonaId, user);
+    if (!assistantPersona || assistantPersona.persona_type !== "assistant") {
+        return res.status(404).json({error: "Character not found"});
+    }
+
+    let userPersona = null;
+    if (userPersonaId) {
+        userPersona = getPersonaStmt.get(userPersonaId, user);
+        if (!userPersona || userPersona.persona_type !== "user") {
+            return res.status(404).json({error: "User persona not found"});
+        }
+    }
+
+    let chat;
+    try {
+        chat = getOrCreatePersonaChat(user, assistantPersona, userPersonaId);
+    } catch (error) {
+        if (error.message === "CHAT_LIMIT_REACHED") {
+            return res.status(400).json({error: "Maximum of 10 chats reached. Please delete an old chat to create a new one."});
+        }
+        throw error;
+    }
+
+    const existingMessages = getChatMessagesStmt.all(chat.id);
+    if (existingMessages.length > 0) {
+        return res.json({chat, existing: true, generatedInitialMessage: false});
+    }
+
+    const messagesPayload = [
+        {role: "system", content: buildPersonaPrompt(assistantPersona)}
+    ];
+    if (userPersona) {
+        messagesPayload.push({role: "system", content: buildUserPersonaPrompt(userPersona)});
+    }
+    messagesPayload.push({
+        role: "user",
+        content: "Open this roleplay with the very first in-character message. Set the scene naturally, stay in persona, and do not ask for permission to begin."
+    });
+
+    try {
+        const opener = await generateModelReply(selectedModel, messagesPayload);
+        if (!opener) {
+            return res.status(500).json({error: "Failed to generate the character opener"});
+        }
+        insertChatMessageStmt.run(chat.id, "bot", opener);
+        touchChatSessionStmt.run(chat.id, user);
+        return res.json({chat, existing: false, generatedInitialMessage: true, opener});
+    } catch {
+        return res.status(500).json({error: "Failed to generate the character opener"});
+    }
 });
 
 app.post("/chat", requireLogin, async (req, res) => {
@@ -1222,15 +1553,9 @@ app.post("/chat", requireLogin, async (req, res) => {
         return res.status(404).json({error: "Chat not found"});
     }
 
-    if (!modelState.has(selectedModel)) {
-        modelState.set(selectedModel, {activeRequests: 0, timer: null});
-    }
-    const state = modelState.get(selectedModel);
-    state.activeRequests++;
-
     try {
-        const activePersona = getActivePersonaStmt.get(user);
-        const activeUserPersona = getActiveUserPersonaStmt.get(user);
+        const activePersona = getAssistantPersonaForChatStmt.get(targetChatId, user);
+        const activeUserPersona = getUserPersonaForChatStmt.get(targetChatId, user) || getActiveUserPersonaStmt.get(user);
         const history = getRecentChatMessagesStmt.all(targetChatId);
         const conversation = [...history].reverse();
         conversation.push({role: "user", content: message});
@@ -1255,41 +1580,7 @@ app.post("/chat", requireLogin, async (req, res) => {
                 content: m.content
             }))
         );
-
-        const response = await fetch("https://ai.krishd.ch/api/chat", {
-            method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({
-                model: selectedModel,
-                messages: messagesPayload,
-                stream: true
-            })
-        });
-
-        if (!response.ok) {
-            throw new Error(`AI HTTP ${response.status}`);
-        }
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-        let fullReply = "";
-        while (true) {
-            const {value, done} = await reader.read();
-            if (done) break;
-            buffer += decoder.decode(value, {stream: true});
-            let lines = buffer.split("\n");
-            buffer = lines.pop();
-            for (const line of lines) {
-                if (!line.trim()) continue;
-                const json = JSON.parse(line);
-                if (json.done) {
-                    break;
-                }
-                if (json.message?.content) {
-                    fullReply += json.message.content;
-                }
-            }
-        }
+        const fullReply = await generateModelReply(selectedModel, messagesPayload);
         insertChatMessageStmt.run(targetChatId, "bot", fullReply);
         touchChatSessionStmt.run(targetChatId, user);
         console.log("Reply length:", fullReply.length);
@@ -1297,12 +1588,6 @@ app.post("/chat", requireLogin, async (req, res) => {
     } catch (err) {
         console.error("AI chat error:", err);
         res.status(500).json({error: "AI request failed"});
-    } finally {
-        state.activeRequests--;
-
-        if (state.activeRequests === 0) {
-            scheduleModelUnload(selectedModel);
-        }
     }
 });
 
