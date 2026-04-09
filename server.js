@@ -135,6 +135,10 @@ db.prepare(`
             INTEGER,
         user_persona_id
             INTEGER,
+        scenario_prompt
+            TEXT,
+        scenario_summary
+            TEXT,
         created_at
             DATETIME
             DEFAULT
@@ -331,7 +335,7 @@ const getLegacyChatsStmt = db.prepare(`
     ORDER BY datetime(created_at)
 `);
 const insertChatSessionStmt = db.prepare(
-    "INSERT INTO chat_sessions (username, title, assistant_persona_id, user_persona_id) VALUES (?, ?, ?, ?)"
+    "INSERT INTO chat_sessions (username, title, assistant_persona_id, user_persona_id, scenario_prompt, scenario_summary) VALUES (?, ?, ?, ?, ?, ?)"
 );
 const listChatSessionsStmt = db.prepare(`
     SELECT cs.id,
@@ -344,6 +348,8 @@ const listChatSessionsStmt = db.prepare(`
            p.name AS assistant_persona_name,
            cs.user_persona_id,
            up.name AS user_persona_name,
+           cs.scenario_prompt,
+           cs.scenario_summary,
            cs.created_at,
            cs.updated_at
     FROM chat_sessions cs
@@ -369,7 +375,9 @@ const getChatSessionStmt = db.prepare(`
            cs.assistant_persona_id,
            p.name AS assistant_persona_name,
            cs.user_persona_id,
-           up.name AS user_persona_name
+           up.name AS user_persona_name,
+           cs.scenario_prompt,
+           cs.scenario_summary
     FROM chat_sessions cs
              LEFT JOIN personas p ON p.id = cs.assistant_persona_id
              LEFT JOIN personas up ON up.id = cs.user_persona_id
@@ -387,7 +395,9 @@ const getChatSessionByParticipantsStmt = db.prepare(`
            cs.assistant_persona_id,
            p.name AS assistant_persona_name,
            cs.user_persona_id,
-           up.name AS user_persona_name
+           up.name AS user_persona_name,
+           cs.scenario_prompt,
+           cs.scenario_summary
     FROM chat_sessions cs
              LEFT JOIN personas p ON p.id = cs.assistant_persona_id
              LEFT JOIN personas up ON up.id = cs.user_persona_id
@@ -403,6 +413,10 @@ const getChatSessionByParticipantsStmt = db.prepare(`
 
 const updateChatSessionTitleStmt = db.prepare(
     "UPDATE chat_sessions SET title = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND username = ?"
+);
+
+const updateChatSessionSceneStmt = db.prepare(
+    "UPDATE chat_sessions SET scenario_prompt = ?, scenario_summary = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND username = ?"
 );
 
 const touchChatSessionStmt = db.prepare(
@@ -793,6 +807,14 @@ const hasChatUserPersonaLink = chatSessionColumns.some(column => column.name ===
 if (!hasChatUserPersonaLink) {
     db.prepare("ALTER TABLE chat_sessions ADD COLUMN user_persona_id INTEGER").run();
 }
+const hasScenarioPrompt = chatSessionColumns.some(column => column.name === "scenario_prompt");
+if (!hasScenarioPrompt) {
+    db.prepare("ALTER TABLE chat_sessions ADD COLUMN scenario_prompt TEXT").run();
+}
+const hasScenarioSummary = chatSessionColumns.some(column => column.name === "scenario_summary");
+if (!hasScenarioSummary) {
+    db.prepare("ALTER TABLE chat_sessions ADD COLUMN scenario_summary TEXT").run();
+}
 
 const FileStore = FileStoreFactory(session);
 app.use(bodyParser.json());
@@ -1010,19 +1032,95 @@ const buildUserPersonaPrompt = (persona) => {
     return lines.join("\n");
 };
 
-const createPersonaChat = (user, persona, userPersonaId = null) => {
-    const chatId = insertChatSessionStmt.run(user, persona.name, persona.id, userPersonaId).lastInsertRowid;
+const summarizePersona = (persona) => {
+    if (!persona) return "";
+    return [
+        persona.name ? `Name: ${persona.name}` : null,
+        persona.pronouns ? `Pronouns: ${persona.pronouns}` : null,
+        persona.background ? `Background: ${persona.background}` : null,
+        persona.details ? `Traits: ${persona.details}` : null
+    ].filter(Boolean).join(" | ");
+};
+
+const clampText = (value, limit = 260) => {
+    const normalized = String(value || "").replace(/\s+/g, " ").trim();
+    if (normalized.length <= limit) return normalized;
+    return `${normalized.slice(0, limit - 3).trimEnd()}...`;
+};
+
+const buildRoleplaySceneSummary = (assistantPersona, userPersona, scenarioPrompt = "") => {
+    const assistantName = assistantPersona?.name || "The assistant";
+    const userName = userPersona?.name || "the user";
+    const assistantHook = assistantPersona?.details || assistantPersona?.background || "stays strongly in character";
+    const userHook = userPersona?.details || userPersona?.background || "enters the scene as themselves";
+    const scenarioSeed = scenarioPrompt
+        ? clampText(scenarioPrompt, 180)
+        : `A fitting opening grows naturally from ${assistantName}'s role, goals, and manner toward ${userName}.`;
+    return clampText(
+        `${assistantName} leads the opening. Their approach is shaped by ${assistantHook}. ` +
+        `${userName} is framed through ${userHook}. ` +
+        `Scene seed: ${scenarioSeed}`,
+        340
+    );
+};
+
+const buildRoleplayDirectionPrompt = ({assistantPersona, userPersona, scenarioPrompt, sceneSummary}) => {
+    const lines = [
+        "ROLEPLAY DIRECTION:",
+        "Create an immersive one-on-one roleplay between the assistant persona and the user.",
+        "Ground the interaction in a specific scenario, place, and immediate dramatic situation.",
+        "Make the assistant's first instinct, language, and priorities fit their persona exactly.",
+        "Use the user persona as interaction context so the assistant addresses them in a fitting way.",
+        "Avoid generic openings, meta commentary, and requests for permission to begin.",
+        "Do not write dialogue or internal thoughts for the user.",
+        "Prefer a concrete opening beat over vague exposition.",
+        "Include a subtle hook, tension, invitation, or problem that gives the user something to respond to.",
+        "",
+        `SCENE SUMMARY: ${sceneSummary}`
+    ];
+    if (scenarioPrompt) {
+        lines.push(`USER SCENARIO SEED: ${scenarioPrompt}`);
+    }
+    if (assistantPersona) {
+        lines.push("", `ASSISTANT SNAPSHOT: ${summarizePersona(assistantPersona)}`);
+    }
+    if (userPersona) {
+        lines.push(`USER SNAPSHOT: ${summarizePersona(userPersona)}`);
+    }
+    return lines.join("\n");
+};
+
+const buildRoleplayOpenerPrompt = ({assistantPersona, userPersona, scenarioPrompt, sceneSummary}) => {
+    const assistantName = assistantPersona?.name || "the assistant";
+    const userName = userPersona?.name || "the user";
+    const sceneSeed = scenarioPrompt
+        ? `Use this scenario seed: ${scenarioPrompt}`
+        : `Invent a fresh scenario that suits ${assistantName} and how they would realistically meet or confront ${userName}.`;
+
+    return [
+        `Write the first in-character message from ${assistantName}.`,
+        sceneSeed,
+        `Address ${userName} naturally within the scene.`,
+        "The message should establish the situation immediately instead of explaining setup out of character.",
+        "Use 1 to 3 short paragraphs. Sensory detail is allowed, but keep momentum.",
+        "End with a line, question, action, or reveal that gives the user an obvious way to answer.",
+        `Keep this scene continuity in mind: ${sceneSummary}`
+    ].join("\n");
+};
+
+const createPersonaChat = (user, persona, userPersonaId = null, scenarioPrompt = null, scenarioSummary = null) => {
+    const chatId = insertChatSessionStmt.run(user, persona.name, persona.id, userPersonaId, scenarioPrompt, scenarioSummary).lastInsertRowid;
     return getChatSessionStmt.get(chatId, user);
 };
 
-const getOrCreatePersonaChat = (user, persona, userPersonaId = null) => {
+const getOrCreatePersonaChat = (user, persona, userPersonaId = null, scenarioPrompt = null, scenarioSummary = null) => {
     const existing = getChatSessionByParticipantsStmt.get(user, persona.id, userPersonaId, userPersonaId);
     if (existing) return existing;
     const sessionCount = countChatSessionsStmt.get(user).count;
     if (sessionCount >= 10) {
         throw new Error("CHAT_LIMIT_REACHED");
     }
-    return createPersonaChat(user, persona, userPersonaId);
+    return createPersonaChat(user, persona, userPersonaId, scenarioPrompt, scenarioSummary);
 };
 
 const ensureModelState = (model) => {
@@ -1132,7 +1230,7 @@ app.post("/chats", requireLogin, (req, res) => {
     }
 
     const title = (req.body?.title || "New chat").trim() || "New chat";
-    const chatId = insertChatSessionStmt.run(user, title, null, null).lastInsertRowid;
+    const chatId = insertChatSessionStmt.run(user, title, null, null, null, null).lastInsertRowid;
     const chat = getChatSessionStmt.get(chatId, user);
     res.json({chat, existing: false});
 });
@@ -1281,7 +1379,7 @@ app.post("/personas/:id/chat", requireLogin, (req, res) => {
     }
     let chat;
     try {
-        chat = getOrCreatePersonaChat(user, persona, userPersonaId);
+        chat = getOrCreatePersonaChat(user, persona, userPersonaId, null, null);
     } catch (error) {
         if (error.message === "CHAT_LIMIT_REACHED") {
             return res.status(400).json({error: "Maximum of 10 chats reached. Please delete an old chat to create a new one."});
@@ -1450,9 +1548,11 @@ app.post("/personas/market/:id/chat", requireLogin, (req, res) => {
     }
 
     const persona = getPersonaStmt.get(personaId, user);
+    const scenarioPrompt = clampText(req.body?.scenarioPrompt || "", 240) || null;
+    const sceneSummary = buildRoleplaySceneSummary(persona, userPersona, scenarioPrompt);
     let chat;
     try {
-        chat = getOrCreatePersonaChat(user, persona, userPersonaId);
+        chat = getOrCreatePersonaChat(user, persona, userPersonaId, scenarioPrompt, sceneSummary);
     } catch (error) {
         if (error.message === "CHAT_LIMIT_REACHED") {
             return res.status(400).json({error: "Maximum of 10 chats reached. Please delete an old chat to create a new one."});
@@ -1463,14 +1563,17 @@ app.post("/personas/market/:id/chat", requireLogin, (req, res) => {
     if (existingMessages.length > 0) {
         return res.json({persona, chat, existing: true, generatedInitialMessage: false});
     }
+    updateChatSessionSceneStmt.run(scenarioPrompt, sceneSummary, chat.id, user);
+    chat = getChatSessionStmt.get(chat.id, user);
     Promise.resolve(generateModelReply("mistral:latest", [
         {role: "system", content: buildPersonaPrompt(persona)},
         ...(userPersona ? [{role: "system", content: buildUserPersonaPrompt(userPersona)}] : []),
-        {role: "user", content: "Open this roleplay with the very first in-character message. Set the scene naturally, stay in persona, and do not ask for permission to begin."}
+        {role: "system", content: buildRoleplayDirectionPrompt({assistantPersona: persona, userPersona, scenarioPrompt, sceneSummary})},
+        {role: "user", content: buildRoleplayOpenerPrompt({assistantPersona: persona, userPersona, scenarioPrompt, sceneSummary})}
     ])).then((opener) => {
         insertChatMessageStmt.run(chat.id, "bot", opener);
         touchChatSessionStmt.run(chat.id, user);
-        res.json({persona, chat, existing: false, generatedInitialMessage: true, opener});
+        res.json({persona, chat: getChatSessionStmt.get(chat.id, user), existing: false, generatedInitialMessage: true, opener});
     }).catch(() => {
         res.json({persona, chat, existing: false, generatedInitialMessage: false});
     });
@@ -1481,6 +1584,7 @@ app.post("/roleplays/start", requireLogin, async (req, res) => {
     const selectedModel = req.body?.model || "mistral:latest";
     const assistantPersonaId = Number(req.body?.assistantPersonaId);
     const userPersonaId = req.body?.userPersonaId ? Number(req.body.userPersonaId) : null;
+    const scenarioPrompt = clampText(req.body?.scenarioPrompt || "", 240) || null;
 
     if (!assistantPersonaId) {
         return res.status(400).json({error: "assistantPersonaId is required"});
@@ -1500,8 +1604,9 @@ app.post("/roleplays/start", requireLogin, async (req, res) => {
     }
 
     let chat;
+    const sceneSummary = buildRoleplaySceneSummary(assistantPersona, userPersona, scenarioPrompt);
     try {
-        chat = getOrCreatePersonaChat(user, assistantPersona, userPersonaId);
+        chat = getOrCreatePersonaChat(user, assistantPersona, userPersonaId, scenarioPrompt, sceneSummary);
     } catch (error) {
         if (error.message === "CHAT_LIMIT_REACHED") {
             return res.status(400).json({error: "Maximum of 10 chats reached. Please delete an old chat to create a new one."});
@@ -1513,6 +1618,8 @@ app.post("/roleplays/start", requireLogin, async (req, res) => {
     if (existingMessages.length > 0) {
         return res.json({chat, existing: true, generatedInitialMessage: false});
     }
+    updateChatSessionSceneStmt.run(scenarioPrompt, sceneSummary, chat.id, user);
+    chat = getChatSessionStmt.get(chat.id, user);
 
     const messagesPayload = [
         {role: "system", content: buildPersonaPrompt(assistantPersona)}
@@ -1521,8 +1628,12 @@ app.post("/roleplays/start", requireLogin, async (req, res) => {
         messagesPayload.push({role: "system", content: buildUserPersonaPrompt(userPersona)});
     }
     messagesPayload.push({
+        role: "system",
+        content: buildRoleplayDirectionPrompt({assistantPersona, userPersona, scenarioPrompt, sceneSummary})
+    });
+    messagesPayload.push({
         role: "user",
-        content: "Open this roleplay with the very first in-character message. Set the scene naturally, stay in persona, and do not ask for permission to begin."
+        content: buildRoleplayOpenerPrompt({assistantPersona, userPersona, scenarioPrompt, sceneSummary})
     });
 
     try {
@@ -1532,7 +1643,7 @@ app.post("/roleplays/start", requireLogin, async (req, res) => {
         }
         insertChatMessageStmt.run(chat.id, "bot", opener);
         touchChatSessionStmt.run(chat.id, user);
-        return res.json({chat, existing: false, generatedInitialMessage: true, opener});
+        return res.json({chat: getChatSessionStmt.get(chat.id, user), existing: false, generatedInitialMessage: true, opener});
     } catch {
         return res.status(500).json({error: "Failed to generate the character opener"});
     }
@@ -1556,6 +1667,8 @@ app.post("/chat", requireLogin, async (req, res) => {
     try {
         const activePersona = getAssistantPersonaForChatStmt.get(targetChatId, user);
         const activeUserPersona = getUserPersonaForChatStmt.get(targetChatId, user) || getActiveUserPersonaStmt.get(user);
+        const sceneSummary = session.scenario_summary;
+        const scenarioPrompt = session.scenario_prompt;
         const history = getRecentChatMessagesStmt.all(targetChatId);
         const conversation = [...history].reverse();
         conversation.push({role: "user", content: message});
@@ -1572,6 +1685,17 @@ app.post("/chat", requireLogin, async (req, res) => {
             messagesPayload.push({
                 role: "system",
                 content: buildUserPersonaPrompt(activeUserPersona)
+            });
+        }
+        if (activePersona && sceneSummary) {
+            messagesPayload.push({
+                role: "system",
+                content: buildRoleplayDirectionPrompt({
+                    assistantPersona: activePersona,
+                    userPersona: activeUserPersona,
+                    scenarioPrompt,
+                    sceneSummary
+                })
             });
         }
         messagesPayload.push(

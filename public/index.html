@@ -113,6 +113,7 @@
                                 <span id="chatModePill" class="context-pill chat-mode-pill">Assistant mode</span>
                                 <span id="chatCharacterPill" class="context-pill hidden">Character: none</span>
                                 <span id="chatUserPersonaPill" class="context-pill hidden">User persona: none</span>
+                                <span id="chatScenePill" class="context-pill hidden">Scene: none</span>
                             </div>
                         </div>
                         <div class="chat-toolbar">
@@ -179,7 +180,9 @@
                 <div class="input-shell input-shell-focus">
                     <div class="input-meta">
                         <p class="composer-hint">Enter sends. Shift+Enter adds a new line.</p>
+                        <p id="appNotice" class="status inline-status hidden" aria-live="polite"></p>
                     </div>
+                    <div id="quickPrompts" class="quick-prompts" aria-label="Suggested starters"></div>
                     <div class="input-container">
                         <textarea id="msgInput" placeholder="Type your message..."></textarea>
                         <button id="send" type="button" aria-label="Send message"></button>
@@ -264,7 +267,7 @@
         </div>
         <p id="roleplayStarterNotice" class="status hidden"></p>
         <div class="roleplay-starter-actions">
-            <button id="roleplayNewPersona" class="secondary-action" type="button">New persona</button>
+            <button id="roleplayNewPersona" class="secondary-action" type="button">Create AI Character</button>
             <a href="/settings" class="secondary-action">Settings</a>
         </div>
         <div class="persona-form-grid">
@@ -276,7 +279,12 @@
                 <span>User persona</span>
                 <select id="roleplayUserPersonaSelect"></select>
             </label>
+            <label class="field field-wide">
+                <span>Scenario seed</span>
+                <textarea id="roleplayScenarioInput" rows="3" placeholder="Optional. Describe the kind of opening scene you want, such as a setting, conflict, relationship dynamic, or mood."></textarea>
+            </label>
         </div>
+        <div id="roleplayStarterSuggestions" class="quick-prompts" aria-label="Scenario suggestions"></div>
         <div class="popup-actions">
             <button id="roleplayStarterCancel" type="button" class="secondary-action">Cancel</button>
             <button id="roleplayStarterConfirm" type="button">Start roleplay</button>

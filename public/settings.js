@@ -13,6 +13,8 @@ const settingsNavItems = document.querySelectorAll("[data-settings-view]");
 const settingsPanels = document.querySelectorAll("[data-settings-panel]");
 const createAiCharacterBtn = $("createAiCharacter");
 const createUserPersonaBtn = $("createUserPersona");
+const quickCreateAiCharacterBtn = $("quickCreateAiCharacter");
+const quickCreateUserPersonaBtn = $("quickCreateUserPersona");
 const settingsAiCharacterList = $("settingsAiCharacterList");
 const settingsUserPersonaList = $("settingsUserPersonaList");
 const settingsPersonaModal = $("settingsPersonaModal");
@@ -101,8 +103,8 @@ function syncPersonaExamplesField() {
     const isAssistant = settingsPersonaType.value === "assistant";
     settingsPersonaExamplesField.classList.toggle("hidden", !isAssistant);
     settingsPersonaHelper.textContent = isAssistant
-        ? "AI Characters define who the character is, how they speak, and what kind of scene they lead."
-        : "User personas define who you are when starting roleplay chats with AI Characters.";
+        ? "Create the character you want to roleplay with."
+        : "Create the persona you want to speak as in roleplay.";
     $("settingsPersonaSave").textContent = isAssistant ? "Save AI Character" : "Save persona";
 }
 
@@ -134,11 +136,17 @@ function closePersonaModal() {
 function renderPersonaList(personas, listElement, type) {
     listElement.innerHTML = "";
     if (!personas.length) {
-        const empty = document.createElement("p");
-        empty.className = "status persona-status";
-        empty.textContent = type === "assistant"
-            ? "No AI Characters yet. Create one to get started."
-            : "No user personas yet. Create one to talk as someone specific.";
+        const empty = document.createElement("div");
+        const message = document.createElement("p");
+        const button = document.createElement("button");
+        empty.className = "persona-empty-state";
+        message.className = "status persona-status";
+        message.textContent = type === "assistant" ? "No AI Characters yet." : "No user personas yet.";
+        button.type = "button";
+        button.className = "secondary-action";
+        button.textContent = type === "assistant" ? "Create AI Character" : "Create user persona";
+        button.addEventListener("click", () => openPersonaModal(null, type));
+        empty.append(message, button);
         listElement.appendChild(empty);
         return;
     }
@@ -213,6 +221,7 @@ async function loadPersonas() {
 }
 
 async function savePersona() {
+    const wasEditing = Boolean(editingPersonaId);
     const payload = {
         personaType: settingsPersonaType.value,
         name: settingsPersonaName.value.trim(),
@@ -240,7 +249,7 @@ async function savePersona() {
     await loadPersonas();
     closePersonaModal();
     setSettingsView(payload.personaType === "assistant" ? "my-ai-characters" : "my-personas");
-    setNotice(editingPersonaId ? "Persona updated." : "Persona created.", "success");
+    setNotice(wasEditing ? "Persona updated." : "Persona created.", "success");
 }
 
 async function deletePersona(id) {
@@ -322,6 +331,14 @@ settingsThemeSelect.addEventListener("change", (event) => {
 });
 
 settingsNavItems.forEach((item) => item.addEventListener("click", () => setSettingsView(item.dataset.settingsView)));
+quickCreateAiCharacterBtn.addEventListener("click", () => {
+    setSettingsView("my-ai-characters");
+    openPersonaModal(null, "assistant");
+});
+quickCreateUserPersonaBtn.addEventListener("click", () => {
+    setSettingsView("my-personas");
+    openPersonaModal(null, "user");
+});
 createAiCharacterBtn.addEventListener("click", () => openPersonaModal(null, "assistant"));
 createUserPersonaBtn.addEventListener("click", () => openPersonaModal(null, "user"));
 settingsPersonaClose.addEventListener("click", closePersonaModal);

@@ -11,7 +11,7 @@ const loginSubmit = $("loginSubmit"), registerSubmit = $("registerSubmit");
 const chatList = $("chatList"), chatSearchInput = $("chatSearch"), newChatBtn = $("newChat");
 const renameChatBtn = $("renameChat"), clearChatBtn = $("clearChat"), exportChatBtn = $("exportChat");
 const activeChatTitle = $("activeChatTitle"), sessionUser = $("sessionUser");
-const chatModePill = $("chatModePill"), chatCharacterPill = $("chatCharacterPill"), chatUserPersonaPill = $("chatUserPersonaPill");
+const chatModePill = $("chatModePill"), chatCharacterPill = $("chatCharacterPill"), chatUserPersonaPill = $("chatUserPersonaPill"), chatScenePill = $("chatScenePill");
 const personaList = $("personaList"), userPersonaList = $("userPersonaList");
 const personaForm = $("personaForm"), personaFormTitle = $("personaFormTitle"), personaTypeSelect = $("personaType");
 const personaNameInput = $("personaName"), personaPronounsInput = $("personaPronouns"), personaAppearanceInput = $("personaAppearance");
@@ -23,9 +23,11 @@ const activePersonaStatus = $("activePersonaStatus"), activeUserPersonaStatus = 
 const personaModal = $("personaModal"), personaCloseBtn = $("personaClose"), personaMenuButton = $("personaMenuButton"), personaPopover = $("personaPopover");
 const roleplayStarterModal = $("roleplayStarterModal"), roleplayStarterClose = $("roleplayStarterClose"), roleplayStarterCancel = $("roleplayStarterCancel"), roleplayStarterConfirm = $("roleplayStarterConfirm");
 const roleplayStarterNotice = $("roleplayStarterNotice"), roleplayCharacterSelect = $("roleplayCharacterSelect"), roleplayUserPersonaSelect = $("roleplayUserPersonaSelect");
+const roleplayScenarioInput = $("roleplayScenarioInput"), roleplayStarterSuggestions = $("roleplayStarterSuggestions");
 const popupModal = $("popupModal"), popupCloseBtn = $("popupClose"), popupCancelBtn = $("popupCancel"), popupConfirmBtn = $("popupConfirm");
 const popupTitle = $("popupTitle"), popupEyebrow = $("popupEyebrow"), popupDescription = $("popupDescription"), popupField = $("popupField");
 const popupInputLabel = $("popupInputLabel"), popupInput = $("popupInput");
+const appNotice = $("appNotice"), quickPrompts = $("quickPrompts");
 const authScreens = document.querySelectorAll(".auth-screen"), toggleButtons = document.querySelectorAll(".auth-toggle .toggle");
 const themeNameTargets = document.querySelectorAll("[data-theme-name]"), themeLogoTargets = document.querySelectorAll("[data-theme-logo]");
 const requestedChatId = Number(new URLSearchParams(window.location.search).get("chat")) || null;
@@ -35,6 +37,7 @@ let chatSessions = [], currentMessages = [], assistantPersonas = [], userPersona
 let activeUserPersonaId = null, currentSummary = null, publishedPersonaIds = new Set();
 let popupResolver = null, popupMode = null, popupLastFocus = null;
 let roleplayPresetCharacterId = null;
+let noticeTimer = null;
 
 const themes = {
     "fakegpt": {name: "FakeGPT", short: "FG"},
@@ -64,7 +67,27 @@ const put = (url, data) => request(url, data, "PUT");
 const del = (url) => request(url, null, "DELETE");
 
 function setAuthMessage(message, state = "") { authMsg.textContent = message; authMsg.className = state ? `status ${state}` : "status"; }
-function setNotice(message, state = "") { return {message, state}; }
+function setNotice(message = "", state = "") {
+    if (!appNotice) return {message, state};
+    if (noticeTimer) {
+        clearTimeout(noticeTimer);
+        noticeTimer = null;
+    }
+    if (!message) {
+        appNotice.textContent = "";
+        appNotice.className = "status inline-status hidden";
+        return {message, state};
+    }
+    appNotice.textContent = message;
+    appNotice.className = state ? `status inline-status ${state}` : "status inline-status";
+    noticeTimer = window.setTimeout(() => {
+        if (appNotice.textContent === message) {
+            appNotice.textContent = "";
+            appNotice.className = "status inline-status hidden";
+        }
+    }, state === "error" ? 6000 : 3200);
+    return {message, state};
+}
 function setPersonaFormNotice(message = "", state = "") {
     if (!personaFormNotice) return;
     if (!message) {
@@ -85,6 +108,82 @@ function setMessageContent(el, content) {
     }
 }
 function getChatById(id) { return chatSessions.find((chat) => chat.id === id); }
+function summarizeText(value, limit = 96) {
+    const normalized = String(value || "").replace(/\s+/g, " ").trim();
+    if (!normalized) return "";
+    return normalized.length > limit ? `${normalized.slice(0, limit - 3).trimEnd()}...` : normalized;
+}
+function getPersonaName(id, items) {
+    return items.find((persona) => persona.id === id)?.name || "";
+}
+function getRoleplayStarterSuggestions() {
+    const assistantPersonaId = Number(roleplayCharacterSelect?.value);
+    const userPersonaId = roleplayUserPersonaSelect?.value ? Number(roleplayUserPersonaSelect.value) : null;
+    const assistantName = getPersonaName(assistantPersonaId, assistantPersonas) || "the character";
+    const userName = userPersonaId ? getPersonaName(userPersonaId, userPersonas) : "me";
+    return [
+        `${assistantName} unexpectedly crosses paths with ${userName} in a place that matters to them both.`,
+        `${assistantName} already knows something important about ${userName} and confronts them with it.`,
+        `${assistantName} and ${userName} are forced to cooperate while something goes wrong around them.`,
+        `${assistantName} meets ${userName} in a quiet, intimate scene with unresolved tension.`,
+        `${assistantName} draws ${userName} into a high-stakes problem that starts immediately.`
+    ];
+}
+function updateRoleplaySuggestions() {
+    if (!roleplayStarterSuggestions) return;
+    roleplayStarterSuggestions.innerHTML = "";
+    getRoleplayStarterSuggestions().forEach((suggestion) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "prompt-chip";
+        button.textContent = suggestion;
+        button.addEventListener("click", () => {
+            if (roleplayScenarioInput) {
+                roleplayScenarioInput.value = suggestion;
+                roleplayScenarioInput.focus();
+            }
+        });
+        roleplayStarterSuggestions.appendChild(button);
+    });
+}
+function getQuickPromptsForChat(chat) {
+    if (chat?.assistant_persona_id) {
+        const characterName = chat.assistant_persona_name || chat.title || "the character";
+        const userName = chat.user_persona_name || "me";
+        return [
+            `Stay in character and describe what ${characterName} notices about ${userName} right now.`,
+            `Push the scene forward with a new complication.`,
+            `Respond with sharper tension and more specific detail.`,
+            `Let ${characterName} reveal what they actually want from me.`
+        ];
+    }
+    return [];
+}
+function renderQuickPrompts() {
+    if (!quickPrompts) return;
+    const activeChat = getChatById(activeChatId);
+    const prompts = getQuickPromptsForChat(activeChat);
+    quickPrompts.innerHTML = "";
+    quickPrompts.classList.toggle("hidden", prompts.length === 0);
+    prompts.forEach((prompt) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "prompt-chip";
+        button.textContent = prompt;
+        button.addEventListener("click", () => {
+            msgInput.value = prompt;
+            msgInput.dispatchEvent(new Event("input"));
+            msgInput.focus();
+        });
+        quickPrompts.appendChild(button);
+    });
+}
+function updateComposerPlaceholder() {
+    const activeChat = getChatById(activeChatId);
+    msgInput.placeholder = activeChat?.assistant_persona_id
+        ? "Reply in the scene..."
+        : "Type your message...";
+}
 
 function addMessage(content, isUser = false, isLoading = false) {
     const msgDiv = document.createElement("div");
@@ -105,7 +204,8 @@ function addMessage(content, isUser = false, isLoading = false) {
     } else {
         const header = document.createElement("div"), body = document.createElement("div");
         header.className = "msg-header"; body.className = "msg-content";
-        header.textContent = isUser ? "You" : "Assistant";
+        const activeChat = getChatById(activeChatId);
+        header.textContent = isUser ? "You" : (activeChat?.assistant_persona_name || "Assistant");
         setMessageContent(body, content);
         msgDiv.append(header, body);
     }
@@ -119,6 +219,8 @@ function renderMessages() {
     currentMessages.forEach((msg) => addMessage(msg.content, msg.role === "user"));
     updateChatParticipants();
     updateChatActionState();
+    renderQuickPrompts();
+    updateComposerPlaceholder();
 }
 
 function updateWorkspaceCopy() {
@@ -130,6 +232,8 @@ function updateWorkspaceCopy() {
         sessionUser.textContent = currentUsername || "-";
     }
     updateChatParticipants();
+    renderQuickPrompts();
+    updateComposerPlaceholder();
 }
 
 function setRoleplayStarterNotice(message = "", state = "") {
@@ -145,11 +249,12 @@ function setRoleplayStarterNotice(message = "", state = "") {
 
 function updateChatParticipants() {
     const chat = getChatById(activeChatId);
-    if (!chatModePill || !chatCharacterPill || !chatUserPersonaPill) return;
+    if (!chatModePill || !chatCharacterPill || !chatUserPersonaPill || !chatScenePill) return;
     if (!chat) {
         chatModePill.textContent = "No chat selected";
         chatCharacterPill.classList.add("hidden");
         chatUserPersonaPill.classList.add("hidden");
+        chatScenePill.classList.add("hidden");
         return;
     }
     if (chat.assistant_persona_id) {
@@ -163,11 +268,18 @@ function updateChatParticipants() {
             chatUserPersonaPill.textContent = "You as: yourself";
             chatUserPersonaPill.classList.remove("hidden");
         }
+        if (chat.scenario_summary) {
+            chatScenePill.textContent = `Scene: ${summarizeText(chat.scenario_summary, 112)}`;
+            chatScenePill.classList.remove("hidden");
+        } else {
+            chatScenePill.classList.add("hidden");
+        }
         return;
     }
     chatModePill.textContent = "Assistant mode";
     chatCharacterPill.classList.add("hidden");
     chatUserPersonaPill.classList.add("hidden");
+    chatScenePill.classList.add("hidden");
 }
 
 function updateContextRail() {
@@ -292,8 +404,8 @@ function updateActivePersonaStatus(items, activeId, statusEl, emptyText, prefix)
 function setActivePersonaStatus() {
     if (activePersonaStatus) {
         activePersonaStatus.textContent = assistantPersonas.length
-            ? "Pick a character, choose a user persona, and start the roleplay."
-            : "No characters yet. Create one to start a roleplay.";
+            ? "Choose an AI Character, pair it with a user persona if needed, and start the scene."
+            : "No AI Characters yet. Create one to start a roleplay.";
     }
     updateActivePersonaStatus(userPersonas, activeUserPersonaId, activeUserPersonaStatus, "No default user persona set.", "Default user persona");
     if (clearUserPersonaBtn) clearUserPersonaBtn.disabled = !activeUserPersonaId;
@@ -347,12 +459,14 @@ function populateRoleplayStarter() {
         option.selected = persona.id === activeUserPersonaId;
         roleplayUserPersonaSelect.appendChild(option);
     });
+    updateRoleplaySuggestions();
 }
 function openRoleplayStarter(characterId = null) {
     closePersonaPopover();
     closeModelPopover();
     roleplayPresetCharacterId = characterId;
     populateRoleplayStarter();
+    if (roleplayScenarioInput) roleplayScenarioInput.value = "";
     setRoleplayStarterNotice("");
     roleplayStarterModal.classList.remove("hidden");
     if (roleplayCharacterSelect.options.length) roleplayCharacterSelect.focus();
@@ -362,6 +476,7 @@ function closeRoleplayStarter() {
     roleplayStarterModal.classList.add("hidden");
     roleplayPresetCharacterId = null;
     roleplayStarterConfirm.disabled = false;
+    if (roleplayScenarioInput) roleplayScenarioInput.value = "";
     setRoleplayStarterNotice("");
 }
 function closeModelPopover() {
@@ -539,7 +654,12 @@ async function unpublishPersona(id) { const res = await post(`/personas/${id}/un
 
 function setLoadingState(loading) {
     isProcessing = loading; sendBtn.disabled = loading; msgInput.disabled = loading;
-    sendBtn.classList.toggle("loading", loading); msgInput.placeholder = loading ? "Processing response..." : "Type your message...";
+    sendBtn.classList.toggle("loading", loading);
+    if (loading) {
+        msgInput.placeholder = "Processing response...";
+    } else {
+        updateComposerPlaceholder();
+    }
 }
 
 function showAuthScreen(target) {
@@ -578,14 +698,16 @@ async function createNewChat() {
 async function startRoleplay() {
     const assistantPersonaId = Number(roleplayCharacterSelect.value);
     const userPersonaId = roleplayUserPersonaSelect.value ? Number(roleplayUserPersonaSelect.value) : null;
+    const scenarioPrompt = roleplayScenarioInput?.value.trim() || "";
     if (!assistantPersonaId) {
         return setRoleplayStarterNotice("Choose a character to start the roleplay.", "error");
     }
     roleplayStarterConfirm.disabled = true;
-    setRoleplayStarterNotice("Starting roleplay...");
+    setRoleplayStarterNotice("Building the opening scene...");
     const res = await post("/roleplays/start", {
         assistantPersonaId,
         userPersonaId,
+        scenarioPrompt,
         model: modelSelect.value
     });
     roleplayStarterConfirm.disabled = false;
@@ -595,7 +717,7 @@ async function startRoleplay() {
     closeRoleplayStarter();
     await loadChatSessions();
     await setActiveChat(res.chat.id);
-    setNotice(res.generatedInitialMessage ? "Roleplay started." : "Roleplay reopened.", "success");
+    setNotice(res.generatedInitialMessage ? "Roleplay started with a fresh scene." : "Roleplay reopened.", "success");
 }
 
 async function renameChat(id) {
@@ -778,6 +900,8 @@ personaModal.addEventListener("click", (event) => { if (event.target === persona
 roleplayStarterClose.addEventListener("click", closeRoleplayStarter);
 roleplayStarterCancel.addEventListener("click", closeRoleplayStarter);
 roleplayStarterConfirm.addEventListener("click", () => { void startRoleplay(); });
+roleplayCharacterSelect.addEventListener("change", updateRoleplaySuggestions);
+roleplayUserPersonaSelect.addEventListener("change", updateRoleplaySuggestions);
 roleplayStarterModal.addEventListener("click", (event) => { if (event.target === roleplayStarterModal) closeRoleplayStarter(); });
 popupConfirmBtn.addEventListener("click", () => {
     if (popupMode === "prompt") {
