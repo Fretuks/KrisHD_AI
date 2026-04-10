@@ -169,7 +169,7 @@ function renderPersonaList(personas, listElement, type) {
 
         [
             ["Edit", () => openPersonaModal(persona)],
-            [type === "assistant" && publishedPersonaIds.has(persona.id) ? "Update listing" : type === "assistant" ? "Publish" : null, () => publishPersona(persona.id)],
+            [publishedPersonaIds.has(persona.id) ? "Update listing" : "Publish", () => publishPersona(persona.id)],
             ["Delete", () => deletePersona(persona.id)]
         ]
             .filter(([label]) => Boolean(label))
@@ -181,7 +181,7 @@ function renderPersonaList(personas, listElement, type) {
                 actions.appendChild(button);
             });
 
-        if (type === "assistant" && publishedPersonaIds.has(persona.id)) {
+        if (publishedPersonaIds.has(persona.id)) {
             const unpublishButton = document.createElement("button");
             unpublishButton.type = "button";
             unpublishButton.textContent = "Unpublish";
@@ -269,7 +269,7 @@ async function publishPersona(id) {
         return;
     }
     await loadPersonas();
-    setNotice("AI Character published.", "success");
+    setNotice("Persona published.", "success");
 }
 
 async function unpublishPersona(id) {
@@ -279,7 +279,7 @@ async function unpublishPersona(id) {
         return;
     }
     await loadPersonas();
-    setNotice("AI Character unpublished.", "success");
+    setNotice("Persona unpublished.", "success");
 }
 
 usernameForm.addEventListener("submit", async (event) => {
