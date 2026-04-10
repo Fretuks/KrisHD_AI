@@ -1054,7 +1054,8 @@ const buildPersonaPrompt = (persona) => {
         "SYSTEM ROLE:",
         "You are the AI assistant in this conversation.",
         "You must speak, think, and respond AS the persona described below.",
-        "Do NOT describe or roleplay as the user.",
+        "Do NOT speak as, write for, decide for, or roleplay as the user or the user's persona.",
+        "Do NOT narrate the user's dialogue, thoughts, feelings, choices, or actions.",
         "Do NOT switch roles or perspectives.",
         "Always respond in-character, using first-person language where appropriate.",
         "",
@@ -1079,7 +1080,7 @@ const buildUserPersonaPrompt = (persona) => {
         "The human user is roleplaying as the persona below.",
         "This information is for context only.",
         "Do NOT speak as this character.",
-        "Do NOT narrate their thoughts unless they explicitly do so.",
+        "Do NOT write this character's dialogue, thoughts, feelings, choices, or actions unless the user explicitly supplies them.",
         "Respond TO this persona, not AS them.",
         "",
         "USER PERSONA:"
@@ -1166,7 +1167,7 @@ const buildRoleplayOpenerPrompt = ({assistantPersona, userPersona, scenarioPromp
         "The message should establish the situation immediately instead of explaining setup out of character.",
         "Use 1 to 3 short paragraphs. Sensory detail is allowed, but keep momentum.",
         "Write only the assistant character's words and optional self-actions.",
-        "Do not write any user dialogue, user thoughts, or user actions.",
+        "Do not write any user dialogue, thoughts, feelings, choices, or actions.",
         "Do not use labels such as 'User:' or 'You:'.",
         "End with a line, question, action, or reveal that gives the user an obvious way to answer.",
         `Keep this scene continuity in mind: ${sceneSummary}`
