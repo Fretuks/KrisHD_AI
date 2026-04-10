@@ -1090,6 +1090,8 @@ const buildPersonaPrompt = (persona) => {
         "You must speak, think, and respond AS the persona described below.",
         "Do NOT speak as, write for, decide for, or roleplay as the user or the user's persona.",
         "Do NOT narrate the user's dialogue, thoughts, feelings, choices, or actions.",
+        "Do NOT imply what the user says next, how they feel, what they decide, or what they physically do.",
+        "Never complete both sides of the exchange. Only produce the assistant character's side.",
         "Do NOT switch roles or perspectives.",
         "Always respond in-character, using first-person language where appropriate.",
         "",
@@ -1115,6 +1117,7 @@ const buildUserPersonaPrompt = (persona) => {
         "This information is for context only.",
         "Do NOT speak as this character.",
         "Do NOT write this character's dialogue, thoughts, feelings, choices, or actions unless the user explicitly supplies them.",
+        "Do NOT predict, script, continue, or resolve the user's side of the scene.",
         "Respond TO this persona, not AS them.",
         "",
         "USER PERSONA:"
@@ -1176,8 +1179,10 @@ const buildRoleplayDirectionPrompt = ({assistantPersona, userPersona, scenarioPr
         "Format shouted words, sharp emphasis, or explosive expressions in bold using **word**.",
         "Keep formatting readable and intentional instead of wrapping every sentence in markdown.",
         "Avoid generic openings, meta commentary, and requests for permission to begin.",
-        "Do not write dialogue, internal thoughts, choices, or actions for the user.",
-        "Never output any lines like 'User:' or 'You:' and never narrate what the user does.",
+        "Do not write dialogue, internal thoughts, choices, reactions, or actions for the user.",
+        "Never output any lines like 'User:' or 'You:'.",
+        "Never narrate what the user does, says, thinks, feels, wants, decides, notices, or remembers.",
+        "Never include quoted text that belongs to the user.",
         "The opening must contain only the assistant character's own spoken words and optional self-actions.",
         "Prefer a concrete opening beat over vague exposition.",
         "Include a subtle hook, tension, invitation, or problem that gives the user something to respond to.",
@@ -1213,8 +1218,9 @@ const buildRoleplayOpenerPrompt = ({assistantPersona, userPersona, scenarioPromp
         "Write direct speech in double quotes like \"word\".",
         "Use bold markdown like **word** only for loud, forceful, or strongly emphasized expressions.",
         "Write only the assistant character's words and optional self-actions.",
-        "Do not write any user dialogue, thoughts, feelings, choices, or actions.",
+        "Do not write any user dialogue, quoted lines, thoughts, feelings, reactions, choices, or actions.",
         "Do not use labels such as 'User:' or 'You:'.",
+        "Do not script a back-and-forth exchange. Stop before the user's reply.",
         "End with a line, question, action, or reveal that gives the user an obvious way to answer.",
         `Keep this scene continuity in mind: ${sceneSummary}`
     ].join("\n");
@@ -1239,7 +1245,20 @@ const containsUserVoiceInRoleplayOpener = (opener, userPersona) => {
         "(?:say|says|said|ask|asks|asked|reply|replies|replied|think|thinks|thought|feel|feels|felt|walk|walks|walked|step|steps|stepped|look|looks|looked|nod|nods|nodded|smile|smiles|smiled|enter|enters|entered|turn|turns|turned)\\b",
         "i"
     );
-    return userActionPattern.test(text);
+    if (userActionPattern.test(text)) return true;
+
+    const quotedUserSpeechPattern = new RegExp(
+        `["“][^"”\\n]{1,240}["”]\\s*(?:,?\\s*)?(?:${tokens.join("|")})\\s*(?:say|says|said|ask|asks|asked|reply|replies|replied|murmur|murmurs|murmured|whisper|whispers|whispered)\\b`,
+        "i"
+    );
+    if (quotedUserSpeechPattern.test(text)) return true;
+
+    const userReactionPattern = new RegExp(
+        `(?:^|\\n|[.!?]\\s+)(?:${tokens.join("|")})\\s+` +
+        "(?:is|was|seems|looks|feels|hesitates|freezes|flinches|nods|smiles|frowns|steps|walks|turns|glances|stares|swallows|breathes)\\b",
+        "i"
+    );
+    return userReactionPattern.test(text);
 };
 
 const generateRoleplayOpener = async ({selectedModel = "mistral:latest", assistantPersona, userPersona, scenarioPrompt, sceneSummary}) => {
@@ -1260,7 +1279,7 @@ const generateRoleplayOpener = async ({selectedModel = "mistral:latest", assista
         {role: "assistant", content: opener || ""},
         {
             role: "user",
-            content: "Rewrite this opening. Hard rule: only the assistant character may speak or act. Never write user speech, thoughts, actions, or labels like 'User:'/'You:'."
+            content: "Rewrite this opening. Hard rule: only the assistant character may speak or act. Never write or imply user speech, thoughts, feelings, reactions, decisions, actions, or labels like 'User:'/'You:'. Stop before the user's reply."
         }
     ];
     opener = await generateModelReply(selectedModel, retryMessages);
