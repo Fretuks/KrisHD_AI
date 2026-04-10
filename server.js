@@ -185,6 +185,16 @@ db.prepare(`
             TEXT
             NOT
                 NULL,
+        retry_variants
+            TEXT,
+        retry_active_index
+            INTEGER
+            DEFAULT 0,
+        retry_retries_used
+            INTEGER
+            DEFAULT 0,
+        retry_prompt_message_id
+            INTEGER,
         created_at
             DATETIME
             DEFAULT
@@ -444,11 +454,11 @@ const clearUserPersonaFromChatsStmt = db.prepare(`
 `);
 
 const insertChatMessageStmt = db.prepare(
-    "INSERT INTO chat_messages (chat_id, role, content) VALUES (?, ?, ?)"
+    "INSERT INTO chat_messages (chat_id, role, content, retry_variants, retry_active_index, retry_retries_used, retry_prompt_message_id) VALUES (?, ?, ?, ?, ?, ?, ?)"
 );
 
 const getChatMessagesStmt = db.prepare(`
-                    SELECT id, role, content
+                    SELECT id, role, content, retry_variants, retry_active_index, retry_retries_used, retry_prompt_message_id
                     FROM chat_messages
                     WHERE chat_id = ?
                     ORDER BY id
@@ -477,7 +487,7 @@ const getRecentChatMessagesUpToIdStmt = db.prepare(`
 ;
 
 const getChatMessageByIdStmt = db.prepare(`
-                    SELECT id, role, content
+                    SELECT id, role, content, retry_variants, retry_active_index, retry_retries_used, retry_prompt_message_id
                     FROM chat_messages
                     WHERE id = ?
                       AND chat_id = ?
@@ -486,7 +496,7 @@ const getChatMessageByIdStmt = db.prepare(`
 ;
 
 const getChatMessageByIndexStmt = db.prepare(`
-                    SELECT id, role, content
+                    SELECT id, role, content, retry_variants, retry_active_index, retry_retries_used, retry_prompt_message_id
                     FROM chat_messages
                     WHERE chat_id = ?
                     ORDER BY id
@@ -496,7 +506,7 @@ const getChatMessageByIndexStmt = db.prepare(`
 ;
 
 const getLatestChatMessageStmt = db.prepare(`
-                    SELECT id, role, content
+                    SELECT id, role, content, retry_variants, retry_active_index, retry_retries_used, retry_prompt_message_id
                     FROM chat_messages
                     WHERE chat_id = ?
                     ORDER BY id DESC
@@ -506,7 +516,7 @@ const getLatestChatMessageStmt = db.prepare(`
 ;
 
 const getPreviousUserMessageStmt = db.prepare(`
-                    SELECT id, role, content
+                    SELECT id, role, content, retry_variants, retry_active_index, retry_retries_used, retry_prompt_message_id
                     FROM chat_messages
                     WHERE chat_id = ?
                       AND role = 'user'
@@ -519,6 +529,10 @@ const getPreviousUserMessageStmt = db.prepare(`
 
 const updateChatMessageStmt = db.prepare(
     "UPDATE chat_messages SET content = ? WHERE id = ? AND chat_id = ?"
+);
+
+const updateChatMessageWithRetryStateStmt = db.prepare(
+    "UPDATE chat_messages SET content = ?, retry_variants = ?, retry_active_index = ?, retry_retries_used = ?, retry_prompt_message_id = ? WHERE id = ? AND chat_id = ?"
 );
 
 const deleteChatMessageStmt = db.prepare(
@@ -810,7 +824,7 @@ if (legacyChatsExist && migrationNeeded.count === 0) {
         const sessionId = insertChatSessionStmt.run(username, "Imported chat", null, null).lastInsertRowid;
         const legacyMessages = getLegacyChatsStmt.all(username);
         legacyMessages.forEach(msg => {
-            insertChatMessageStmt.run(sessionId, msg.role, msg.content);
+            insertChatMessage(sessionId, msg.role, msg.content);
         });
     });
 }
@@ -857,6 +871,26 @@ if (!hasMarketExampleDialogues) {
     db.prepare("ALTER TABLE persona_market ADD COLUMN example_dialogues TEXT").run();
 }
 db.prepare("UPDATE persona_market SET usage_count = 0 WHERE usage_count IS NULL").run();
+
+const chatMessageColumns = db.prepare("PRAGMA table_info(chat_messages)").all();
+const hasRetryVariants = chatMessageColumns.some(column => column.name === "retry_variants");
+if (!hasRetryVariants) {
+    db.prepare("ALTER TABLE chat_messages ADD COLUMN retry_variants TEXT").run();
+}
+const hasRetryActiveIndex = chatMessageColumns.some(column => column.name === "retry_active_index");
+if (!hasRetryActiveIndex) {
+    db.prepare("ALTER TABLE chat_messages ADD COLUMN retry_active_index INTEGER DEFAULT 0").run();
+}
+const hasRetryRetriesUsed = chatMessageColumns.some(column => column.name === "retry_retries_used");
+if (!hasRetryRetriesUsed) {
+    db.prepare("ALTER TABLE chat_messages ADD COLUMN retry_retries_used INTEGER DEFAULT 0").run();
+}
+const hasRetryPromptMessageId = chatMessageColumns.some(column => column.name === "retry_prompt_message_id");
+if (!hasRetryPromptMessageId) {
+    db.prepare("ALTER TABLE chat_messages ADD COLUMN retry_prompt_message_id INTEGER").run();
+}
+db.prepare("UPDATE chat_messages SET retry_active_index = 0 WHERE retry_active_index IS NULL").run();
+db.prepare("UPDATE chat_messages SET retry_retries_used = 0 WHERE retry_retries_used IS NULL").run();
 
 const chatSessionColumns = db.prepare("PRAGMA table_info(chat_sessions)").all();
 const hasAssistantPersonaLink = chatSessionColumns.some(column => column.name === "assistant_persona_id");
@@ -1132,6 +1166,10 @@ const buildRoleplayDirectionPrompt = ({assistantPersona, userPersona, scenarioPr
         "Ground the interaction in a specific scenario, place, and immediate dramatic situation.",
         "Make the assistant's first instinct, language, and priorities fit their persona exactly.",
         "Use the user persona as interaction context so the assistant addresses them in a fitting way.",
+        "Format scene description, body language, and nonverbal actions in italics using *word*.",
+        "Format direct speech in double quotes like \"word\".",
+        "Format shouted words, sharp emphasis, or explosive expressions in bold using **word**.",
+        "Keep formatting readable and intentional instead of wrapping every sentence in markdown.",
         "Avoid generic openings, meta commentary, and requests for permission to begin.",
         "Do not write dialogue, internal thoughts, choices, or actions for the user.",
         "Never output any lines like 'User:' or 'You:' and never narrate what the user does.",
@@ -1166,6 +1204,9 @@ const buildRoleplayOpenerPrompt = ({assistantPersona, userPersona, scenarioPromp
         `Address ${userName} naturally within the scene.`,
         "The message should establish the situation immediately instead of explaining setup out of character.",
         "Use 1 to 3 short paragraphs. Sensory detail is allowed, but keep momentum.",
+        "Write scene description, body language, and nonverbal actions in italics using *word*.",
+        "Write direct speech in double quotes like \"word\".",
+        "Use bold markdown like **word** only for loud, forceful, or strongly emphasized expressions.",
         "Write only the assistant character's words and optional self-actions.",
         "Do not write any user dialogue, thoughts, feelings, choices, or actions.",
         "Do not use labels such as 'User:' or 'You:'.",
@@ -1219,6 +1260,139 @@ const generateRoleplayOpener = async ({selectedModel = "mistral:latest", assista
     ];
     opener = await generateModelReply(selectedModel, retryMessages);
     return opener;
+};
+
+const buildRetryPayload = async ({chatId, user, session, selectedModel, targetMessage}) => {
+    const activePersona = getAssistantPersonaForChatStmt.get(chatId, user);
+    const activeUserPersona = getUserPersonaForChatStmt.get(chatId, user) || getActiveUserPersonaStmt.get(user);
+    const sceneSummary = session.scenario_summary;
+    const scenarioPrompt = session.scenario_prompt;
+    const promptMessage = getPreviousUserMessageStmt.get(chatId, targetMessage.id);
+
+    if (!promptMessage) {
+        if (!activePersona || !sceneSummary) {
+            return {error: "No previous user prompt found for retry"};
+        }
+        const opener = await generateRoleplayOpener({
+            selectedModel,
+            assistantPersona: activePersona,
+            userPersona: activeUserPersona,
+            scenarioPrompt,
+            sceneSummary
+        });
+        if (!opener || containsUserVoiceInRoleplayOpener(opener, activeUserPersona)) {
+            return {error: "Failed to regenerate message"};
+        }
+        return {fullReply: opener, promptMessageId: null};
+    }
+
+    const conversation = getRecentChatMessagesUpToIdStmt.all(chatId, promptMessage.id).reverse();
+    const messagesPayload = [];
+    if (activePersona) {
+        messagesPayload.push({
+            role: "system",
+            content: buildPersonaPrompt(activePersona)
+        });
+    }
+    if (activeUserPersona) {
+        messagesPayload.push({
+            role: "system",
+            content: buildUserPersonaPrompt(activeUserPersona)
+        });
+    }
+    if (activePersona && sceneSummary) {
+        messagesPayload.push({
+            role: "system",
+            content: buildRoleplayDirectionPrompt({
+                assistantPersona: activePersona,
+                userPersona: activeUserPersona,
+                scenarioPrompt,
+                sceneSummary
+            })
+        });
+    }
+    messagesPayload.push(
+        ...conversation.map((m) => ({
+            role: m.role === "bot" ? "assistant" : "user",
+            content: m.content
+        }))
+    );
+
+    const fullReply = await generateModelReply(selectedModel, messagesPayload);
+    if (!fullReply) {
+        return {error: "Failed to regenerate message"};
+    }
+    return {fullReply, promptMessageId: promptMessage.id};
+};
+
+const parseRetryVariants = (rawValue, content) => {
+    if (!rawValue) return [content || ""];
+    try {
+        const parsed = JSON.parse(rawValue);
+        if (Array.isArray(parsed)) {
+            const normalized = parsed
+                .map(item => String(item || "").trim())
+                .filter(Boolean);
+            if (normalized.length) return normalized;
+        }
+    } catch {
+        // Ignore invalid stored retry history and fall back to current content.
+    }
+    return [content || ""];
+};
+
+const clampRetryActiveIndex = (index, variants) => {
+    const numeric = Number(index);
+    if (!Number.isInteger(numeric) || numeric < 0) return 0;
+    return Math.min(numeric, Math.max(0, variants.length - 1));
+};
+
+const formatChatMessage = (row) => {
+    if (!row) return null;
+    const retryVariants = parseRetryVariants(row.retry_variants, row.content);
+    const retryActiveIndex = clampRetryActiveIndex(row.retry_active_index, retryVariants);
+    return {
+        id: row.id,
+        role: row.role,
+        content: row.content,
+        retryVariants,
+        retryActiveIndex,
+        retryRetriesUsed: Number(row.retry_retries_used || 0),
+        retryPromptMessageId: row.retry_prompt_message_id ?? null
+    };
+};
+
+const persistChatMessageRetryState = ({chatId, messageId, content, retryVariants, retryActiveIndex, retryRetriesUsed, retryPromptMessageId}) => {
+    return updateChatMessageWithRetryStateStmt.run(
+        content,
+        JSON.stringify(retryVariants || [content || ""]),
+        clampRetryActiveIndex(retryActiveIndex, retryVariants || [content || ""]),
+        Number(retryRetriesUsed || 0),
+        retryPromptMessageId ?? null,
+        messageId,
+        chatId
+    );
+};
+
+const insertChatMessage = (chatId, role, content, retryState = null) => {
+    const normalizedContent = String(content || "");
+    const payload = retryState
+        ? {
+            retryVariants: Array.isArray(retryState.retryVariants) && retryState.retryVariants.length ? retryState.retryVariants : [normalizedContent],
+            retryActiveIndex: retryState.retryActiveIndex ?? 0,
+            retryRetriesUsed: retryState.retryRetriesUsed ?? 0,
+            retryPromptMessageId: retryState.retryPromptMessageId ?? null
+        }
+        : null;
+    return insertChatMessageStmt.run(
+        chatId,
+        role,
+        normalizedContent,
+        payload ? JSON.stringify(payload.retryVariants) : null,
+        payload ? clampRetryActiveIndex(payload.retryActiveIndex, payload.retryVariants) : 0,
+        payload ? Number(payload.retryRetriesUsed || 0) : 0,
+        payload ? payload.retryPromptMessageId : null
+    );
 };
 
 const getChatMessageByIndex = (chatId, index) => {
@@ -1385,7 +1559,7 @@ app.get("/chats/:id/messages", requireLogin, (req, res) => {
     if (!session) {
         return res.status(404).json({error: "Chat not found"});
     }
-    const messages = getChatMessagesStmt.all(chatId);
+    const messages = getChatMessagesStmt.all(chatId).map(formatChatMessage);
     res.json({messages, chat: session});
 });
 
@@ -1401,12 +1575,31 @@ app.put("/chats/:id/messages/:messageId", requireLogin, (req, res) => {
     if (!content) {
         return res.status(400).json({error: "Message content is required"});
     }
-    const result = updateChatMessageStmt.run(content, messageId, chatId);
-    if (result.changes === 0) {
+    const existingMessage = formatChatMessage(getChatMessageByIdStmt.get(messageId, chatId));
+    if (!existingMessage) {
         return res.status(404).json({error: "Message not found"});
     }
+    const requestedRetryActiveIndex = Number(req.body?.retryActiveIndex);
+    if (existingMessage.role === "bot") {
+        const retryVariants = [...existingMessage.retryVariants];
+        const nextActiveIndex = Number.isInteger(requestedRetryActiveIndex)
+            ? clampRetryActiveIndex(requestedRetryActiveIndex, retryVariants)
+            : existingMessage.retryActiveIndex;
+        retryVariants[nextActiveIndex] = content;
+        persistChatMessageRetryState({
+            chatId,
+            messageId,
+            content,
+            retryVariants,
+            retryActiveIndex: nextActiveIndex,
+            retryRetriesUsed: existingMessage.retryRetriesUsed,
+            retryPromptMessageId: existingMessage.retryPromptMessageId
+        });
+    } else {
+        updateChatMessageStmt.run(content, messageId, chatId);
+    }
     touchChatSessionStmt.run(chatId, user);
-    const message = getChatMessageByIdStmt.get(messageId, chatId);
+    const message = formatChatMessage(getChatMessageByIdStmt.get(messageId, chatId));
     res.json({message});
 });
 
@@ -1425,9 +1618,31 @@ app.put("/chats/:id/messages/by-index/:index", requireLogin, (req, res) => {
     if (!target) {
         return res.status(404).json({error: "Message not found"});
     }
-    updateChatMessageStmt.run(content, target.id, chatId);
+    const existingMessage = formatChatMessage(getChatMessageByIdStmt.get(target.id, chatId));
+    if (!existingMessage) {
+        return res.status(404).json({error: "Message not found"});
+    }
+    const requestedRetryActiveIndex = Number(req.body?.retryActiveIndex);
+    if (existingMessage.role === "bot") {
+        const retryVariants = [...existingMessage.retryVariants];
+        const nextActiveIndex = Number.isInteger(requestedRetryActiveIndex)
+            ? clampRetryActiveIndex(requestedRetryActiveIndex, retryVariants)
+            : existingMessage.retryActiveIndex;
+        retryVariants[nextActiveIndex] = content;
+        persistChatMessageRetryState({
+            chatId,
+            messageId: target.id,
+            content,
+            retryVariants,
+            retryActiveIndex: nextActiveIndex,
+            retryRetriesUsed: existingMessage.retryRetriesUsed,
+            retryPromptMessageId: existingMessage.retryPromptMessageId
+        });
+    } else {
+        updateChatMessageStmt.run(content, target.id, chatId);
+    }
     touchChatSessionStmt.run(chatId, user);
-    const message = getChatMessageByIdStmt.get(target.id, chatId);
+    const message = formatChatMessage(getChatMessageByIdStmt.get(target.id, chatId));
     res.json({message});
 });
 
@@ -1769,7 +1984,12 @@ app.post("/personas/market/:id/chat", requireLogin, async (req, res) => {
         if (!opener || containsUserVoiceInRoleplayOpener(opener, userPersona)) {
             return res.json({persona, chat, existing: false, generatedInitialMessage: false});
         }
-        insertChatMessageStmt.run(chat.id, "bot", opener);
+        insertChatMessage(chat.id, "bot", opener, {
+            retryVariants: [opener],
+            retryActiveIndex: 0,
+            retryRetriesUsed: 0,
+            retryPromptMessageId: null
+        });
         touchChatSessionStmt.run(chat.id, user);
         return res.json({persona, chat: getChatSessionStmt.get(chat.id, user), existing: false, generatedInitialMessage: true, opener});
     } catch {
@@ -1830,7 +2050,12 @@ app.post("/roleplays/start", requireLogin, async (req, res) => {
         if (!opener || containsUserVoiceInRoleplayOpener(opener, userPersona)) {
             return res.status(500).json({error: "Failed to generate the character opener"});
         }
-        insertChatMessageStmt.run(chat.id, "bot", opener);
+        insertChatMessage(chat.id, "bot", opener, {
+            retryVariants: [opener],
+            retryActiveIndex: 0,
+            retryRetriesUsed: 0,
+            retryPromptMessageId: null
+        });
         touchChatSessionStmt.run(chat.id, user);
         return res.json({chat: getChatSessionStmt.get(chat.id, user), existing: false, generatedInitialMessage: true, opener});
     } catch {
@@ -1861,7 +2086,7 @@ app.post("/chat", requireLogin, async (req, res) => {
         const history = getRecentChatMessagesStmt.all(targetChatId);
         const conversation = [...history].reverse();
         conversation.push({role: "user", content: message});
-        insertChatMessageStmt.run(targetChatId, "user", message);
+        insertChatMessage(targetChatId, "user", message);
         touchChatSessionStmt.run(targetChatId, user);
         const messagesPayload = [];
         if (activePersona) {
@@ -1894,7 +2119,12 @@ app.post("/chat", requireLogin, async (req, res) => {
             }))
         );
         const fullReply = await generateModelReply(selectedModel, messagesPayload);
-        insertChatMessageStmt.run(targetChatId, "bot", fullReply);
+        insertChatMessage(targetChatId, "bot", fullReply, {
+            retryVariants: [fullReply],
+            retryActiveIndex: 0,
+            retryRetriesUsed: 0,
+            retryPromptMessageId: null
+        });
         touchChatSessionStmt.run(targetChatId, user);
         console.log("Reply length:", fullReply.length);
         res.json({reply: fullReply});
@@ -1922,55 +2152,27 @@ app.post("/chats/:id/messages/:messageId/retry", requireLogin, async (req, res) 
     if (!latestMessage || latestMessage.id !== messageId || latestMessage.role !== "bot") {
         return res.status(400).json({error: "Only the newest assistant message can be retried"});
     }
-    const promptMessage = getPreviousUserMessageStmt.get(chatId, messageId);
-    if (!promptMessage) {
-        return res.status(400).json({error: "No previous user prompt found for retry"});
-    }
-
     try {
-        const activePersona = getAssistantPersonaForChatStmt.get(chatId, user);
-        const activeUserPersona = getUserPersonaForChatStmt.get(chatId, user) || getActiveUserPersonaStmt.get(user);
-        const sceneSummary = session.scenario_summary;
-        const scenarioPrompt = session.scenario_prompt;
-        const conversation = getRecentChatMessagesUpToIdStmt.all(chatId, promptMessage.id).reverse();
-        const messagesPayload = [];
-        if (activePersona) {
-            messagesPayload.push({
-                role: "system",
-                content: buildPersonaPrompt(activePersona)
-            });
+        const retryResult = await buildRetryPayload({chatId, user, session, selectedModel, targetMessage});
+        if (retryResult.error) {
+            return res.status(400).json({error: retryResult.error});
         }
-        if (activeUserPersona) {
-            messagesPayload.push({
-                role: "system",
-                content: buildUserPersonaPrompt(activeUserPersona)
-            });
-        }
-        if (activePersona && sceneSummary) {
-            messagesPayload.push({
-                role: "system",
-                content: buildRoleplayDirectionPrompt({
-                    assistantPersona: activePersona,
-                    userPersona: activeUserPersona,
-                    scenarioPrompt,
-                    sceneSummary
-                })
-            });
-        }
-        messagesPayload.push(
-            ...conversation.map((m) => ({
-                role: m.role === "bot" ? "assistant" : "user",
-                content: m.content
-            }))
-        );
-
-        const fullReply = await generateModelReply(selectedModel, messagesPayload);
-        if (!fullReply) {
-            return res.status(500).json({error: "Failed to regenerate message"});
-        }
-        updateChatMessageStmt.run(fullReply, messageId, chatId);
+        const {fullReply, promptMessageId} = retryResult;
+        const existingMessage = formatChatMessage(targetMessage);
+        const retryVariants = [...existingMessage.retryVariants, fullReply];
+        const retryActiveIndex = retryVariants.length - 1;
+        const retryRetriesUsed = existingMessage.retryRetriesUsed + 1;
+        persistChatMessageRetryState({
+            chatId,
+            messageId,
+            content: fullReply,
+            retryVariants,
+            retryActiveIndex,
+            retryRetriesUsed,
+            retryPromptMessageId: promptMessageId
+        });
         touchChatSessionStmt.run(chatId, user);
-        return res.json({message: {id: messageId, role: "bot", content: fullReply}, promptMessageId: promptMessage.id});
+        return res.json({message: formatChatMessage(getChatMessageByIdStmt.get(messageId, chatId)), promptMessageId});
     } catch (err) {
         console.error("Retry error:", err);
         return res.status(500).json({error: "Failed to regenerate message"});
@@ -1994,55 +2196,27 @@ app.post("/chats/:id/messages/by-index/:index/retry", requireLogin, async (req, 
     if (!latestMessage || latestMessage.id !== targetMessage.id || latestMessage.role !== "bot") {
         return res.status(400).json({error: "Only the newest assistant message can be retried"});
     }
-    const promptMessage = getPreviousUserMessageStmt.get(chatId, targetMessage.id);
-    if (!promptMessage) {
-        return res.status(400).json({error: "No previous user prompt found for retry"});
-    }
-
     try {
-        const activePersona = getAssistantPersonaForChatStmt.get(chatId, user);
-        const activeUserPersona = getUserPersonaForChatStmt.get(chatId, user) || getActiveUserPersonaStmt.get(user);
-        const sceneSummary = session.scenario_summary;
-        const scenarioPrompt = session.scenario_prompt;
-        const conversation = getRecentChatMessagesUpToIdStmt.all(chatId, promptMessage.id).reverse();
-        const messagesPayload = [];
-        if (activePersona) {
-            messagesPayload.push({
-                role: "system",
-                content: buildPersonaPrompt(activePersona)
-            });
+        const retryResult = await buildRetryPayload({chatId, user, session, selectedModel, targetMessage});
+        if (retryResult.error) {
+            return res.status(400).json({error: retryResult.error});
         }
-        if (activeUserPersona) {
-            messagesPayload.push({
-                role: "system",
-                content: buildUserPersonaPrompt(activeUserPersona)
-            });
-        }
-        if (activePersona && sceneSummary) {
-            messagesPayload.push({
-                role: "system",
-                content: buildRoleplayDirectionPrompt({
-                    assistantPersona: activePersona,
-                    userPersona: activeUserPersona,
-                    scenarioPrompt,
-                    sceneSummary
-                })
-            });
-        }
-        messagesPayload.push(
-            ...conversation.map((m) => ({
-                role: m.role === "bot" ? "assistant" : "user",
-                content: m.content
-            }))
-        );
-
-        const fullReply = await generateModelReply(selectedModel, messagesPayload);
-        if (!fullReply) {
-            return res.status(500).json({error: "Failed to regenerate message"});
-        }
-        updateChatMessageStmt.run(fullReply, targetMessage.id, chatId);
+        const {fullReply, promptMessageId} = retryResult;
+        const existingMessage = formatChatMessage(targetMessage);
+        const retryVariants = [...existingMessage.retryVariants, fullReply];
+        const retryActiveIndex = retryVariants.length - 1;
+        const retryRetriesUsed = existingMessage.retryRetriesUsed + 1;
+        persistChatMessageRetryState({
+            chatId,
+            messageId: targetMessage.id,
+            content: fullReply,
+            retryVariants,
+            retryActiveIndex,
+            retryRetriesUsed,
+            retryPromptMessageId: promptMessageId
+        });
         touchChatSessionStmt.run(chatId, user);
-        return res.json({message: {id: targetMessage.id, role: "bot", content: fullReply}, promptMessageId: promptMessage.id});
+        return res.json({message: formatChatMessage(getChatMessageByIdStmt.get(targetMessage.id, chatId)), promptMessageId});
     } catch (err) {
         console.error("Retry error:", err);
         return res.status(500).json({error: "Failed to regenerate message"});

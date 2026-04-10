@@ -13,6 +13,7 @@ const startRoleplayBtn = $("startRoleplay");
 const chatListLoading = $("chatListLoading"), chatListLoadingText = $("chatListLoadingText");
 const renameChatBtn = $("renameChat"), clearChatBtn = $("clearChat"), exportChatBtn = $("exportChat");
 const activeChatTitle = $("activeChatTitle"), sessionUser = $("sessionUser");
+const chatActivityOverlay = $("chatActivityOverlay"), chatActivityEyebrow = $("chatActivityEyebrow"), chatActivityTitle = $("chatActivityTitle"), chatActivityDetail = $("chatActivityDetail");
 const contextChipButton = $("contextChipButton"), contextPopover = $("contextPopover"), contextSummaryLabel = $("contextSummaryLabel");
 const chatActionsMenuButton = $("chatActionsMenuButton"), chatActionsPopover = $("chatActionsPopover");
 const chatModePill = $("chatModePill"), chatCharacterPill = $("chatCharacterPill"), chatUserPersonaPill = $("chatUserPersonaPill"), chatScenePill = $("chatScenePill");
@@ -48,6 +49,7 @@ let noticeTimer = null;
 let workspaceMode = localStorage.getItem("krishd-workspace-mode") || "basic";
 let onboardingStep = 1, onboardingIntent = "ask";
 let chatLoadingDepth = 0;
+let chatActivityDepth = 0;
 let messageRetryState = new Map();
 
 const onboardingPrompts = {
@@ -128,6 +130,25 @@ function setChatLoading(active, message = "Loading chats...") {
     if (chatLoadingDepth === 0) {
         chatListLoading.classList.add("hidden");
         chatListLoadingText.textContent = "Loading chats...";
+    }
+}
+
+function setChatActivity(active, {eyebrow = "Please wait", title = "Preparing chat", detail = "The assistant is still working."} = {}) {
+    if (!chatActivityOverlay || !chatActivityEyebrow || !chatActivityTitle || !chatActivityDetail) return;
+    if (active) {
+        chatActivityDepth += 1;
+        chatActivityEyebrow.textContent = eyebrow;
+        chatActivityTitle.textContent = title;
+        chatActivityDetail.textContent = detail;
+        chatActivityOverlay.classList.remove("hidden");
+        return;
+    }
+    chatActivityDepth = Math.max(0, chatActivityDepth - 1);
+    if (chatActivityDepth === 0) {
+        chatActivityOverlay.classList.add("hidden");
+        chatActivityEyebrow.textContent = "Please wait";
+        chatActivityTitle.textContent = "Preparing chat";
+        chatActivityDetail.textContent = "The assistant is still working.";
     }
 }
 
@@ -351,17 +372,34 @@ function getPreviousUserMessageId(messageId) {
     return null;
 }
 
+function getRetryStateFromMessage(message) {
+    const variants = Array.isArray(message?.retryVariants) && message.retryVariants.length
+        ? [...message.retryVariants]
+        : [message?.content || ""];
+    const requestedActiveIndex = Number(message?.retryActiveIndex);
+    const activeIndex = Number.isInteger(requestedActiveIndex)
+        ? Math.min(Math.max(requestedActiveIndex, 0), variants.length - 1)
+        : 0;
+    return {
+        variants,
+        activeIndex,
+        retriesUsed: Number(message?.retryRetriesUsed || 0),
+        promptMessageId: message?.retryPromptMessageId ?? getPreviousUserMessageId(message?.id)
+    };
+}
+
+function syncRetryStateFromMessage(message) {
+    if (!message?.id) return null;
+    const state = getRetryStateFromMessage(message);
+    messageRetryState.set(message.id, state);
+    return state;
+}
+
 function ensureRetryState(message) {
     if (!message?.id) return null;
     let state = messageRetryState.get(message.id);
     if (!state) {
-        state = {
-            variants: [message.content || ""],
-            activeIndex: 0,
-            retriesUsed: 0,
-            promptMessageId: getPreviousUserMessageId(message.id)
-        };
-        messageRetryState.set(message.id, state);
+        state = syncRetryStateFromMessage(message);
     }
     return state;
 }
@@ -386,12 +424,8 @@ async function editChatMessage(messageId, fallbackIndex = -1) {
     if (res.error || !res.message) {
         return setNotice(res.error || "Unable to edit message.", "error");
     }
-    currentMessages[index].id = res.message.id || currentMessages[index].id;
-    currentMessages[index].content = res.message.content;
-    const retryState = message.id ? messageRetryState.get(message.id) : null;
-    if (retryState) {
-        retryState.variants[retryState.activeIndex] = res.message.content;
-    }
+    currentMessages[index] = {...currentMessages[index], ...res.message};
+    syncRetryStateFromMessage(currentMessages[index]);
     renderMessages();
     setNotice("Message updated.", "success");
 }
@@ -438,7 +472,11 @@ async function retryLatestAssistantMessage(messageId, fallbackIndex = -1) {
     if (!state || state.retriesUsed >= 5) {
         return setNotice("Retry limit reached (5).", "error");
     }
-    setLoadingState(true);
+    setLoadingState(true, {
+        eyebrow: "Regenerating",
+        title: "Generating another version",
+        detail: "The assistant is rewriting the latest reply."
+    });
     setNotice("Regenerating reply...");
     try {
         const endpoint = getMessageEndpoint(target, "/retry");
@@ -447,19 +485,16 @@ async function retryLatestAssistantMessage(messageId, fallbackIndex = -1) {
         if (res.error || !res.message?.content) {
             return setNotice(res.error || "Unable to retry message.", "error");
         }
-        state.retriesUsed += 1;
-        state.promptMessageId = res.promptMessageId || state.promptMessageId;
-        state.variants.push(res.message.content);
-        state.activeIndex = state.variants.length - 1;
         const updateIndex = target.message?.id ? getMessageIndexById(target.message.id) : target.index;
         if (updateIndex >= 0) {
-            currentMessages[updateIndex].id = res.message.id || currentMessages[updateIndex].id;
-            currentMessages[updateIndex].content = res.message.content;
+            currentMessages[updateIndex] = {...currentMessages[updateIndex], ...res.message};
+            syncRetryStateFromMessage(currentMessages[updateIndex]);
         }
-        renderMessages();
-        setNotice(`Reply regenerated (${state.retriesUsed}/5).`, "success");
+        const nextState = res.message?.id ? messageRetryState.get(res.message.id) : state;
+        setNotice(`Reply regenerated (${nextState?.retriesUsed || state.retriesUsed}/5).`, "success");
     } finally {
         setLoadingState(false);
+        renderMessages();
     }
 }
 
@@ -478,15 +513,14 @@ async function switchRetryVariant(messageId, direction, fallbackIndex = -1) {
     const targetContent = state.variants[nextIndex];
     const endpoint = getMessageEndpoint(target);
     if (!endpoint) return setNotice("Message is not ready yet. Try again.", "error");
-    const res = await put(endpoint, {content: targetContent});
+    const res = await put(endpoint, {content: targetContent, retryActiveIndex: nextIndex});
     if (res.error || !res.message) {
         return setNotice(res.error || "Unable to switch variant.", "error");
     }
-    state.activeIndex = nextIndex;
     const updateIndex = target.message?.id ? getMessageIndexById(target.message.id) : target.index;
     if (updateIndex >= 0) {
-        currentMessages[updateIndex].id = res.message.id || currentMessages[updateIndex].id;
-        currentMessages[updateIndex].content = res.message.content;
+        currentMessages[updateIndex] = {...currentMessages[updateIndex], ...res.message};
+        syncRetryStateFromMessage(currentMessages[updateIndex]);
     }
     renderMessages();
 }
@@ -1135,13 +1169,15 @@ async function deletePersona(id) {
 async function publishPersona(id) { const res = await post(`/personas/${id}/publish`, {}); if (res.error) return setNotice(res.error, "error"); await loadPersonas(); setNotice("Persona published.", "success"); }
 async function unpublishPersona(id) { const res = await post(`/personas/${id}/unpublish`, {}); if (res.error) return setNotice(res.error, "error"); await loadPersonas(); setNotice("Persona unpublished.", "success"); }
 
-function setLoadingState(loading) {
+function setLoadingState(loading, overlayOptions = null) {
     isProcessing = loading;
     msgInput.disabled = loading;
     sendBtn.classList.toggle("loading", loading);
     if (loading) {
         msgInput.placeholder = "Processing response...";
+        setChatActivity(true, overlayOptions || undefined);
     } else {
+        setChatActivity(false);
         updateComposerPlaceholder();
     }
     updateSendState();
@@ -1155,12 +1191,18 @@ function showAuthScreen(target) {
 
 async function setActiveChat(id) {
     setChatLoading(true, "Opening chat...");
+    setChatActivity(true, {
+        eyebrow: "Opening chat",
+        title: "Loading conversation",
+        detail: "Fetching messages and restoring the current scene."
+    });
     activeChatId = id;
     messageRetryState = new Map();
     updateWorkspaceCopy(); renderChatList(); updateChatActionState();
     const res = await get(`/chats/${id}/messages`);
     if (res.error) {
         setChatLoading(false);
+        setChatActivity(false);
         return setNotice(res.error, "error");
     }
     const existing = getChatById(id);
@@ -1168,6 +1210,7 @@ async function setActiveChat(id) {
     currentMessages = res.messages || []; renderMessages();
     updateSendState();
     setChatLoading(false);
+    setChatActivity(false);
 }
 
 async function loadChatSessions() {
@@ -1194,23 +1237,36 @@ async function loadChatSessions() {
 
 async function createNewChat() {
     setChatLoading(true, "Creating chat...");
+    setChatActivity(true, {
+        eyebrow: "Creating chat",
+        title: "Opening a new conversation",
+        detail: "Setting up a fresh chat so you can start sending messages."
+    });
     const res = await post("/chats", {title: "New chat"});
     if (res.error || !res.chat) {
         setChatLoading(false);
+        setChatActivity(false);
         return setNotice(res.error || "Unable to create chat.", "error");
     }
     chatSessions.unshift(res.chat); await loadSummary(); renderChatList(); await setActiveChat(res.chat.id); setNotice("New chat created.", "success");
     msgInput.focus();
     setChatLoading(false);
+    setChatActivity(false);
 }
 
 async function startRoleplay() {
     setChatLoading(true, "Starting roleplay...");
+    setChatActivity(true, {
+        eyebrow: "Starting roleplay",
+        title: "Building the opening scene",
+        detail: "Generating the first beat and opening the roleplay chat."
+    });
     const assistantPersonaId = Number(roleplayCharacterSelect.value);
     const userPersonaId = roleplayUserPersonaSelect.value ? Number(roleplayUserPersonaSelect.value) : null;
     const scenarioPrompt = roleplayScenarioInput?.value.trim() || "";
     if (!assistantPersonaId) {
         setChatLoading(false);
+        setChatActivity(false);
         return setRoleplayStarterNotice("Choose a character to start the roleplay.", "error");
     }
     roleplayStarterConfirm.disabled = true;
@@ -1224,6 +1280,7 @@ async function startRoleplay() {
     roleplayStarterConfirm.disabled = false;
     if (res.error || !res.chat) {
         setChatLoading(false);
+        setChatActivity(false);
         return setRoleplayStarterNotice(res.error || "Unable to start roleplay.", "error");
     }
     closeRoleplayStarter();
@@ -1231,6 +1288,7 @@ async function startRoleplay() {
     await setActiveChat(res.chat.id);
     setNotice(res.generatedInitialMessage ? "Roleplay started with a fresh scene." : "Roleplay reopened.", "success");
     setChatLoading(false);
+    setChatActivity(false);
 }
 
 async function renameChat(id) {
@@ -1366,7 +1424,11 @@ async function sendMessage() {
         currentChat.title = autoTitle; updateWorkspaceCopy(); renderChatList(); await put(`/chats/${activeChatId}`, {title: autoTitle});
     }
     currentMessages.push({role: "user", content: message}); addMessage(message, true); updateChatActionState();
-    msgInput.value = ""; msgInput.style.height = "auto"; setLoadingState(true); setNotice("Generating reply...");
+    msgInput.value = ""; msgInput.style.height = "auto"; setLoadingState(true, {
+        eyebrow: "Assistant replying",
+        title: "Generating response",
+        detail: "The assistant is reading your message and preparing a reply."
+    }); setNotice("Generating reply...");
     const loadingMsg = addMessage("", false, true);
     try {
         const res = await post("/chat", {message, model: modelSelect.value, chatId: activeChatId});

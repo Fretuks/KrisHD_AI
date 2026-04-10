@@ -211,6 +211,19 @@
                     </div>
                 </header>
 
+                <div id="chatActivityOverlay" class="chat-activity-overlay hidden" role="status" aria-live="polite" aria-atomic="true">
+                    <div class="chat-activity-card">
+                        <div class="chat-activity-mark" aria-hidden="true">
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                        </div>
+                        <p id="chatActivityEyebrow" class="eyebrow">Please wait</p>
+                        <h3 id="chatActivityTitle">Preparing chat</h3>
+                        <p id="chatActivityDetail" class="subtitle">The assistant is still working.</p>
+                    </div>
+                </div>
+
                 <div id="messages" class="messages-panel messages-panel-focus"></div>
 
                 <div class="input-shell input-shell-focus">

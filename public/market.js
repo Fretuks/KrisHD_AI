@@ -33,6 +33,10 @@ const marketPersonaAppearance = $("marketPersonaAppearance");
 const marketPersonaBackground = $("marketPersonaBackground");
 const marketPersonaDetails = $("marketPersonaDetails");
 const marketPersonaExampleDialogues = $("marketPersonaExampleDialogues");
+const marketActivityOverlay = $("marketActivityOverlay");
+const marketActivityEyebrow = $("marketActivityEyebrow");
+const marketActivityTitle = $("marketActivityTitle");
+const marketActivityDetail = $("marketActivityDetail");
 const themeNameTargets = document.querySelectorAll("[data-theme-name]");
 
 const themes = {
@@ -51,6 +55,7 @@ let pendingMarketPersona = null;
 let editingPersonaId = null;
 let activeUserPersonaId = null;
 let activeMarketView = "ai-characters";
+let marketActivityDepth = 0;
 
 async function request(url, data, method = "POST") {
     try {
@@ -91,6 +96,29 @@ function setPersonaFormNotice(message = "", state = "") {
     }
     marketPersonaFormNotice.textContent = message;
     marketPersonaFormNotice.className = state ? `status ${state}` : "status";
+}
+
+function setMarketActivity(active, {
+    eyebrow = "Please wait",
+    title = "Opening roleplay",
+    detail = "The AI character is preparing the first message."
+} = {}) {
+    if (!marketActivityOverlay || !marketActivityEyebrow || !marketActivityTitle || !marketActivityDetail) return;
+    if (active) {
+        marketActivityDepth += 1;
+        marketActivityEyebrow.textContent = eyebrow;
+        marketActivityTitle.textContent = title;
+        marketActivityDetail.textContent = detail;
+        marketActivityOverlay.classList.remove("hidden");
+        return;
+    }
+    marketActivityDepth = Math.max(0, marketActivityDepth - 1);
+    if (marketActivityDepth === 0) {
+        marketActivityOverlay.classList.add("hidden");
+        marketActivityEyebrow.textContent = "Please wait";
+        marketActivityTitle.textContent = "Opening roleplay";
+        marketActivityDetail.textContent = "The AI character is preparing the first message.";
+    }
 }
 
 function setMarketView(view) {
@@ -352,12 +380,18 @@ async function startMarketPersonaChat(marketId, userPersonaSelection, scenarioPr
     }
 
     setMarketStatus("Starting AI Character chat...");
+    setMarketActivity(true, {
+        eyebrow: "Starting roleplay",
+        title: "Opening AI Character chat",
+        detail: "Generating the initial message and preparing the chat window."
+    });
     const userPersonaId = userPersonaSelection === "self" ? null : Number(userPersonaSelection);
     const res = await post(`/personas/market/${marketId}/chat`, {
         userPersonaId,
         scenarioPrompt: scenarioPrompt.trim()
     });
     if (res.error || !res.chat) {
+        setMarketActivity(false);
         setMarketStatus(res.error || "Unable to start chat.", "error");
         return;
     }
