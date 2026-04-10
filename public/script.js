@@ -28,6 +28,8 @@ const activePersonaStatus = $("activePersonaStatus"), activeUserPersonaStatus = 
 const personaModal = $("personaModal"), personaCloseBtn = $("personaClose"), personaMenuButton = $("personaMenuButton"), personaPopover = $("personaPopover");
 const roleplayStarterModal = $("roleplayStarterModal"), roleplayStarterClose = $("roleplayStarterClose"), roleplayStarterCancel = $("roleplayStarterCancel"), roleplayStarterConfirm = $("roleplayStarterConfirm");
 const roleplayStarterNotice = $("roleplayStarterNotice"), roleplayCharacterSelect = $("roleplayCharacterSelect"), roleplayUserPersonaSelect = $("roleplayUserPersonaSelect");
+const roleplayStarterTitle = $("roleplayStarterTitle"), roleplayStarterIntroCopy = $("roleplayStarterIntroCopy"), roleplayStarterBack = $("roleplayStarterBack");
+const roleplayStarterStepOne = $("roleplayStarterStepOne"), roleplayStarterStepTwo = $("roleplayStarterStepTwo");
 const roleplayScenarioInput = $("roleplayScenarioInput"), roleplayStarterSuggestions = $("roleplayStarterSuggestions");
 const popupModal = $("popupModal"), popupCloseBtn = $("popupClose"), popupCancelBtn = $("popupCancel"), popupConfirmBtn = $("popupConfirm");
 const popupTitle = $("popupTitle"), popupEyebrow = $("popupEyebrow"), popupDescription = $("popupDescription"), popupField = $("popupField");
@@ -45,6 +47,7 @@ let chatSessions = [], currentMessages = [], assistantPersonas = [], userPersona
 let activeUserPersonaId = null, currentSummary = null, publishedPersonaIds = new Set();
 let popupResolver = null, popupMode = null, popupLastFocus = null;
 let roleplayPresetCharacterId = null;
+let roleplayStarterStep = 1;
 let noticeTimer = null;
 let workspaceMode = localStorage.getItem("krishd-workspace-mode") || "basic";
 let onboardingStep = 1, onboardingIntent = "ask";
@@ -721,6 +724,27 @@ function setRoleplayStarterNotice(message = "", state = "") {
     roleplayStarterNotice.className = state ? `status ${state}` : "status";
 }
 
+function renderRoleplayStarterStep() {
+    const isSceneStep = roleplayStarterStep === 2;
+    if (roleplayStarterStepOne) roleplayStarterStepOne.classList.toggle("hidden", isSceneStep);
+    if (roleplayStarterStepTwo) roleplayStarterStepTwo.classList.toggle("hidden", !isSceneStep);
+    if (roleplayStarterBack) roleplayStarterBack.classList.toggle("hidden", !isSceneStep);
+    if (roleplayStarterTitle) {
+        roleplayStarterTitle.textContent = isSceneStep ? "Shape the opening scene" : "Choose your roleplay";
+    }
+    if (roleplayStarterIntroCopy) {
+        roleplayStarterIntroCopy.textContent = isSceneStep
+            ? "Add an optional custom scenario. If you leave it empty, the AI Character will invent its own opening scene."
+            : "Pick a character and choose who you are before moving on to the opening scene.";
+    }
+    if (roleplayStarterCancel) {
+        roleplayStarterCancel.textContent = isSceneStep ? "Close" : "Cancel";
+    }
+    if (roleplayStarterConfirm) {
+        roleplayStarterConfirm.textContent = isSceneStep ? "Start roleplay" : "Continue";
+    }
+}
+
 function updateChatParticipants() {
     const chat = getChatById(activeChatId);
     if (!chatModePill || !chatCharacterPill || !chatUserPersonaPill || !chatScenePill) return;
@@ -977,10 +1001,12 @@ function populateRoleplayStarter() {
         roleplayStarterConfirm.disabled = false;
     }
     updateRoleplaySuggestions();
+    renderRoleplayStarterStep();
 }
 function openRoleplayStarter(characterId = null) {
     closeAuxiliaryPopovers();
     roleplayPresetCharacterId = characterId;
+    roleplayStarterStep = 1;
     populateRoleplayStarter();
     if (roleplayScenarioInput) roleplayScenarioInput.value = "";
     setRoleplayStarterNotice("");
@@ -991,9 +1017,24 @@ function closeRoleplayStarter() {
     if (!roleplayStarterModal) return;
     roleplayStarterModal.classList.add("hidden");
     roleplayPresetCharacterId = null;
+    roleplayStarterStep = 1;
     roleplayStarterConfirm.disabled = false;
     if (roleplayScenarioInput) roleplayScenarioInput.value = "";
     setRoleplayStarterNotice("");
+    renderRoleplayStarterStep();
+}
+
+function goToRoleplayStarterSceneStep() {
+    if (!assistantPersonas.length) {
+        return setRoleplayStarterNotice("Create an AI Character first, then start roleplay.", "error");
+    }
+    if (!roleplayCharacterSelect.value) {
+        return setRoleplayStarterNotice("Choose a character to continue.", "error");
+    }
+    roleplayStarterStep = 2;
+    setRoleplayStarterNotice("");
+    renderRoleplayStarterStep();
+    if (roleplayScenarioInput) roleplayScenarioInput.focus();
 }
 function closeModelPopover() {
     if (!modelPopover || !modelMenuButton) return;
@@ -1255,6 +1296,10 @@ async function createNewChat() {
 }
 
 async function startRoleplay() {
+    if (roleplayStarterStep === 1) {
+        goToRoleplayStarterSceneStep();
+        return;
+    }
     setChatLoading(true, "Starting roleplay...");
     setChatActivity(true, {
         eyebrow: "Starting roleplay",
@@ -1378,9 +1423,14 @@ async function displayModels() {
         return setNotice("Models could not be loaded.", "error");
     }
     modelSelect.innerHTML = "";
+    const preferredModelId = "mistral:latest";
+    const preferredIndex = models.findIndex((model) => model.model === preferredModelId);
     models.forEach((model, index) => {
         const option = document.createElement("option");
-        option.value = model.model; option.textContent = model.name; option.selected = index === 0; modelSelect.appendChild(option);
+        option.value = model.model;
+        option.textContent = model.name;
+        option.selected = preferredIndex >= 0 ? index === preferredIndex : index === 0;
+        modelSelect.appendChild(option);
     });
     updateModelHelp();
     updateContextRail();
@@ -1531,6 +1581,14 @@ personaTypeSelect.addEventListener("change", () => {
 personaModal.addEventListener("click", (event) => { if (event.target === personaModal) closePersonaForm(); });
 roleplayStarterClose.addEventListener("click", closeRoleplayStarter);
 roleplayStarterCancel.addEventListener("click", closeRoleplayStarter);
+if (roleplayStarterBack) {
+    roleplayStarterBack.addEventListener("click", () => {
+        roleplayStarterStep = 1;
+        setRoleplayStarterNotice("");
+        renderRoleplayStarterStep();
+        roleplayCharacterSelect.focus();
+    });
+}
 roleplayStarterConfirm.addEventListener("click", () => { void startRoleplay(); });
 roleplayCharacterSelect.addEventListener("change", updateRoleplaySuggestions);
 roleplayUserPersonaSelect.addEventListener("change", updateRoleplaySuggestions);

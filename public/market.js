@@ -16,10 +16,14 @@ const marketPreviewAppearance = $("marketPreviewAppearance");
 const marketPreviewBackground = $("marketPreviewBackground");
 const marketPreviewDetails = $("marketPreviewDetails");
 const marketPreviewExampleDialogues = $("marketPreviewExampleDialogues");
+const marketPreviewIntro = $("marketPreviewIntro");
 const marketPreviewUserPersonaField = $("marketPreviewUserPersonaField");
 const marketPreviewUserPersonaSelect = $("marketPreviewUserPersonaSelect");
 const marketPreviewScenarioField = $("marketPreviewScenarioField");
 const marketPreviewScenario = $("marketPreviewScenario");
+const marketPreviewStepOne = $("marketPreviewStepOne");
+const marketPreviewStepTwo = $("marketPreviewStepTwo");
+const marketPreviewBack = $("marketPreviewBack");
 const marketPreviewConfirm = $("marketPreviewConfirm");
 const marketPreviewClose = $("marketPreviewClose");
 const marketPersonaModal = $("marketPersonaModal");
@@ -56,6 +60,7 @@ let editingPersonaId = null;
 let activeUserPersonaId = null;
 let activeMarketView = "ai-characters";
 let marketActivityDepth = 0;
+let marketPreviewStep = 1;
 
 async function request(url, data, method = "POST") {
     try {
@@ -179,8 +184,30 @@ function setCollapsiblePreviewText(element, value, maxLength = 220) {
 function closeMarketPreview() {
     marketPreviewModal.classList.add("hidden");
     pendingMarketPersona = null;
+    marketPreviewStep = 1;
     marketPreviewUserPersonaSelect.innerHTML = "";
     marketPreviewScenario.value = "";
+}
+
+function renderMarketPreviewStep() {
+    const isScenarioStep = marketPreviewStep === 2;
+    if (marketPreviewStepOne) marketPreviewStepOne.classList.toggle("hidden", isScenarioStep || pendingMarketPersona?.persona_type !== "assistant");
+    if (marketPreviewStepTwo) marketPreviewStepTwo.classList.toggle("hidden", !isScenarioStep || pendingMarketPersona?.persona_type !== "assistant");
+    if (marketPreviewBack) marketPreviewBack.classList.toggle("hidden", !isScenarioStep || pendingMarketPersona?.persona_type !== "assistant");
+    if (marketPreviewIntro) {
+        marketPreviewIntro.textContent = pendingMarketPersona?.persona_type === "assistant"
+            ? (isScenarioStep
+                ? "Add an optional custom scenario. If left empty, the AI Character will invent its own opening scene."
+                : "Choose who you are in this roleplay before moving on to the opening scene.")
+            : "Review this persona and choose how you want to use it.";
+    }
+    if (marketPreviewConfirm) {
+        if (pendingMarketPersona?.persona_type !== "assistant") {
+            marketPreviewConfirm.textContent = "Collect persona";
+        } else {
+            marketPreviewConfirm.textContent = isScenarioStep ? "Start roleplay" : "Continue";
+        }
+    }
 }
 
 function populateUserPersonaChoices() {
@@ -214,6 +241,7 @@ function populateUserPersonaChoices() {
 
 function openMarketPreview(persona) {
     pendingMarketPersona = persona;
+    marketPreviewStep = 1;
     marketPreviewName.textContent = persona.name;
     marketPreviewMeta.textContent = buildPersonaMeta(persona);
     setCollapsiblePreviewText(marketPreviewPronouns, persona.pronouns, 80);
@@ -224,14 +252,13 @@ function openMarketPreview(persona) {
 
     const isAssistant = persona.persona_type === "assistant";
     marketPreviewUserPersonaField.classList.toggle("hidden", !isAssistant);
-    marketPreviewScenarioField.classList.toggle("hidden", !isAssistant);
-    marketPreviewConfirm.textContent = isAssistant ? "Start roleplay" : "Collect persona";
     if (isAssistant) {
         populateUserPersonaChoices();
         marketPreviewConfirm.classList.add("hidden");
     } else {
         marketPreviewConfirm.classList.remove("hidden");
     }
+    renderMarketPreviewStep();
     marketPreviewModal.classList.remove("hidden");
 }
 
@@ -460,6 +487,16 @@ marketPreviewConfirm.addEventListener("click", async () => {
     if (!pendingMarketPersona) return;
     const marketId = pendingMarketPersona.id;
     if (pendingMarketPersona.persona_type === "assistant") {
+        if (marketPreviewStep === 1) {
+            if (!marketPreviewUserPersonaSelect.value) {
+                setMarketStatus("Choose who you are before continuing.", "error");
+                return;
+            }
+            marketPreviewStep = 2;
+            renderMarketPreviewStep();
+            marketPreviewScenario.focus();
+            return;
+        }
         await startMarketPersonaChat(
             marketId,
             marketPreviewUserPersonaSelect.value || "self",
@@ -471,6 +508,13 @@ marketPreviewConfirm.addEventListener("click", async () => {
     closeMarketPreview();
     await collectMarketPersona(marketId);
 });
+if (marketPreviewBack) {
+    marketPreviewBack.addEventListener("click", () => {
+        marketPreviewStep = 1;
+        renderMarketPreviewStep();
+        marketPreviewUserPersonaSelect.focus();
+    });
+}
 marketPersonaClose.addEventListener("click", closePersonaForm);
 marketPersonaModal.addEventListener("click", (event) => {
     if (event.target === marketPersonaModal) closePersonaForm();

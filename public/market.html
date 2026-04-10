@@ -75,6 +75,7 @@
             <div>
                 <p class="eyebrow">Persona preview</p>
                 <h3 id="marketPreviewName">Persona details</h3>
+                <p id="marketPreviewIntro" class="subtitle">Review this persona and choose how you want to use it.</p>
             </div>
             <button id="marketPreviewClose" type="button" class="icon-button">Close</button>
         </div>
@@ -104,14 +105,20 @@
             </div>
         </div>
         <div class="market-preview-actions">
-            <label id="marketPreviewUserPersonaField" class="field market-preview-user-field hidden">
-                <span>You in this roleplay</span>
-                <select id="marketPreviewUserPersonaSelect"></select>
-            </label>
-            <label id="marketPreviewScenarioField" class="field market-preview-scenario-field hidden">
-                <span>Scenario (optional)</span>
-                <textarea id="marketPreviewScenario" rows="3" maxlength="240" placeholder="Set the opening scene you want the AI character to start with."></textarea>
-            </label>
+            <div id="marketPreviewStepOne" class="roleplay-starter-page hidden">
+                <label id="marketPreviewUserPersonaField" class="field market-preview-user-field hidden">
+                    <span>You in this roleplay</span>
+                    <select id="marketPreviewUserPersonaSelect"></select>
+                </label>
+            </div>
+            <div id="marketPreviewStepTwo" class="roleplay-starter-page hidden">
+                <label id="marketPreviewScenarioField" class="field market-preview-scenario-field">
+                    <span>Scenario (optional)</span>
+                    <textarea id="marketPreviewScenario" rows="4" maxlength="240" placeholder="Describe the opening scene you want. Leave it empty and the AI Character will invent its own scenario."></textarea>
+                </label>
+                <p class="subtitle">Leave this empty if you want the AI Character to invent the scenario on its own.</p>
+            </div>
+            <button id="marketPreviewBack" type="button" class="secondary-action hidden">Back</button>
             <button id="marketPreviewConfirm" type="button" class="primary-action">Take persona</button>
         </div>
     </div>

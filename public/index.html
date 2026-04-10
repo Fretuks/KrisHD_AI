@@ -306,18 +306,18 @@
         <div class="modal-header">
             <div class="persona-modal-heading">
                 <p class="eyebrow">Start roleplay</p>
-                <h3>Choose your scene</h3>
+                <h3 id="roleplayStarterTitle">Choose your roleplay</h3>
             </div>
             <button id="roleplayStarterClose" type="button" class="icon-button">Close</button>
         </div>
         <div class="roleplay-starter-intro">
-            <p class="persona-helper">Pick a character, choose who you are in the scene, and generate an opening message in one step.</p>
+            <p id="roleplayStarterIntroCopy" class="persona-helper">Pick a character and choose who you are before moving on to the opening scene.</p>
         </div>
         <p id="roleplayStarterNotice" class="status hidden"></p>
         <div class="roleplay-starter-actions">
             <button id="roleplayNewPersona" class="secondary-action" type="button">Create AI Character</button>
         </div>
-        <div class="persona-form-grid">
+        <div id="roleplayStarterStepOne" class="persona-form-grid">
             <label class="field field-wide">
                 <span>1. Character</span>
                 <select id="roleplayCharacterSelect"></select>
@@ -326,15 +326,19 @@
                 <span>2. You in the scene</span>
                 <select id="roleplayUserPersonaSelect"></select>
             </label>
-            <label class="field field-wide">
-                <span>3. Optional opening direction</span>
-                <textarea id="roleplayScenarioInput" rows="3" placeholder="Optional. Describe the kind of opening scene you want, such as a setting, conflict, relationship dynamic, or mood."></textarea>
-            </label>
         </div>
-        <div id="roleplayStarterSuggestions" class="quick-prompts" aria-label="Scenario suggestions"></div>
+        <div id="roleplayStarterStepTwo" class="roleplay-starter-page hidden">
+            <label class="field field-wide">
+                <span>Optional opening direction</span>
+                <textarea id="roleplayScenarioInput" rows="4" placeholder="Describe the kind of opening scene you want, such as a setting, conflict, relationship dynamic, or mood. Leave it empty and the AI will invent its own scenario."></textarea>
+            </label>
+            <p class="subtitle">Leave this empty if you want the AI Character to invent the scenario on its own.</p>
+            <div id="roleplayStarterSuggestions" class="quick-prompts" aria-label="Scenario suggestions"></div>
+        </div>
         <div class="popup-actions">
             <button id="roleplayStarterCancel" type="button" class="secondary-action">Cancel</button>
-            <button id="roleplayStarterConfirm" type="button">Create opening scene</button>
+            <button id="roleplayStarterBack" type="button" class="secondary-action hidden">Back</button>
+            <button id="roleplayStarterConfirm" type="button">Continue</button>
         </div>
     </div>
 </div>
