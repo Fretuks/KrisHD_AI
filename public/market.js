@@ -9,8 +9,10 @@ const marketPanels = document.querySelectorAll("[data-market-panel]");
 const marketCreateAiCharacterBtn = $("marketCreateAiCharacter");
 const marketCreateUserPersonaBtn = $("marketCreateUserPersona");
 const marketPreviewModal = $("marketPreviewModal");
+const marketPreviewTitle = $("marketPreviewTitle");
 const marketPreviewName = $("marketPreviewName");
 const marketPreviewMeta = $("marketPreviewMeta");
+const marketPreviewBody = $("marketPreviewBody");
 const marketPreviewPronouns = $("marketPreviewPronouns");
 const marketPreviewAppearance = $("marketPreviewAppearance");
 const marketPreviewBackground = $("marketPreviewBackground");
@@ -23,7 +25,6 @@ const marketPreviewScenarioField = $("marketPreviewScenarioField");
 const marketPreviewScenario = $("marketPreviewScenario");
 const marketPreviewStepOne = $("marketPreviewStepOne");
 const marketPreviewStepTwo = $("marketPreviewStepTwo");
-const marketPreviewBack = $("marketPreviewBack");
 const marketPreviewConfirm = $("marketPreviewConfirm");
 const marketPreviewClose = $("marketPreviewClose");
 const marketPersonaModal = $("marketPersonaModal");
@@ -191,9 +192,13 @@ function closeMarketPreview() {
 
 function renderMarketPreviewStep() {
     const isScenarioStep = marketPreviewStep === 2;
+    const isAssistant = pendingMarketPersona?.persona_type === "assistant";
+    if (marketPreviewBody) marketPreviewBody.classList.toggle("hidden", isScenarioStep && isAssistant);
     if (marketPreviewStepOne) marketPreviewStepOne.classList.toggle("hidden", isScenarioStep || pendingMarketPersona?.persona_type !== "assistant");
     if (marketPreviewStepTwo) marketPreviewStepTwo.classList.toggle("hidden", !isScenarioStep || pendingMarketPersona?.persona_type !== "assistant");
-    if (marketPreviewBack) marketPreviewBack.classList.toggle("hidden", !isScenarioStep || pendingMarketPersona?.persona_type !== "assistant");
+    if (marketPreviewTitle) {
+        marketPreviewTitle.textContent = isAssistant && isScenarioStep ? "Set the opening scene" : "Persona details";
+    }
     if (marketPreviewIntro) {
         marketPreviewIntro.textContent = pendingMarketPersona?.persona_type === "assistant"
             ? (isScenarioStep
@@ -202,11 +207,7 @@ function renderMarketPreviewStep() {
             : "Review this persona and choose how you want to use it.";
     }
     if (marketPreviewConfirm) {
-        if (pendingMarketPersona?.persona_type !== "assistant") {
-            marketPreviewConfirm.textContent = "Collect persona";
-        } else {
-            marketPreviewConfirm.textContent = isScenarioStep ? "Start roleplay" : "Continue";
-        }
+        marketPreviewConfirm.textContent = pendingMarketPersona?.persona_type !== "assistant" ? "Collect persona" : "Start roleplay";
     }
 }
 
@@ -508,13 +509,6 @@ marketPreviewConfirm.addEventListener("click", async () => {
     closeMarketPreview();
     await collectMarketPersona(marketId);
 });
-if (marketPreviewBack) {
-    marketPreviewBack.addEventListener("click", () => {
-        marketPreviewStep = 1;
-        renderMarketPreviewStep();
-        marketPreviewUserPersonaSelect.focus();
-    });
-}
 marketPersonaClose.addEventListener("click", closePersonaForm);
 marketPersonaModal.addEventListener("click", (event) => {
     if (event.target === marketPersonaModal) closePersonaForm();

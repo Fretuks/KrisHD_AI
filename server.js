@@ -669,7 +669,7 @@ const listMarketPersonasStmt = db.prepare(`
            creator_username,
            name,
            pronouns,
-           appearance,
+           appearance,  
            background,
            details,
            example_dialogues,

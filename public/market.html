@@ -74,12 +74,13 @@
         <div class="modal-header">
             <div>
                 <p class="eyebrow">Persona preview</p>
-                <h3 id="marketPreviewName">Persona details</h3>
+                <h3 id="marketPreviewTitle">Persona details</h3>
+                <h4 id="marketPreviewName" class="market-preview-name">Persona details</h4>
                 <p id="marketPreviewIntro" class="subtitle">Review this persona and choose how you want to use it.</p>
             </div>
             <button id="marketPreviewClose" type="button" class="icon-button">Close</button>
         </div>
-        <div class="market-preview-body">
+        <div id="marketPreviewBody" class="market-preview-body">
             <p id="marketPreviewMeta" class="persona-guidance"></p>
             <div class="market-preview-details">
                 <div>
@@ -118,8 +119,9 @@
                 </label>
                 <p class="subtitle">Leave this empty if you want the AI Character to invent the scenario on its own.</p>
             </div>
-            <button id="marketPreviewBack" type="button" class="secondary-action hidden">Back</button>
-            <button id="marketPreviewConfirm" type="button" class="primary-action">Take persona</button>
+            <div class="market-preview-footer">
+                <button id="marketPreviewConfirm" type="button" class="primary-action">Take persona</button>
+            </div>
         </div>
     </div>
 </div>
