@@ -1143,6 +1143,11 @@ const clampText = (value, limit = 260) => {
     return `${normalized.slice(0, limit - 3).trimEnd()}...`;
 };
 
+const normalizeOptionalText = (value) => {
+    const normalized = String(value || "").trim();
+    return normalized || null;
+};
+
 const buildRoleplaySceneSummary = (assistantPersona, userPersona, scenarioPrompt = "") => {
     const assistantName = assistantPersona?.name || "The assistant";
     const userName = userPersona?.name || "the user";
@@ -1956,7 +1961,7 @@ app.post("/personas/market/:id/chat", requireLogin, async (req, res) => {
     }
 
     const persona = getPersonaStmt.get(personaId, user);
-    const scenarioPrompt = clampText(req.body?.scenarioPrompt || "", 240) || null;
+    const scenarioPrompt = normalizeOptionalText(req.body?.scenarioPrompt);
     const sceneSummary = buildRoleplaySceneSummary(persona, userPersona, scenarioPrompt);
     let chat;
     try {
@@ -2002,7 +2007,7 @@ app.post("/roleplays/start", requireLogin, async (req, res) => {
     const selectedModel = req.body?.model || "mistral:latest";
     const assistantPersonaId = Number(req.body?.assistantPersonaId);
     const userPersonaId = req.body?.userPersonaId ? Number(req.body.userPersonaId) : null;
-    const scenarioPrompt = clampText(req.body?.scenarioPrompt || "", 240) || null;
+    const scenarioPrompt = normalizeOptionalText(req.body?.scenarioPrompt);
 
     if (!assistantPersonaId) {
         return res.status(400).json({error: "assistantPersonaId is required"});
