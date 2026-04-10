@@ -1226,6 +1226,19 @@ const buildRoleplayOpenerPrompt = ({assistantPersona, userPersona, scenarioPromp
     ].join("\n");
 };
 
+const buildRoleplayReplyGuardPrompt = () => {
+    return [
+        "ROLEPLAY REPLY RULES:",
+        "Write only the assistant character's next reply.",
+        "Never speak as the user.",
+        "Never write the user's dialogue.",
+        "Never write the user's thoughts, feelings, reactions, decisions, or actions.",
+        "Never imply what the user says or does next.",
+        "Never produce labels like 'User:' or 'You:'.",
+        "Stop after the assistant character's own reply."
+    ].join("\n");
+};
+
 const escapeRegExp = (value) => String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const containsUserVoiceInRoleplayOpener = (opener, userPersona) => {
@@ -1286,6 +1299,27 @@ const generateRoleplayOpener = async ({selectedModel = "mistral:latest", assista
     return opener;
 };
 
+const generateValidatedRoleplayReply = async ({selectedModel, messagesPayload, userPersona}) => {
+    let reply = await generateModelReply(selectedModel, messagesPayload);
+    if (reply && !containsUserVoiceInRoleplayOpener(reply, userPersona)) {
+        return reply;
+    }
+
+    const retryMessages = [
+        ...messagesPayload,
+        {role: "assistant", content: reply || ""},
+        {
+            role: "user",
+            content: "Rewrite your last reply. Hard rule: only the assistant character may speak or act. Never write or imply user speech, thoughts, feelings, reactions, decisions, or actions. Stop before the user's reply."
+        }
+    ];
+    reply = await generateModelReply(selectedModel, retryMessages);
+    if (!reply || containsUserVoiceInRoleplayOpener(reply, userPersona)) {
+        return null;
+    }
+    return reply;
+};
+
 const buildRetryPayload = async ({chatId, user, session, selectedModel, targetMessage}) => {
     const activePersona = getAssistantPersonaForChatStmt.get(chatId, user);
     const activeUserPersona = getUserPersonaForChatStmt.get(chatId, user) || getActiveUserPersonaStmt.get(user);
@@ -1342,7 +1376,16 @@ const buildRetryPayload = async ({chatId, user, session, selectedModel, targetMe
         }))
     );
 
-    const fullReply = await generateModelReply(selectedModel, messagesPayload);
+    if (activePersona) {
+        messagesPayload.push({
+            role: "system",
+            content: buildRoleplayReplyGuardPrompt()
+        });
+    }
+
+    const fullReply = activePersona
+        ? await generateValidatedRoleplayReply({selectedModel, messagesPayload, userPersona: activeUserPersona})
+        : await generateModelReply(selectedModel, messagesPayload);
     if (!fullReply) {
         return {error: "Failed to regenerate message"};
     }
@@ -2142,7 +2185,19 @@ app.post("/chat", requireLogin, async (req, res) => {
                 content: m.content
             }))
         );
-        const fullReply = await generateModelReply(selectedModel, messagesPayload);
+        if (activePersona) {
+            messagesPayload.push({
+                role: "system",
+                content: buildRoleplayReplyGuardPrompt()
+            });
+        }
+
+        const fullReply = activePersona
+            ? await generateValidatedRoleplayReply({selectedModel, messagesPayload, userPersona: activeUserPersona})
+            : await generateModelReply(selectedModel, messagesPayload);
+        if (!fullReply) {
+            return res.status(500).json({error: "Failed to generate a valid character reply"});
+        }
         insertChatMessage(targetChatId, "bot", fullReply, {
             retryVariants: [fullReply],
             retryActiveIndex: 0,
