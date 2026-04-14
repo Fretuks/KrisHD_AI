@@ -16,13 +16,13 @@
             <div class="brand">
                 <div class="logo" data-theme-logo>FG</div>
                 <div>
-                    <p class="eyebrow">Private chat</p>
+                    <p class="eyebrow">Private workspace</p>
                     <h1 data-theme-name>FakeGPT</h1>
                 </div>
             </div>
             <div class="hero-grid">
                 <article class="hero-panel">
-                    <p>Sign in to start a chat immediately, then add personas when you want richer roleplay.</p>
+                    <p>Private chat and roleplay.</p>
                 </article>
             </div>
         </div>
@@ -75,44 +75,33 @@
 
     <section id="chat" class="card chat-card chat-focus-card" style="display:none;">
         <div class="chat-layout chat-layout-focus">
-            <aside class="chat-sidebar">
+            <aside id="chatSidebar" class="chat-sidebar">
                 <div class="sidebar-top">
-                    <div class="sidebar-header">
+                    <div class="sidebar-workspace-card">
                         <div>
-                            <p class="eyebrow">Chats</p>
-                            <h2>Conversations</h2>
+                            <p class="eyebrow">Workspace</p>
+                            <h2 data-theme-name>FakeGPT</h2>
+                            <p id="sessionUser" class="sidebar-account-name">Signed out</p>
                         </div>
-                        <div class="sidebar-header-actions action-pair">
-                            <button id="newChat" class="secondary-action" type="button">New chat</button>
-                            <button id="startRoleplay" class="secondary-action" type="button">Start roleplay</button>
+                        <div class="sidebar-header-actions sidebar-workspace-actions">
+                            <button id="newChat" class="primary-action" type="button">New chat</button>
                         </div>
                     </div>
                     <label class="field compact-field">
                         <span>Search</span>
-                        <input id="chatSearch" type="search" placeholder="Filter chat titles"/>
+                        <input id="chatSearch" type="search" placeholder="Search chats"/>
                     </label>
                 </div>
-                <div id="chatList" class="chat-list"></div>
-                <div id="chatListLoading" class="chat-loading hidden" role="status" aria-live="polite">
-                    <span class="chat-loading-dot" aria-hidden="true"></span>
-                    <span id="chatListLoadingText">Loading chats...</span>
+                <div class="sidebar-middle">
+                    <div id="chatList" class="chat-list chat-list-grouped"></div>
+                    <div id="chatListLoading" class="chat-loading hidden" role="status" aria-live="polite">
+                        <span class="chat-loading-dot" aria-hidden="true"></span>
+                        <span id="chatListLoadingText">Loading chats...</span>
+                    </div>
                 </div>
-                <div class="sidebar-footer sidebar-footer-stack">
-                    <details id="toolsDetails" class="tools-details">
-                        <summary>Tools</summary>
-                        <div class="tools-links">
-                            <a href="/market" class="secondary-action">Browse personas</a>
-                            <a href="/settings" class="secondary-action">Settings</a>
-                        </div>
-                    </details>
-                    <details id="accountDetails" class="tools-details">
-                        <summary>Account</summary>
-                        <div class="session-chip">
-                            <span class="session-chip-label">Signed in as</span>
-                            <strong id="sessionUser">-</strong>
-                        </div>
-                        <button id="logout" type="button">Logout</button>
-                    </details>
+                <div class="sidebar-footer">
+                    <a href="/settings" class="secondary-action">Settings</a>
+                    <a href="/market" class="secondary-action">Market</a>
                 </div>
             </aside>
 
@@ -120,96 +109,114 @@
                 <header class="chat-header chat-header-focus">
                     <div class="chat-title-block">
                         <div class="chat-title">
-                            <p class="eyebrow">Conversation</p>
                             <h2 id="activeChatTitle">New chat</h2>
-                            <div class="chat-context">
-                                <button id="contextChipButton" class="context-chip-button" type="button" aria-expanded="false" aria-controls="contextPopover">
-                                    <span>Context</span>
-                                    <strong id="contextSummaryLabel">Assistant</strong>
-                                </button>
-                                <div id="contextPopover" class="persona-popover hidden" role="dialog">
-                                    <div id="chatParticipants" class="chat-participants">
-                                        <span id="chatModePill" class="context-pill chat-mode-pill">Assistant mode</span>
-                                        <span id="chatCharacterPill" class="context-pill hidden">Character: none</span>
-                                        <span id="chatUserPersonaPill" class="context-pill hidden">User persona: none</span>
-                                        <span id="chatScenePill" class="context-pill hidden">Scene: none</span>
-                                    </div>
-                                </div>
+                            <div id="chatParticipants" class="chat-participants chat-participants-inline">
+                                <span id="chatModePill" class="context-pill chat-mode-pill">Assistant mode</span>
                             </div>
                         </div>
                     </div>
                     <div class="chat-header-actions">
-                        <div class="model-menu">
-                            <button id="modelMenuButton" class="model-badge-button" type="button" aria-expanded="false" aria-controls="modelPopover">
-                                <span class="model-badge-label"></span>
-                                <strong id="modelBadgeName">Loading...</strong>
-                            </button>
-                            <div id="modelPopover" class="model-popover hidden" role="dialog">
-                                <div class="model-select">
-                                    <div class="model-select-header">
-                                        <label for="model">Model</label>
-                                        <span id="modelCount" class="model-count">Loading</span>
-                                    </div>
-                                    <div class="model-select-control">
-                                        <select id="model">
-                                            <option disabled selected>Loading models...</option>
-                                        </select>
-                                        <span class="model-select-chevron" aria-hidden="true"></span>
-                                    </div>
-                                </div>
-                                <div id="modelHelp" class="model-help" aria-live="polite">
-                                    <div class="model-help-header">
-                                        <strong id="modelHelpTitle">Choose a model</strong>
-                                        <span id="modelHelpBadge" class="model-help-badge">Waiting</span>
-                                    </div>
-                                    <p id="modelHelpSummary" class="model-help-summary">Pick a model to see what it is best suited for.</p>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="persona-menu">
-                            <button id="personaMenuButton" class="secondary-action" type="button" aria-expanded="false" aria-controls="personaPopover">
-                                You
-                            </button>
-                            <div id="personaPopover" class="persona-popover hidden" role="dialog">
-                                <div class="persona-section">
-                                    <div class="persona-section-header">
-                                        <div>
-                                            <p class="eyebrow">User</p>
-                                            <h2>Your persona</h2>
-                                            <p class="persona-guidance">Adds context for how the assistant should read you.</p>
-                                        </div>
-                                        <div class="persona-section-actions">
-                                            <button id="clearUserPersona" class="secondary-action" type="button">Clear</button>
-                                            <a href="/settings" class="secondary-action">Manage</a>
-                                        </div>
-                                    </div>
-                                    <p id="activeUserPersonaStatus" class="status persona-status">No default user persona set.</p>
-                                    <div id="userPersonaList" class="persona-list"></div>
-                                </div>
-                            </div>
-                        </div>
                         <div class="chat-actions-menu">
-                            <button id="chatActionsMenuButton" class="secondary-action" type="button" aria-expanded="false" aria-controls="chatActionsPopover">
-                                More
+                            <button id="chatActionsMenuButton" class="secondary-action overflow-trigger" type="button" aria-expanded="false" aria-controls="chatActionsPopover">
+                                Menu
                             </button>
-                            <div id="chatActionsPopover" class="persona-popover hidden" role="dialog">
-                                <div class="persona-section">
-                                    <div class="persona-section-header">
+                            <div id="chatActionsPopover" class="chat-drawer hidden" role="dialog" aria-modal="false" aria-labelledby="chatDrawerTitle">
+                                <div class="chat-drawer-panel">
+                                    <div class="chat-drawer-header">
                                         <div>
                                             <p class="eyebrow">Conversation</p>
-                                            <h2>Actions</h2>
+                                            <h2 id="chatDrawerTitle">Controls</h2>
                                         </div>
+                                        <button id="chatDrawerClose" class="icon-button" type="button" aria-label="Close panel">Close</button>
                                     </div>
-                                    <div class="persona-item-actions">
-                                        <button id="renameChat" class="icon-button" type="button">Rename</button>
-                                        <button id="clearChat" class="icon-button" type="button">Clear</button>
-                                        <button id="exportChat" class="icon-button" type="button">Export</button>
+                                    <div class="chat-drawer-body">
+                                        <div class="chat-drawer-section chat-drawer-summary">
+                                            <p class="dropdown-section-label">Current mode</p>
+                                            <div class="chat-drawer-pills">
+                                                <span id="chatCharacterPill" class="context-pill hidden">Character: none</span>
+                                                <span id="chatUserPersonaPill" class="context-pill hidden">User persona: none</span>
+                                            </div>
+                                        </div>
+                                        <div class="chat-drawer-section model-menu">
+                                            <div class="dropdown-header">
+                                                <p class="eyebrow">Model</p>
+                                                <p class="dropdown-subtitle">Choose the engine for this chat.</p>
+                                            </div>
+                                            <div id="modelPopover" class="model-popover" data-static-panel="true">
+                                                <div class="model-select">
+                                                    <div class="model-select-header">
+                                                        <label for="model">Model</label>
+                                                        <span id="modelCount" class="model-count">Loading</span>
+                                                    </div>
+                                                    <div class="model-select-control">
+                                                        <select id="model">
+                                                            <option disabled selected>Loading models...</option>
+                                                        </select>
+                                                        <span class="model-select-chevron" aria-hidden="true"></span>
+                                                    </div>
+                                                </div>
+                                                <div id="modelHelp" class="model-help" aria-live="polite">
+                                                    <div class="model-help-header">
+                                                        <strong id="modelHelpTitle">Choose a model</strong>
+                                                        <span id="modelHelpBadge" class="model-help-badge">Waiting</span>
+                                                    </div>
+                                                    <p id="modelHelpSummary" class="model-help-summary">Pick a model to see what it is best suited for.</p>
+                                                </div>
+                                                <div class="model-inline-badge">
+                                                    <span class="model-badge-label">Current</span>
+                                                    <strong id="modelBadgeName">Loading...</strong>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="chat-drawer-section persona-menu">
+                                            <div class="dropdown-header">
+                                                <p class="eyebrow">Persona</p>
+                                                <p class="dropdown-subtitle">Set who you are in roleplay chats.</p>
+                                            </div>
+                                            <div id="personaPopover" class="persona-popover" data-static-panel="true">
+                                                <div class="persona-section">
+                                                    <div class="persona-section-header">
+                                                        <div>
+                                                            <h2>Your persona</h2>
+                                                        </div>
+                                                        <div class="persona-section-actions">
+                                                            <button id="clearUserPersona" class="secondary-action" type="button">Clear</button>
+                                                            <a href="/settings" class="secondary-action">Manage</a>
+                                                        </div>
+                                                    </div>
+                                                    <p id="activeUserPersonaStatus" class="status persona-status">No default user persona set.</p>
+                                                    <div id="userPersonaList" class="persona-list"></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="chat-drawer-section">
+                                            <p class="dropdown-section-label">Workspace</p>
+                                            <div class="dropdown-action-grid">
+                                                <a href="/market" class="secondary-action">Market</a>
+                                                <a href="/settings" class="secondary-action">Settings</a>
+                                                <button id="logout" type="button" class="secondary-action">Logout</button>
+                                                <button id="backupWorkspace" class="secondary-action" type="button">Backup</button>
+                                            </div>
+                                        </div>
+                                        <div class="chat-drawer-section">
+                                            <p class="dropdown-section-label">Current chat</p>
+                                            <div class="dropdown-action-grid">
+                                                <button id="renameChat" class="secondary-action" type="button">Rename</button>
+                                                <button id="pinChat" class="secondary-action" type="button">Pin</button>
+                                                <button id="moveChatFolder" class="secondary-action" type="button">Folder</button>
+                                                <button id="archiveChat" class="secondary-action" type="button">Archive</button>
+                                                <button id="clearChat" class="secondary-action" type="button">Clear</button>
+                                                <button id="exportChat" class="secondary-action" type="button">Export</button>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </header>
+
+                <p id="appNotice" class="status inline-status hidden"></p>
 
                 <div id="chatActivityOverlay" class="chat-activity-overlay hidden" role="status" aria-live="polite" aria-atomic="true">
                     <div class="chat-activity-card">
@@ -230,7 +237,6 @@
                     <div class="input-meta">
                         <p class="composer-hint">Enter to send · Shift+Enter for new line</p>
                     </div>
-                    <div id="quickPrompts" class="quick-prompts" aria-label="Suggested starters"></div>
                     <div class="input-container">
                         <textarea id="msgInput" placeholder="Type your message..."></textarea>
                         <button id="send" type="button" aria-label="Send message"></button>
@@ -241,8 +247,8 @@
     </section>
 </div>
 
-<div id="personaModal" class="modal-overlay hidden">
-    <div class="modal-card persona-modal-card">
+<div id="personaModal" class="modal-overlay side-panel-overlay hidden">
+    <div class="modal-card persona-modal-card side-panel-card">
         <div class="modal-header">
             <div class="persona-modal-heading">
                 <p class="eyebrow">Persona editor</p>
@@ -301,8 +307,8 @@
     </div>
 </div>
 
-<div id="roleplayStarterModal" class="modal-overlay hidden">
-    <div class="modal-card roleplay-starter-card">
+<div id="roleplayStarterModal" class="modal-overlay side-panel-overlay hidden">
+    <div class="modal-card roleplay-starter-card side-panel-card">
         <div class="modal-header">
             <div class="persona-modal-heading">
                 <p class="eyebrow">Start roleplay</p>
@@ -386,6 +392,6 @@
 
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js" defer></script>
-<script src="script.js" defer></script>
+<script type="module" src="script.js"></script>
 </body>
 </html>

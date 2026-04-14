@@ -4,6 +4,8 @@ const marketUserPersonaList = $("marketUserPersonaList");
 const refreshMarketBtn = $("refreshMarket");
 const marketStatus = $("marketStatus");
 const marketSearchInput = $("marketSearch");
+const marketAssistantSort = $("marketAssistantSort");
+const marketUserSort = $("marketUserSort");
 const marketViewButtons = document.querySelectorAll("[data-market-view]");
 const marketPanels = document.querySelectorAll("[data-market-panel]");
 const marketCreateAiCharacterBtn = $("marketCreateAiCharacter");
@@ -42,6 +44,16 @@ const marketActivityOverlay = $("marketActivityOverlay");
 const marketActivityEyebrow = $("marketActivityEyebrow");
 const marketActivityTitle = $("marketActivityTitle");
 const marketActivityDetail = $("marketActivityDetail");
+const marketPopupModal = $("marketPopupModal");
+const marketPopupClose = $("marketPopupClose");
+const marketPopupCancel = $("marketPopupCancel");
+const marketPopupConfirm = $("marketPopupConfirm");
+const marketPopupTitle = $("marketPopupTitle");
+const marketPopupEyebrow = $("marketPopupEyebrow");
+const marketPopupDescription = $("marketPopupDescription");
+const marketPopupField = $("marketPopupField");
+const marketPopupInputLabel = $("marketPopupInputLabel");
+const marketPopupInput = $("marketPopupInput");
 const themeNameTargets = document.querySelectorAll("[data-theme-name]");
 
 const themes = {
@@ -53,15 +65,18 @@ const themes = {
     "confusity": {name: "Confusity"}
 };
 
-let allMarketPersonas = [];
+const validMarketSorts = new Set(["best", "newest", "most_favorited", "most_popular", "top_rated", "alphabetical"]);
+let marketPersonasByType = {assistant: [], user: []};
 let assistantPersonas = [];
 let userPersonas = [];
 let pendingMarketPersona = null;
 let editingPersonaId = null;
 let activeUserPersonaId = null;
 let activeMarketView = "ai-characters";
+let marketSorts = {assistant: "best", user: "best"};
 let marketActivityDepth = 0;
 let marketPreviewStep = 1;
+let marketPopupResolver = null;
 
 async function request(url, data, method = "POST") {
     try {
@@ -92,6 +107,40 @@ function applyTheme(themeKey) {
 function setMarketStatus(message, state = "") {
     marketStatus.textContent = message;
     marketStatus.className = state ? `status persona-status ${state}` : "status persona-status";
+}
+
+function closeMarketPopup(value = null) {
+    marketPopupModal.classList.add("hidden");
+    if (marketPopupResolver) {
+        const resolve = marketPopupResolver;
+        marketPopupResolver = null;
+        resolve(value);
+    }
+}
+
+function promptMarketPopup({
+    eyebrow = "Action",
+    title = "Enter a value",
+    description = "",
+    label = "Value",
+    value = "",
+    placeholder = "",
+    confirmLabel = "Confirm"
+} = {}) {
+    marketPopupEyebrow.textContent = eyebrow;
+    marketPopupTitle.textContent = title;
+    marketPopupDescription.textContent = description;
+    marketPopupInputLabel.textContent = label;
+    marketPopupInput.value = value;
+    marketPopupInput.placeholder = placeholder;
+    marketPopupConfirm.textContent = confirmLabel;
+    marketPopupField.classList.remove("hidden");
+    marketPopupModal.classList.remove("hidden");
+    marketPopupInput.focus();
+    marketPopupInput.select();
+    return new Promise((resolve) => {
+        marketPopupResolver = resolve;
+    });
 }
 
 function setPersonaFormNotice(message = "", state = "") {
@@ -132,10 +181,33 @@ function setMarketView(view) {
     activeMarketView = normalizedView;
     marketViewButtons.forEach((item) => item.classList.toggle("active", item.dataset.marketView === normalizedView));
     marketPanels.forEach((panel) => panel.classList.toggle("active", panel.dataset.marketPanel === normalizedView));
-    const params = new URLSearchParams(window.location.search);
-    params.set("view", normalizedView);
-    history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
+    syncMarketQuery();
     applyMarketFilter();
+}
+
+function normalizeMarketSort(sort) {
+    const normalized = String(sort || "best").trim().toLowerCase().replace(/-/g, "_");
+    return validMarketSorts.has(normalized) ? normalized : "best";
+}
+
+function syncMarketQuery() {
+    const params = new URLSearchParams(window.location.search);
+    params.set("view", activeMarketView);
+    params.set("assistantSort", marketSorts.assistant);
+    params.set("userSort", marketSorts.user);
+    history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
+}
+
+function setMarketSort(personaType, sort, {reload = true} = {}) {
+    const normalizedType = personaType === "user" ? "user" : "assistant";
+    const normalizedSort = normalizeMarketSort(sort);
+    marketSorts[normalizedType] = normalizedSort;
+    if (normalizedType === "assistant" && marketAssistantSort) marketAssistantSort.value = normalizedSort;
+    if (normalizedType === "user" && marketUserSort) marketUserSort.value = normalizedSort;
+    syncMarketQuery();
+    if (reload) {
+        void loadMarketPersonas();
+    }
 }
 
 function buildPersonaMeta(persona) {
@@ -299,8 +371,10 @@ function renderMarketList(items, listElement, type) {
         const title = document.createElement("h4");
         const tag = document.createElement("span");
         const meta = document.createElement("p");
+        const stats = document.createElement("p");
         const actions = document.createElement("div");
         const detailsBtn = document.createElement("button");
+        const favoriteBtn = document.createElement("button");
 
         item.className = "persona-item";
         titleRow.className = "persona-title-row";
@@ -309,10 +383,36 @@ function renderMarketList(items, listElement, type) {
         tag.textContent = type === "assistant" ? "AI Character" : "User";
         title.textContent = persona.name;
         meta.textContent = buildPersonaMeta(persona);
+        const tags = Array.isArray(persona.tags) && persona.tags.length ? `Tags: ${persona.tags.join(", ")}` : "Tags: none";
+        const rating = persona.rating_count ? `${Number(persona.rating_average || 0).toFixed(1)}★` : "Unrated";
+        stats.className = "subtitle";
+        stats.textContent = `${tags} | Favorites: ${persona.favorite_count || 0} | Uses: ${persona.usage_count || 0} | Rating: ${rating}`;
 
         detailsBtn.type = "button";
         detailsBtn.textContent = "Preview";
         detailsBtn.addEventListener("click", () => openMarketPreview(persona));
+        actions.appendChild(detailsBtn);
+
+        favoriteBtn.type = "button";
+        favoriteBtn.className = persona.is_favorite ? "icon-button market-favorite-button active" : "icon-button market-favorite-button";
+        favoriteBtn.textContent = persona.is_favorite ? "♥" : "♡";
+        favoriteBtn.title = persona.is_favorite ? "Unfavorite persona" : "Favorite persona";
+        favoriteBtn.setAttribute("aria-label", favoriteBtn.title);
+        favoriteBtn.setAttribute("aria-pressed", persona.is_favorite ? "true" : "false");
+        favoriteBtn.addEventListener("click", () => { void toggleFavorite(persona.id); });
+        actions.appendChild(favoriteBtn);
+
+        const rateBtn = document.createElement("button");
+        rateBtn.type = "button";
+        rateBtn.textContent = "Rate";
+        rateBtn.addEventListener("click", () => { void ratePersona(persona.id); });
+        actions.appendChild(rateBtn);
+
+        const reportBtn = document.createElement("button");
+        reportBtn.type = "button";
+        reportBtn.textContent = "Report";
+        reportBtn.addEventListener("click", () => { void reportPersona(persona.id); });
+        actions.appendChild(reportBtn);
 
         if (type !== "assistant") {
             const quickActionBtn = document.createElement("button");
@@ -325,29 +425,27 @@ function renderMarketList(items, listElement, type) {
         }
 
         titleRow.append(title, tag);
-        actions.appendChild(detailsBtn);
-        item.append(titleRow, meta, actions);
+        item.append(titleRow, meta, stats, actions);
         listElement.appendChild(item);
     });
 }
 
-function filterMarketPersonas() {
+function filterMarketPersonas(items) {
     const query = marketSearchInput.value.trim().toLowerCase();
-    if (!query) return allMarketPersonas;
-    return allMarketPersonas.filter((persona) =>
+    if (!query) return items;
+    return items.filter((persona) =>
         [persona.name, persona.creator_username, persona.pronouns, persona.appearance, persona.background, persona.details, persona.example_dialogues]
             .some((field) => field && field.toLowerCase().includes(query))
     );
 }
 
 function applyMarketFilter() {
-    const filtered = filterMarketPersonas();
-    const assistantItems = filtered.filter((persona) => persona.persona_type === "assistant");
-    const userItems = filtered.filter((persona) => persona.persona_type === "user");
+    const assistantItems = filterMarketPersonas(marketPersonasByType.assistant);
+    const userItems = filterMarketPersonas(marketPersonasByType.user);
     renderMarketList(assistantItems, marketPersonaList, "assistant");
     renderMarketList(userItems, marketUserPersonaList, "user");
 
-    if (marketSearchInput.value.trim() && !filtered.length) {
+    if (marketSearchInput.value.trim() && !assistantItems.length && !userItems.length) {
         setMarketStatus("No personas match your search.", "error");
         return;
     }
@@ -362,6 +460,72 @@ function applyMarketFilter() {
     setMarketStatus(`${assistantItems.length + userItems.length} persona${assistantItems.length + userItems.length === 1 ? "" : "s"} shown.`);
 }
 
+async function refreshMarket() {
+    const [assistantRes, userRes] = await Promise.all([
+        get(`/personas/market?personaType=assistant&sort=${encodeURIComponent(marketSorts.assistant)}`),
+        get(`/personas/market?personaType=user&sort=${encodeURIComponent(marketSorts.user)}`)
+    ]);
+    if (assistantRes.error || userRes.error) {
+        setMarketStatus(assistantRes.error || userRes.error, "error");
+        return;
+    }
+    marketPersonasByType = {
+        assistant: assistantRes.personas || [],
+        user: userRes.personas || []
+    };
+    applyMarketFilter();
+}
+
+async function toggleFavorite(marketId) {
+    const res = await post(`/personas/market/${marketId}/favorite`, {});
+    if (res.error) return setMarketStatus(res.error, "error");
+    await refreshMarket();
+    setMarketStatus(res.favorite ? "Favorited persona." : "Removed favorite.", "success");
+}
+
+async function ratePersona(marketId) {
+    const raw = await promptMarketPopup({
+        eyebrow: "Rating",
+        title: "Rate this persona",
+        description: "Enter a whole number from 1 to 5.",
+        label: "Rating",
+        value: "5",
+        placeholder: "5",
+        confirmLabel: "Save rating"
+    });
+    if (raw === null) return;
+    const rating = Number(raw);
+    if (!rating) return;
+    const res = await post(`/personas/market/${marketId}/rate`, {rating});
+    if (res.error) return setMarketStatus(res.error, "error");
+    await refreshMarket();
+    setMarketStatus("Rating saved.", "success");
+}
+
+async function reportPersona(marketId) {
+    const reason = await promptMarketPopup({
+        eyebrow: "Report",
+        title: "Report persona",
+        description: "Describe the main issue.",
+        label: "Reason",
+        placeholder: "Abusive content",
+        confirmLabel: "Continue"
+    });
+    if (!reason) return;
+    const details = await promptMarketPopup({
+        eyebrow: "Report",
+        title: "Extra details",
+        description: "Add optional context for the report.",
+        label: "Details",
+        placeholder: "Optional",
+        confirmLabel: "Submit report"
+    });
+    if (details === null) return;
+    const res = await post(`/personas/market/${marketId}/report`, {reason, details});
+    if (res.error) return setMarketStatus(res.error, "error");
+    setMarketStatus("Report submitted.", "success");
+}
+
 async function loadOwnedPersonas() {
     const res = await get("/personas");
     if (res.error) return false;
@@ -373,17 +537,12 @@ async function loadOwnedPersonas() {
 
 async function loadMarketPersonas() {
     setMarketStatus("Loading personas...");
-    const [marketRes, ownedOk] = await Promise.all([get("/personas/market"), loadOwnedPersonas()]);
-    if (marketRes.error) {
-        setMarketStatus(marketRes.error, "error");
-        return;
-    }
+    const ownedOk = await loadOwnedPersonas();
     if (!ownedOk) {
         setMarketStatus("Unable to load your personas.", "error");
         return;
     }
-    allMarketPersonas = marketRes.personas || [];
-    applyMarketFilter();
+    await refreshMarket();
 }
 
 async function collectMarketPersona(marketId) {
@@ -460,7 +619,29 @@ async function savePersona() {
 refreshMarketBtn.addEventListener("click", () => {
     void loadMarketPersonas();
 });
+marketPopupConfirm.addEventListener("click", () => closeMarketPopup(marketPopupInput.value));
+marketPopupCancel.addEventListener("click", () => closeMarketPopup(null));
+marketPopupClose.addEventListener("click", () => closeMarketPopup(null));
+marketPopupModal.addEventListener("click", (event) => {
+    if (event.target === marketPopupModal) closeMarketPopup(null);
+});
+marketPopupInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+        event.preventDefault();
+        closeMarketPopup(marketPopupInput.value);
+    }
+    if (event.key === "Escape") {
+        event.preventDefault();
+        closeMarketPopup(null);
+    }
+});
 marketSearchInput.addEventListener("input", applyMarketFilter);
+if (marketAssistantSort) {
+    marketAssistantSort.addEventListener("change", () => setMarketSort("assistant", marketAssistantSort.value));
+}
+if (marketUserSort) {
+    marketUserSort.addEventListener("change", () => setMarketSort("user", marketUserSort.value));
+}
 marketViewButtons.forEach((button) => {
     button.addEventListener("click", () => setMarketView(button.dataset.marketView));
 });
@@ -521,6 +702,8 @@ marketPersonaForm.addEventListener("submit", (event) => {
 window.addEventListener("load", async () => {
     applyTheme(localStorage.getItem("krishd-theme") || "fakegpt");
     const params = new URLSearchParams(window.location.search);
+    setMarketSort("assistant", params.get("assistantSort") || "best", {reload: false});
+    setMarketSort("user", params.get("userSort") || "best", {reload: false});
     setMarketView(params.get("view") || "ai-characters");
     await loadMarketPersonas();
     if (params.get("create") === "assistant") {

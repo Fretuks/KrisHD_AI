@@ -30,6 +30,16 @@ const settingsPersonaBackground = $("settingsPersonaBackground");
 const settingsPersonaDetails = $("settingsPersonaDetails");
 const settingsPersonaExamplesField = $("settingsPersonaExamplesField");
 const settingsPersonaExampleDialogues = $("settingsPersonaExampleDialogues");
+const settingsPopupModal = $("settingsPopupModal");
+const settingsPopupClose = $("settingsPopupClose");
+const settingsPopupCancel = $("settingsPopupCancel");
+const settingsPopupConfirm = $("settingsPopupConfirm");
+const settingsPopupTitle = $("settingsPopupTitle");
+const settingsPopupEyebrow = $("settingsPopupEyebrow");
+const settingsPopupDescription = $("settingsPopupDescription");
+const settingsPopupField = $("settingsPopupField");
+const settingsPopupInputLabel = $("settingsPopupInputLabel");
+const settingsPopupInput = $("settingsPopupInput");
 
 const themes = {
     "fakegpt": {name: "FakeGPT"},
@@ -44,6 +54,7 @@ let assistantPersonas = [];
 let userPersonas = [];
 let publishedPersonaIds = new Set();
 let editingPersonaId = null;
+let settingsPopupResolver = null;
 
 async function request(url, data, method = "POST") {
     try {
@@ -76,6 +87,39 @@ function setPersonaNotice(message = "", state = "") {
     }
     settingsPersonaFormNotice.textContent = message;
     settingsPersonaFormNotice.className = state ? `status ${state}` : "status";
+}
+
+function closeSettingsPopup(value = null) {
+    settingsPopupModal.classList.add("hidden");
+    if (settingsPopupResolver) {
+        const resolve = settingsPopupResolver;
+        settingsPopupResolver = null;
+        resolve(value);
+    }
+}
+
+function promptSettingsPopup({
+    eyebrow = "Action",
+    title = "Enter a value",
+    description = "",
+    label = "Value",
+    value = "",
+    placeholder = "",
+    confirmLabel = "Confirm"
+} = {}) {
+    settingsPopupEyebrow.textContent = eyebrow;
+    settingsPopupTitle.textContent = title;
+    settingsPopupDescription.textContent = description;
+    settingsPopupInputLabel.textContent = label;
+    settingsPopupInput.value = value;
+    settingsPopupInput.placeholder = placeholder;
+    settingsPopupConfirm.textContent = confirmLabel;
+    settingsPopupModal.classList.remove("hidden");
+    settingsPopupInput.focus();
+    settingsPopupInput.select();
+    return new Promise((resolve) => {
+        settingsPopupResolver = resolve;
+    });
 }
 
 function applyTheme(themeKey, persist = true) {
@@ -169,6 +213,8 @@ function renderPersonaList(personas, listElement, type) {
 
         [
             ["Edit", () => openPersonaModal(persona)],
+            ["Clone", () => clonePersona(persona.id)],
+            ["History", () => showPersonaHistory(persona.id)],
             [publishedPersonaIds.has(persona.id) ? "Update listing" : "Publish", () => publishPersona(persona.id)],
             ["Delete", () => deletePersona(persona.id)]
         ]
@@ -263,13 +309,56 @@ async function deletePersona(id) {
 }
 
 async function publishPersona(id) {
-    const res = await post(`/personas/${id}/publish`, {});
+    const tagsInput = await promptSettingsPopup({
+        eyebrow: "Marketplace",
+        title: "Persona tags",
+        description: "Add optional comma-separated tags to improve discovery.",
+        label: "Tags",
+        placeholder: "mentor, fantasy, villain",
+        confirmLabel: "Publish"
+    });
+    if (tagsInput === null) return;
+    const tags = String(tagsInput || "").split(",").map((tag) => tag.trim()).filter(Boolean);
+    const res = await post(`/personas/${id}/publish`, {tags});
     if (res.error) {
         setNotice(res.error, "error");
         return;
     }
     await loadPersonas();
     setNotice("Persona published.", "success");
+}
+
+async function clonePersona(id) {
+    const res = await post(`/personas/${id}/clone`, {});
+    if (res.error) return setNotice(res.error, "error");
+    await loadPersonas();
+    setNotice("Persona cloned.", "success");
+}
+
+async function showPersonaHistory(id) {
+    const res = await get(`/personas/${id}/versions`);
+    if (res.error) return setNotice(res.error, "error");
+    const versions = res.versions || [];
+    const summary = versions.length
+        ? versions.map((version) => `v${version.version_number} - ${new Date(version.created_at).toLocaleString()}`).join("\n")
+        : "No saved versions yet.";
+    const choice = await promptSettingsPopup({
+        eyebrow: "Persona history",
+        title: "Restore a version",
+        description: summary,
+        label: "Version number",
+        placeholder: "1",
+        confirmLabel: "Restore"
+    });
+    if (choice === null) return;
+    const selected = Number(choice);
+    if (!selected) return;
+    const version = versions.find((item) => item.version_number === selected);
+    if (!version) return setNotice("Version not found.", "error");
+    const restore = await post(`/personas/${id}/versions/${version.id}/restore`, {});
+    if (restore.error) return setNotice(restore.error, "error");
+    await loadPersonas();
+    setNotice(`Restored persona version ${selected}.`, "success");
 }
 
 async function unpublishPersona(id) {
@@ -346,6 +435,22 @@ settingsPersonaType.addEventListener("change", syncPersonaExamplesField);
 settingsPersonaForm.addEventListener("submit", (event) => {
     event.preventDefault();
     void savePersona();
+});
+settingsPopupConfirm.addEventListener("click", () => closeSettingsPopup(settingsPopupInput.value));
+settingsPopupCancel.addEventListener("click", () => closeSettingsPopup(null));
+settingsPopupClose.addEventListener("click", () => closeSettingsPopup(null));
+settingsPopupModal.addEventListener("click", (event) => {
+    if (event.target === settingsPopupModal) closeSettingsPopup(null);
+});
+settingsPopupInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+        event.preventDefault();
+        closeSettingsPopup(settingsPopupInput.value);
+    }
+    if (event.key === "Escape") {
+        event.preventDefault();
+        closeSettingsPopup(null);
+    }
 });
 
 window.addEventListener("load", async () => {

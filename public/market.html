@@ -15,7 +15,6 @@
         <div>
             <p class="eyebrow">Shared personas</p>
             <h1><span data-theme-name>FakeGPT</span> Market</h1>
-            <p class="subtitle">Find characters and personas for roleplay, then start with an explicit persona choice.</p>
         </div>
         <div class="market-header-actions">
             <button id="refreshMarket" class="secondary-action" type="button">Refresh</button>
@@ -25,7 +24,7 @@
     </header>
 
     <div class="market-search">
-        <label for="marketSearch">Search personas</label>
+        <label for="marketSearch">Search</label>
         <input id="marketSearch" type="search" placeholder="Search by name, creator, or description"/>
     </div>
 
@@ -33,8 +32,8 @@
 
     <section class="settings-layout market-settings-layout">
         <aside class="settings-nav" aria-label="Market sections">
-            <button class="settings-nav-item active" type="button" data-market-view="ai-characters">AI Characters</button>
-            <button class="settings-nav-item" type="button" data-market-view="user-personas">User Personas</button>
+            <button class="settings-nav-item active" type="button" data-market-view="ai-characters">Characters</button>
+            <button class="settings-nav-item" type="button" data-market-view="user-personas">User personas</button>
         </aside>
 
         <div class="settings-content">
@@ -44,9 +43,21 @@
                         <div>
                             <p class="eyebrow">Discover</p>
                             <h2>AI Characters</h2>
-                            <p class="subtitle">Pick a character, choose your persona, and start roleplay.</p>
                         </div>
-                        <button id="marketCreateAiCharacter" type="button" class="secondary-action">Create AI Character</button>
+                        <div class="market-section-actions">
+                            <label class="market-sort-control" for="marketAssistantSort">
+                                <span>Sort</span>
+                                <select id="marketAssistantSort">
+                                    <option value="best">Best</option>
+                                    <option value="newest">Newest</option>
+                                    <option value="most_favorited">Most Favorited</option>
+                                    <option value="most_popular">Most Popular</option>
+                                    <option value="top_rated">Top Rated</option>
+                                    <option value="alphabetical">A-Z</option>
+                                </select>
+                            </label>
+                            <button id="marketCreateAiCharacter" type="button" class="secondary-action">Create AI Character</button>
+                        </div>
                     </div>
                     <div id="marketPersonaList" class="persona-list"></div>
                 </div>
@@ -58,9 +69,21 @@
                         <div>
                             <p class="eyebrow">Discover</p>
                             <h2>User Personas</h2>
-                            <p class="subtitle">Collect personas you can use as your identity in roleplay scenes.</p>
                         </div>
-                        <button id="marketCreateUserPersona" type="button" class="secondary-action">Create User Persona</button>
+                        <div class="market-section-actions">
+                            <label class="market-sort-control" for="marketUserSort">
+                                <span>Sort</span>
+                                <select id="marketUserSort">
+                                    <option value="best">Best</option>
+                                    <option value="newest">Newest</option>
+                                    <option value="most_favorited">Most Favorited</option>
+                                    <option value="most_popular">Most Popular</option>
+                                    <option value="top_rated">Top Rated</option>
+                                    <option value="alphabetical">A-Z</option>
+                                </select>
+                            </label>
+                            <button id="marketCreateUserPersona" type="button" class="secondary-action">Create User Persona</button>
+                        </div>
                     </div>
                     <div id="marketUserPersonaList" class="persona-list"></div>
                 </div>
@@ -189,6 +212,29 @@
         <p id="marketActivityEyebrow" class="eyebrow">Please wait</p>
         <h3 id="marketActivityTitle">Opening roleplay</h3>
         <p id="marketActivityDetail" class="subtitle">The AI character is preparing the first message.</p>
+    </div>
+</div>
+
+<div id="marketPopupModal" class="modal-overlay hidden">
+    <div class="modal-card popup-card" role="dialog" aria-modal="true" aria-labelledby="marketPopupTitle" aria-describedby="marketPopupDescription">
+        <div class="modal-header">
+            <div class="persona-modal-heading">
+                <p id="marketPopupEyebrow" class="eyebrow">Action</p>
+                <h3 id="marketPopupTitle">Confirm action</h3>
+            </div>
+            <button id="marketPopupClose" type="button" class="icon-button">Close</button>
+        </div>
+        <div class="popup-content">
+            <p id="marketPopupDescription" class="subtitle">Please confirm this action.</p>
+            <label id="marketPopupField" class="field">
+                <span id="marketPopupInputLabel">Value</span>
+                <input id="marketPopupInput" type="text" autocomplete="off"/>
+            </label>
+        </div>
+        <div class="popup-actions">
+            <button id="marketPopupCancel" type="button" class="secondary-action">Cancel</button>
+            <button id="marketPopupConfirm" type="button">Confirm</button>
+        </div>
     </div>
 </div>
 <script src="market.js" defer></script>

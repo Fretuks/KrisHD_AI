@@ -1,46 +1,117 @@
-const $ = (id) => document.getElementById(id);
-const authDiv = $("auth"), chatDiv = $("chat"), authMsg = $("authMsg");
-const messagesDiv = $("messages"), modelSelect = $("model");
-const modelMenuButton = $("modelMenuButton"), modelPopover = $("modelPopover"), modelBadgeName = $("modelBadgeName");
-const modelCount = $("modelCount");
-const modelHelpTitle = $("modelHelpTitle"), modelHelpBadge = $("modelHelpBadge"), modelHelpSummary = $("modelHelpSummary");
-const loginForm = $("loginForm"), registerForm = $("registerForm"), msgInput = $("msgInput"), sendBtn = $("send");
-const loginUsernameInput = $("loginUsername"), loginPasswordInput = $("loginPassword");
-const registerUsernameInput = $("registerUsername"), registerPasswordInput = $("registerPassword");
-const loginSubmit = $("loginSubmit"), registerSubmit = $("registerSubmit");
-const chatList = $("chatList"), chatSearchInput = $("chatSearch"), newChatBtn = $("newChat");
-const startRoleplayBtn = $("startRoleplay");
-const chatListLoading = $("chatListLoading"), chatListLoadingText = $("chatListLoadingText");
-const renameChatBtn = $("renameChat"), clearChatBtn = $("clearChat"), exportChatBtn = $("exportChat");
-const activeChatTitle = $("activeChatTitle"), sessionUser = $("sessionUser");
-const chatActivityOverlay = $("chatActivityOverlay"), chatActivityEyebrow = $("chatActivityEyebrow"), chatActivityTitle = $("chatActivityTitle"), chatActivityDetail = $("chatActivityDetail");
-const contextChipButton = $("contextChipButton"), contextPopover = $("contextPopover"), contextSummaryLabel = $("contextSummaryLabel");
-const chatActionsMenuButton = $("chatActionsMenuButton"), chatActionsPopover = $("chatActionsPopover");
-const chatModePill = $("chatModePill"), chatCharacterPill = $("chatCharacterPill"), chatUserPersonaPill = $("chatUserPersonaPill"), chatScenePill = $("chatScenePill");
-const personaList = $("personaList"), userPersonaList = $("userPersonaList");
-const personaForm = $("personaForm"), personaFormTitle = $("personaFormTitle"), personaTypeSelect = $("personaType");
-const personaNameInput = $("personaName"), personaPronounsInput = $("personaPronouns"), personaAppearanceInput = $("personaAppearance");
-const personaBackgroundInput = $("personaBackground"), personaDetailsInput = $("personaDetails");
-const personaExamplesField = $("personaExamplesField"), personaExampleDialoguesInput = $("personaExampleDialogues");
-const personaFormNotice = $("personaFormNotice");
-const roleplayNewPersonaBtn = $("roleplayNewPersona"), clearUserPersonaBtn = $("clearUserPersona");
-const activePersonaStatus = $("activePersonaStatus"), activeUserPersonaStatus = $("activeUserPersonaStatus");
-const personaModal = $("personaModal"), personaCloseBtn = $("personaClose"), personaMenuButton = $("personaMenuButton"), personaPopover = $("personaPopover");
-const roleplayStarterModal = $("roleplayStarterModal"), roleplayStarterClose = $("roleplayStarterClose"), roleplayStarterCancel = $("roleplayStarterCancel"), roleplayStarterConfirm = $("roleplayStarterConfirm");
-const roleplayStarterNotice = $("roleplayStarterNotice"), roleplayCharacterSelect = $("roleplayCharacterSelect"), roleplayUserPersonaSelect = $("roleplayUserPersonaSelect");
-const roleplayStarterTitle = $("roleplayStarterTitle"), roleplayStarterIntroCopy = $("roleplayStarterIntroCopy"), roleplayStarterBack = $("roleplayStarterBack");
-const roleplayStarterStepOne = $("roleplayStarterStepOne"), roleplayStarterStepTwo = $("roleplayStarterStepTwo");
-const roleplayScenarioInput = $("roleplayScenarioInput"), roleplayStarterSuggestions = $("roleplayStarterSuggestions");
-const popupModal = $("popupModal"), popupCloseBtn = $("popupClose"), popupCancelBtn = $("popupCancel"), popupConfirmBtn = $("popupConfirm");
-const popupTitle = $("popupTitle"), popupEyebrow = $("popupEyebrow"), popupDescription = $("popupDescription"), popupField = $("popupField");
-const popupInputLabel = $("popupInputLabel"), popupInput = $("popupInput");
-const appNotice = $("appNotice"), quickPrompts = $("quickPrompts");
-const onboardingModal = $("onboardingModal"), onboardingTitle = $("onboardingTitle"), onboardingSubtitle = $("onboardingSubtitle");
-const onboardingChoices = $("onboardingChoices"), onboardingBack = $("onboardingBack"), onboardingContinue = $("onboardingContinue"), onboardingSkip = $("onboardingSkip");
-const authScreens = document.querySelectorAll(".auth-screen"), toggleButtons = document.querySelectorAll(".auth-toggle .toggle");
-const themeNameTargets = document.querySelectorAll("[data-theme-name]"), themeLogoTargets = document.querySelectorAll("[data-theme-logo]");
-const modelMenu = document.querySelector(".model-menu"), personaMenu = document.querySelector(".persona-menu");
-const requestedChatId = Number(new URLSearchParams(window.location.search).get("chat")) || null;
+import {del, get, post, put, stream} from "./app/api.js";
+import {defaultModelProfile, onboardingPrompts, requestedChatId, themes} from "./app/constants.js";
+import {
+    activeChatTitle,
+    activePersonaStatus,
+    activeUserPersonaStatus,
+    appNotice,
+    authDiv,
+    authMsg,
+    authScreens,
+    chatActionsMenuButton,
+    chatActionsPopover,
+    chatActivityDetail,
+    chatActivityEyebrow,
+    chatActivityOverlay,
+    chatActivityTitle,
+    chatCharacterPill,
+    chatDiv,
+    chatList,
+    chatListLoading,
+    chatListLoadingText,
+    chatSidebar,
+    chatDrawerCloseBtn,
+    chatModePill,
+    chatSearchInput,
+    chatUserPersonaPill,
+    clearChatBtn,
+    archiveChatBtn,
+    backupWorkspaceBtn,
+    clearUserPersonaBtn,
+    contextChipButton,
+    contextPopover,
+    contextSummaryLabel,
+    exportChatBtn,
+    moveChatFolderBtn,
+    loginForm,
+    loginPasswordInput,
+    loginSubmit,
+    loginUsernameInput,
+    logoutButton,
+    messagesDiv,
+    modelBadgeName,
+    modelCount,
+    modelHelpBadge,
+    modelHelpSummary,
+    modelHelpTitle,
+    modelMenu,
+    modelMenuButton,
+    modelPopover,
+    modelSelect,
+    msgInput,
+    newChatBtn,
+    onboardingBack,
+    onboardingChoices,
+    onboardingContinue,
+    onboardingModal,
+    onboardingSkip,
+    onboardingSubtitle,
+    onboardingTitle,
+    pinChatBtn,
+    personaCloseBtn,
+    personaDetailsInput,
+    personaExampleDialoguesInput,
+    personaExamplesField,
+    personaForm,
+    personaFormNotice,
+    personaFormTitle,
+    personaList,
+    personaMenu,
+    personaMenuButton,
+    personaModal,
+    personaNameInput,
+    personaPopover,
+    personaPronounsInput,
+    personaTypeSelect,
+    personaAppearanceInput,
+    personaBackgroundInput,
+    popupCancelBtn,
+    popupCloseBtn,
+    popupConfirmBtn,
+    popupDescription,
+    popupEyebrow,
+    popupField,
+    popupInput,
+    popupInputLabel,
+    popupModal,
+    popupTitle,
+    registerForm,
+    registerPasswordInput,
+    registerSubmit,
+    registerUsernameInput,
+    renameChatBtn,
+    roleplayCharacterSelect,
+    roleplayNewPersonaBtn,
+    roleplayScenarioInput,
+    roleplayStarterBack,
+    roleplayStarterCancel,
+    roleplayStarterClose,
+    roleplayStarterConfirm,
+    roleplayStarterIntroCopy,
+    roleplayStarterModal,
+    roleplayStarterNotice,
+    roleplayStarterStepOne,
+    roleplayStarterStepTwo,
+    roleplayStarterSuggestions,
+    roleplayStarterTitle,
+    roleplayUserPersonaSelect,
+    sendBtn,
+    sessionUser,
+    themeLogoTargets,
+    themeNameTargets,
+    toggleButtons,
+    userPersonaList
+} from "./app/dom.js";
 
 let isProcessing = false, activeChatId = null, editingPersonaId = null, editingPersonaType = "assistant", currentUsername = "";
 let chatSessions = [], currentMessages = [], assistantPersonas = [], userPersonas = [];
@@ -55,38 +126,6 @@ let chatLoadingDepth = 0;
 let chatActivityDepth = 0;
 let messageRetryState = new Map();
 
-const onboardingPrompts = {
-    ask: ["Explain this topic in simple terms.", "Compare these options and recommend one."],
-    brainstorm: ["Give me 10 practical ideas for this problem.", "Suggest 3 creative directions and tradeoffs."],
-    roleplay: ["Start a roleplay scene with immediate tension.", "Give me a dramatic opening with clear stakes."]
-};
-
-const themes = {
-    "fakegpt": {name: "FakeGPT", short: "FG"},
-    "fraud": {name: "Fraud", short: "FR"},
-    "germini": {name: "Germini", short: "GE"},
-    "slopilot": {name: "Slopilot", short: "SP"},
-    "beta-ai": {name: "Beta AI", short: "BA"},
-    "confusity": {name: "Confusity", short: "CF"}
-};
-
-const defaultModelProfile = {
-    badge: "General",
-    summary: "General-purpose chat model. Start here if you are unsure which model to use."
-};
-
-async function request(url, data, method = "POST") {
-    try {
-        const res = await fetch(url, {method, headers: {"Content-Type": "application/json"}, body: data ? JSON.stringify(data) : undefined});
-        return await res.json();
-    } catch {
-        return {error: "Network error - please try again."};
-    }
-}
-const get = (url) => request(url, null, "GET");
-const post = (url, data) => request(url, data, "POST");
-const put = (url, data) => request(url, data, "PUT");
-const del = (url) => request(url, null, "DELETE");
 
 function setAuthMessage(message, state = "") { authMsg.textContent = message; authMsg.className = state ? `status ${state}` : "status"; }
 function setNotice(message = "", state = "") {
@@ -166,7 +205,15 @@ function applyWorkspaceMode(nextMode, persist = true) {
     if (modelMenu) modelMenu.classList.toggle("hidden", workspaceMode === "basic");
     if (personaMenu) personaMenu.classList.toggle("hidden", workspaceMode === "basic");
     updateComposerPlaceholder();
-    renderQuickPrompts();
+}
+
+function isMobileLayout() {
+    return window.matchMedia("(max-width: 820px)").matches;
+}
+
+function closeMobileSidebar() {
+    if (!chatSidebar) return;
+    document.body.classList.remove("sidebar-open");
 }
 
 function hasCompletedOnboarding() {
@@ -284,29 +331,6 @@ function updateRoleplaySuggestions() {
             }
         });
         roleplayStarterSuggestions.appendChild(button);
-    });
-}
-function getQuickPromptsForChat(chat) {
-    return [];
-}
-function renderQuickPrompts() {
-    if (!quickPrompts) return;
-    const activeChat = getChatById(activeChatId);
-    const prompts = getQuickPromptsForChat(activeChat);
-    const visiblePrompts = workspaceMode === "basic" ? prompts.slice(0, 3) : prompts;
-    quickPrompts.innerHTML = "";
-    quickPrompts.classList.toggle("hidden", visiblePrompts.length === 0);
-    visiblePrompts.forEach((prompt) => {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "prompt-chip";
-        button.textContent = prompt;
-        button.addEventListener("click", () => {
-            msgInput.value = prompt;
-            msgInput.dispatchEvent(new Event("input"));
-            msgInput.focus();
-        });
-        quickPrompts.appendChild(button);
     });
 }
 function updateComposerPlaceholder() {
@@ -484,7 +508,16 @@ async function retryLatestAssistantMessage(messageId, fallbackIndex = -1) {
     try {
         const endpoint = getMessageEndpoint(target, "/retry");
         if (!endpoint) return setNotice("Message is not ready yet. Try again.", "error");
-        const res = await post(endpoint, {model: modelSelect.value});
+        const style = await promptPopup({
+            eyebrow: "Retry style",
+            title: "Retry modifier",
+            description: "Leave empty for a normal retry, or use shorter, direct, emotional, stay-in-character, or dialogue.",
+            label: "Style",
+            value: "",
+            placeholder: "shorter",
+            confirmLabel: "Retry"
+        });
+        const res = await post(endpoint, {model: modelSelect.value, style: String(style || "").trim()});
         if (res.error || !res.message?.content) {
             return setNotice(res.error || "Unable to retry message.", "error");
         }
@@ -636,7 +669,6 @@ function renderMessages() {
     }
     updateChatParticipants();
     updateChatActionState();
-    renderQuickPrompts();
     updateComposerPlaceholder();
 }
 
@@ -671,26 +703,26 @@ function renderMessageEmptyState() {
     actions.className = "messages-empty-actions";
 
     if (!chat) {
-        title.textContent = "Start your first conversation";
-        description.textContent = "Create a chat, or jump directly into roleplay.";
+        title.textContent = "Start a chat";
+        description.textContent = "Choose a starting point.";
         actions.append(
             createStarterAction("New chat", "primary-action", () => { void createNewChat(); }),
-            createStarterAction("Start roleplay", "secondary-action", () => {
+            createStarterAction("Roleplay", "secondary-action", () => {
                 if (assistantPersonas.length) {
                     openRoleplayStarter();
                     return;
                 }
                 openPersonaForm(null, "assistant");
             }),
-            createMessageStarterPrompt("Try a starter prompt", "Help me plan my day in 3 steps.")
+            createMessageStarterPrompt("Try a prompt", "Help me plan my day in 3 steps.")
         );
     } else if (chat.assistant_persona_id) {
-        title.textContent = "Your scene is ready";
-        description.textContent = "Send your first line, or use a prompt to set the tone.";
+        title.textContent = "Roleplay is ready";
+        description.textContent = "Send a line or pick a prompt.";
         actions.append(
             createMessageStarterPrompt("Add tension", "Open with a tense line that raises the stakes immediately."),
             createMessageStarterPrompt("Set the scene", "Describe what your character notices first in this scene."),
-            createStarterAction("Pick another roleplay setup", "secondary-action", () => openRoleplayStarter())
+            createStarterAction("Change setup", "secondary-action", () => openRoleplayStarter())
         );
     } else {
         return;
@@ -709,7 +741,6 @@ function updateWorkspaceCopy() {
         sessionUser.textContent = currentUsername || "-";
     }
     updateChatParticipants();
-    renderQuickPrompts();
     updateComposerPlaceholder();
 }
 
@@ -747,12 +778,11 @@ function renderRoleplayStarterStep() {
 
 function updateChatParticipants() {
     const chat = getChatById(activeChatId);
-    if (!chatModePill || !chatCharacterPill || !chatUserPersonaPill || !chatScenePill) return;
+    if (!chatModePill || !chatCharacterPill || !chatUserPersonaPill) return;
     if (!chat) {
         chatModePill.textContent = "No chat selected";
         chatCharacterPill.classList.add("hidden");
         chatUserPersonaPill.classList.add("hidden");
-        chatScenePill.classList.add("hidden");
         if (contextSummaryLabel) contextSummaryLabel.textContent = "None";
         return;
     }
@@ -767,19 +797,12 @@ function updateChatParticipants() {
             chatUserPersonaPill.textContent = "You as: yourself";
             chatUserPersonaPill.classList.remove("hidden");
         }
-        if (chat.scenario_summary) {
-            chatScenePill.textContent = `Scene: ${summarizeText(chat.scenario_summary, 112)}`;
-            chatScenePill.classList.remove("hidden");
-        } else {
-            chatScenePill.classList.add("hidden");
-        }
         if (contextSummaryLabel) contextSummaryLabel.textContent = chat.assistant_persona_name || "Roleplay";
         return;
     }
     chatModePill.textContent = "Assistant mode";
     chatCharacterPill.classList.add("hidden");
     chatUserPersonaPill.classList.add("hidden");
-    chatScenePill.classList.add("hidden");
     if (contextSummaryLabel) contextSummaryLabel.textContent = "Assistant";
 }
 
@@ -864,8 +887,18 @@ function updateChatActionState() {
     const activeChat = getChatById(activeChatId);
     const hasChat = Boolean(activeChat);
     renameChatBtn.disabled = !hasChat || Boolean(activeChat?.assistant_persona_id);
+    if (pinChatBtn) {
+        pinChatBtn.disabled = !hasChat;
+        if (hasChat) pinChatBtn.textContent = activeChat.is_pinned ? "Unpin" : "Pin";
+    }
+    if (moveChatFolderBtn) moveChatFolderBtn.disabled = !hasChat;
+    if (archiveChatBtn) {
+        archiveChatBtn.disabled = !hasChat;
+        if (hasChat) archiveChatBtn.textContent = activeChat.archived_at ? "Unarchive" : "Archive";
+    }
     clearChatBtn.disabled = !hasChat;
     exportChatBtn.disabled = !hasChat || currentMessages.length === 0;
+    if (backupWorkspaceBtn) backupWorkspaceBtn.disabled = !currentUsername;
 }
 
 function maybeShowPersonaNudge() {
@@ -878,7 +911,9 @@ function maybeShowPersonaNudge() {
 
 function renderChatList() {
     const query = chatSearchInput.value.trim().toLowerCase();
-    const filtered = chatSessions.filter((chat) => !query || chat.title.toLowerCase().includes(query));
+    const filtered = chatSessions.filter((chat) => !query
+        || chat.title.toLowerCase().includes(query)
+        || String(chat.matched_content || "").toLowerCase().includes(query));
     chatList.innerHTML = "";
     if (!filtered.length) {
         const empty = document.createElement("p");
@@ -887,21 +922,51 @@ function renderChatList() {
         chatList.appendChild(empty);
         return;
     }
-    filtered.forEach((chat) => {
-        const item = document.createElement("div"), content = document.createElement("div"), title = document.createElement("span"), meta = document.createElement("small"), remove = document.createElement("button");
-        item.className = `chat-item${chat.id === activeChatId ? " active" : ""}`;
-        content.className = "chat-item-copy";
-        title.textContent = chat.title;
-        meta.className = "chat-item-meta";
-        meta.textContent = chat.assistant_persona_id
-            ? `Roleplay${chat.user_persona_name ? ` · ${chat.user_persona_name}` : ""}`
-            : "Assistant chat";
-        remove.type = "button"; remove.textContent = "Delete";
-        remove.addEventListener("click", async (event) => { event.stopPropagation(); await deleteChat(chat.id); });
-        content.append(title, meta);
-        item.append(content, remove);
-        item.addEventListener("click", () => setActiveChat(chat.id));
-        chatList.appendChild(item);
+    const folderGroups = filtered
+        .filter((chat) => chat.folder_name && !chat.archived_at)
+        .reduce((map, chat) => {
+            const key = String(chat.folder_name).trim();
+            const items = map.get(key) || [];
+            items.push(chat);
+            map.set(key, items);
+            return map;
+        }, new Map());
+    const groups = [
+        {label: "Pinned", items: filtered.filter((chat) => chat.is_pinned && !chat.archived_at)},
+        ...Array.from(folderGroups.entries()).map(([label, items]) => ({label, items})),
+        {label: "Recent", items: filtered.filter((chat) => !chat.is_pinned && !chat.folder_name && !chat.archived_at)},
+        {label: "Archived", items: filtered.filter((chat) => chat.archived_at)}
+    ].filter((group) => group.items.length);
+    groups.forEach((group) => {
+        const section = document.createElement("section");
+        const heading = document.createElement("div");
+        const list = document.createElement("div");
+        section.className = "chat-list-section";
+        heading.className = "chat-list-section-header";
+        heading.textContent = group.label;
+        list.className = "chat-list-section-body";
+        section.append(heading, list);
+        group.items.forEach((chat) => {
+            const item = document.createElement("div"), content = document.createElement("div"), title = document.createElement("span"), meta = document.createElement("small"), remove = document.createElement("button");
+            item.className = `chat-item${chat.id === activeChatId ? " active" : ""}`;
+            content.className = "chat-item-copy";
+            title.textContent = chat.title;
+            meta.className = "chat-item-meta";
+            meta.textContent = chat.assistant_persona_id
+                ? `Roleplay${chat.user_persona_name ? ` · ${chat.user_persona_name}` : ""}`
+                : "Assistant chat";
+            remove.type = "button";
+            remove.textContent = "Delete";
+            remove.addEventListener("click", async (event) => {
+                event.stopPropagation();
+                await deleteChat(chat.id);
+            });
+            content.append(title, meta);
+            item.append(content, remove);
+            item.addEventListener("click", () => setActiveChat(chat.id));
+            list.appendChild(item);
+        });
+        chatList.appendChild(section);
     });
 }
 
@@ -945,7 +1010,11 @@ function openPersonaForm(persona = null, personaType = "assistant") {
 }
 
 function closePersonaForm() { personaModal.classList.add("hidden"); editingPersonaId = null; editingPersonaType = "assistant"; personaTypeSelect.disabled = false; setPersonaFormNotice(""); }
-function closePersonaPopover() { personaPopover.classList.add("hidden"); personaMenuButton.setAttribute("aria-expanded", "false"); }
+function closePersonaPopover() {
+    if (!personaPopover || personaPopover.dataset.staticPanel === "true") return;
+    personaPopover.classList.add("hidden");
+    if (personaMenuButton) personaMenuButton.setAttribute("aria-expanded", "false");
+}
 function closeContextPopover() {
     if (!contextPopover || !contextChipButton) return;
     contextPopover.classList.add("hidden");
@@ -955,6 +1024,7 @@ function closeChatActionsPopover() {
     if (!chatActionsPopover || !chatActionsMenuButton) return;
     chatActionsPopover.classList.add("hidden");
     chatActionsMenuButton.setAttribute("aria-expanded", "false");
+    document.body.classList.remove("chat-drawer-open");
 }
 function closeAuxiliaryPopovers() {
     closeModelPopover();
@@ -1037,9 +1107,9 @@ function goToRoleplayStarterSceneStep() {
     if (roleplayScenarioInput) roleplayScenarioInput.focus();
 }
 function closeModelPopover() {
-    if (!modelPopover || !modelMenuButton) return;
+    if (!modelPopover || modelPopover.dataset.staticPanel === "true") return;
     modelPopover.classList.add("hidden");
-    modelMenuButton.setAttribute("aria-expanded", "false");
+    if (modelMenuButton) modelMenuButton.setAttribute("aria-expanded", "false");
 }
 function isPopupOpen() { return popupModal && !popupModal.classList.contains("hidden"); }
 function finishPopup(result) {
@@ -1231,6 +1301,7 @@ function showAuthScreen(target) {
 }
 
 async function setActiveChat(id) {
+    if (isMobileLayout()) closeMobileSidebar();
     setChatLoading(true, "Opening chat...");
     setChatActivity(true, {
         eyebrow: "Opening chat",
@@ -1256,7 +1327,8 @@ async function setActiveChat(id) {
 
 async function loadChatSessions() {
     setChatLoading(true, "Loading chats...");
-    const res = await get("/chats");
+    const query = chatSearchInput?.value.trim();
+    const res = query ? await get(`/chats/search?q=${encodeURIComponent(query)}`) : await get("/chats");
     if (res.error) {
         setChatLoading(false);
         return setNotice(res.error, "error");
@@ -1354,6 +1426,23 @@ async function renameChat(id) {
     chat.title = title; updateWorkspaceCopy(); renderChatList(); setNotice("Chat renamed.", "success");
 }
 
+async function updateChatOrganization(id, changes) {
+    const chat = getChatById(id);
+    if (!chat) return;
+    const payload = {
+        folderName: changes.folderName !== undefined ? changes.folderName : chat.folder_name,
+        isPinned: changes.isPinned !== undefined ? changes.isPinned : Boolean(chat.is_pinned),
+        archived: changes.archived !== undefined ? changes.archived : Boolean(chat.archived_at)
+    };
+    const res = await put(`/chats/${id}/organization`, payload);
+    if (res.error) return setNotice(res.error, "error");
+    const index = chatSessions.findIndex((item) => item.id === id);
+    if (index >= 0) chatSessions[index] = res.chat;
+    updateWorkspaceCopy();
+    renderChatList();
+    updateChatActionState();
+}
+
 async function clearChat(id) {
     const chat = getChatById(id);
     if (!chat) return;
@@ -1374,11 +1463,46 @@ async function clearChat(id) {
 function exportCurrentChat() {
     const chat = getChatById(activeChatId);
     if (!chat || !currentMessages.length) return;
-    const lines = [`Chat: ${chat.title}`, `Exported: ${new Date().toISOString()}`, ""];
-    currentMessages.forEach((msg) => { lines.push(`${msg.role === "user" ? "You" : "Assistant"}:`); lines.push(msg.content, ""); });
-    const blob = new Blob([lines.join("\n")], {type: "text/plain;charset=utf-8"}), url = URL.createObjectURL(blob), link = document.createElement("a");
-    link.href = url; link.download = `${(chat.title.replace(/[^a-z0-9-_]+/gi, "-").replace(/^-+|-+$/g, "") || "chat")}.txt`;
-    document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(url); setNotice("Chat exported.", "success");
+    void (async () => {
+        const format = await promptPopup({
+            eyebrow: "Export",
+            title: "Export format",
+            description: "Use txt, md, or json.",
+            label: "Format",
+            value: "md",
+            placeholder: "md",
+            confirmLabel: "Download"
+        });
+        const normalized = ["txt", "md", "json"].includes(String(format || "").trim().toLowerCase())
+            ? String(format).trim().toLowerCase()
+            : "md";
+        const response = await fetch(`/exports/chats/${activeChatId}?format=${normalized}`);
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `${(chat.title.replace(/[^a-z0-9-_]+/gi, "-").replace(/^-+|-+$/g, "") || "chat")}.${normalized}`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+        setNotice(`Chat exported as ${normalized}.`, "success");
+    })();
+}
+
+async function backupWorkspace() {
+    const response = await fetch("/exports/workspace");
+    const data = await response.json();
+    const blob = new Blob([JSON.stringify(data.workspace, null, 2)], {type: "application/json;charset=utf-8"});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `workspace-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    setNotice("Workspace backup downloaded.", "success");
 }
 
 async function deleteChat(id) {
@@ -1479,19 +1603,30 @@ async function sendMessage() {
         title: "Generating response",
         detail: "The assistant is reading your message and preparing a reply."
     }); setNotice("Generating reply...");
-    const loadingMsg = addMessage("", false, true);
+    const loadingMsg = addMessage({role: "bot", content: ""}, false, false, {isNewest: true});
+    const loadingBody = loadingMsg.querySelector(".msg-content");
     try {
-        const res = await post("/chat", {message, model: modelSelect.value, chatId: activeChatId});
+        let streamError = null;
+        await stream("/chat/stream", {message, model: modelSelect.value, chatId: activeChatId}, {
+            onChunk: ({fullReply}) => {
+                if (loadingBody) setMessageContent(loadingBody, fullReply);
+            },
+            onDone: () => {},
+            onError: ({error}) => {
+                streamError = error || "Failed to generate reply.";
+            }
+        });
         if (messagesDiv.contains(loadingMsg)) messagesDiv.removeChild(loadingMsg);
-        if (res.reply) {
-            await setActiveChat(activeChatId);
-            await loadSummary();
-            markOnboardingCompleted();
-            maybeShowPersonaNudge();
-            setNotice("Reply received.", "success");
-        } else {
-            addMessage(`[Error: ${res.error}]`); setNotice(res.error || "Failed to generate reply.", "error");
+        if (streamError) {
+            addMessage(`[Error: ${streamError}]`);
+            setNotice(streamError, "error");
+            return;
         }
+        await setActiveChat(activeChatId);
+        await loadSummary();
+        markOnboardingCompleted();
+        maybeShowPersonaNudge();
+        setNotice("Reply received.", "success");
     } catch {
         if (messagesDiv.contains(loadingMsg)) messagesDiv.removeChild(loadingMsg);
         addMessage("[Error: Network error]"); setNotice("Network error while sending message.", "error");
@@ -1537,15 +1672,18 @@ function toggleChatActionsPopover(event) {
     closeModelPopover();
     closePersonaPopover();
     closeContextPopover();
+    if (isMobileLayout()) closeMobileSidebar();
     const isHidden = chatActionsPopover.classList.contains("hidden");
     chatActionsPopover.classList.toggle("hidden", !isHidden);
     chatActionsMenuButton.setAttribute("aria-expanded", String(isHidden));
+    document.body.classList.toggle("chat-drawer-open", isHidden);
 }
 
 toggleButtons.forEach((btn) => btn.addEventListener("click", () => showAuthScreen(btn.dataset.target)));
 loginForm.addEventListener("submit", (event) => { event.preventDefault(); void handleAuth("login", {username: loginUsernameInput.value.trim(), password: loginPasswordInput.value.trim()}); });
 registerForm.addEventListener("submit", (event) => { event.preventDefault(); void handleAuth("register", {username: registerUsernameInput.value.trim(), password: registerPasswordInput.value.trim()}); });
-$("logout").addEventListener("click", async () => {
+logoutButton.addEventListener("click", async () => {
+    closeChatActionsPopover();
     await post("/logout", {}); chatDiv.style.display = "none"; authDiv.style.display = "grid";
     activeChatId = null; currentUsername = ""; currentSummary = null; chatSessions = []; currentMessages = []; assistantPersonas = []; userPersonas = [];
     messageRetryState = new Map();
@@ -1561,17 +1699,64 @@ msgInput.addEventListener("input", function () {
     this.style.height = `${Math.min(this.scrollHeight, 180)}px`;
     updateSendState();
 });
-newChatBtn.addEventListener("click", () => { void createNewChat(); });
-if (startRoleplayBtn) {
-    startRoleplayBtn.addEventListener("click", () => {
-        window.location.href = "/market?view=ai-characters";
+newChatBtn.addEventListener("click", () => {
+    closeChatActionsPopover();
+    closeMobileSidebar();
+    void createNewChat();
+});
+renameChatBtn.addEventListener("click", () => {
+    closeChatActionsPopover();
+    if (activeChatId) void renameChat(activeChatId);
+});
+clearChatBtn.addEventListener("click", () => {
+    closeChatActionsPopover();
+    if (activeChatId) void clearChat(activeChatId);
+});
+exportChatBtn.addEventListener("click", () => {
+    closeChatActionsPopover();
+    exportCurrentChat();
+});
+if (pinChatBtn) pinChatBtn.addEventListener("click", () => {
+    closeChatActionsPopover();
+    const chat = getChatById(activeChatId);
+    if (chat) void updateChatOrganization(chat.id, {isPinned: !chat.is_pinned});
+});
+if (moveChatFolderBtn) moveChatFolderBtn.addEventListener("click", async () => {
+    closeChatActionsPopover();
+    const chat = getChatById(activeChatId);
+    if (!chat) return;
+    const folderName = await promptPopup({
+        eyebrow: "Folder",
+        title: "Move chat to folder",
+        description: "Leave blank to remove the folder.",
+        label: "Folder name",
+        value: chat.folder_name || "",
+        placeholder: "Research"
     });
-}
-renameChatBtn.addEventListener("click", () => { if (activeChatId) void renameChat(activeChatId); });
-clearChatBtn.addEventListener("click", () => { if (activeChatId) void clearChat(activeChatId); }); exportChatBtn.addEventListener("click", exportCurrentChat);
-chatSearchInput.addEventListener("input", renderChatList); modelSelect.addEventListener("change", () => { updateModelHelp(); updateContextRail(); });
+    if (folderName === null) return;
+    void updateChatOrganization(chat.id, {folderName: String(folderName || "").trim() || null});
+});
+if (archiveChatBtn) archiveChatBtn.addEventListener("click", () => {
+    closeChatActionsPopover();
+    const chat = getChatById(activeChatId);
+    if (chat) void updateChatOrganization(chat.id, {archived: !chat.archived_at});
+});
+if (backupWorkspaceBtn) backupWorkspaceBtn.addEventListener("click", () => {
+    closeChatActionsPopover();
+    void backupWorkspace();
+});
+chatSearchInput.addEventListener("input", () => { void loadChatSessions(); });
+if (chatDrawerCloseBtn) chatDrawerCloseBtn.addEventListener("click", closeChatActionsPopover);
+modelSelect.addEventListener("change", () => {
+    updateModelHelp();
+    updateContextRail();
+    closeModelPopover();
+});
 roleplayNewPersonaBtn.addEventListener("click", () => openPersonaForm(null, "assistant"));
-clearUserPersonaBtn.addEventListener("click", () => { void clearPersona("user"); });
+clearUserPersonaBtn.addEventListener("click", () => {
+    closePersonaPopover();
+    void clearPersona("user");
+});
 personaForm.addEventListener("submit", (event) => { event.preventDefault(); void savePersona(); }); personaCloseBtn.addEventListener("click", closePersonaForm);
 personaTypeSelect.addEventListener("change", () => {
     const isAssistant = personaTypeSelect.value === "assistant";
@@ -1625,6 +1810,9 @@ if (chatActionsMenuButton && chatActionsPopover) {
     chatActionsMenuButton.addEventListener("click", toggleChatActionsPopover);
     chatActionsPopover.addEventListener("click", (event) => event.stopPropagation());
 }
+if (chatSidebar) {
+    chatSidebar.addEventListener("click", (event) => event.stopPropagation());
+}
 if (onboardingContinue) {
     onboardingContinue.addEventListener("click", () => {
         onboardingStep = 2;
@@ -1645,10 +1833,17 @@ if (onboardingModal) {
         if (event.target === onboardingModal) markOnboardingCompleted();
     });
 }
-document.addEventListener("click", () => { closeAuxiliaryPopovers(); });
+document.addEventListener("click", () => {
+    closeAuxiliaryPopovers();
+    closeMobileSidebar();
+});
+window.addEventListener("resize", () => {
+    if (!isMobileLayout()) closeMobileSidebar();
+});
 document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
         closeAuxiliaryPopovers();
+        closeMobileSidebar();
         closeRoleplayStarter();
         closePersonaForm();
         closePopup(false);

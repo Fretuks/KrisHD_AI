@@ -15,7 +15,6 @@
         <div>
             <p class="eyebrow">Settings</p>
             <h1>Preferences</h1>
-            <p class="subtitle">Manage your account, AI Characters, user personas, and appearance.</p>
         </div>
         <div class="market-header-actions">
             <a href="/" class="secondary-action">Back to chat</a>
@@ -27,9 +26,9 @@
 
     <section class="settings-layout">
         <aside class="settings-nav" aria-label="Settings sections">
-            <button class="settings-nav-item active" type="button" data-settings-view="personal">Personal</button>
-            <button class="settings-nav-item" type="button" data-settings-view="my-roleplay-companions">My Roleplay Companions</button>
-            <button class="settings-nav-item" type="button" data-settings-view="design">Design</button>
+            <button class="settings-nav-item active" type="button" data-settings-view="personal">Account</button>
+            <button class="settings-nav-item" type="button" data-settings-view="my-roleplay-companions">Personas</button>
+            <button class="settings-nav-item" type="button" data-settings-view="design">Appearance</button>
         </aside>
 
         <div class="settings-content">
@@ -88,8 +87,7 @@
                     <div class="settings-section-header">
                         <div>
                             <p class="eyebrow">Create & manage</p>
-                            <h2>My Roleplay Companions</h2>
-                            <p class="subtitle">Build characters for roleplay chats and publish them to the market when they are ready.</p>
+                            <h2>My personas</h2>
                         </div>
                         <div class="market-header-actions action-pair">
                             <button id="createAiCharacter" type="button" class="secondary-action">Create AI Character</button>
@@ -195,6 +193,29 @@
                 <button id="settingsPersonaSave" type="submit" class="primary-action">Save persona</button>
             </div>
         </form>
+    </div>
+</div>
+
+<div id="settingsPopupModal" class="modal-overlay hidden">
+    <div class="modal-card popup-card" role="dialog" aria-modal="true" aria-labelledby="settingsPopupTitle" aria-describedby="settingsPopupDescription">
+        <div class="modal-header">
+            <div class="persona-modal-heading">
+                <p id="settingsPopupEyebrow" class="eyebrow">Action</p>
+                <h3 id="settingsPopupTitle">Confirm action</h3>
+            </div>
+            <button id="settingsPopupClose" type="button" class="icon-button">Close</button>
+        </div>
+        <div class="popup-content">
+            <p id="settingsPopupDescription" class="subtitle">Please confirm this action.</p>
+            <label id="settingsPopupField" class="field">
+                <span id="settingsPopupInputLabel">Value</span>
+                <input id="settingsPopupInput" type="text" autocomplete="off"/>
+            </label>
+        </div>
+        <div class="popup-actions">
+            <button id="settingsPopupCancel" type="button" class="secondary-action">Cancel</button>
+            <button id="settingsPopupConfirm" type="button">Confirm</button>
+        </div>
     </div>
 </div>
 <script src="settings.js" defer></script>
