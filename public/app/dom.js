@@ -48,7 +48,6 @@ const contextPopover = $("contextPopover");
 const contextSummaryLabel = $("contextSummaryLabel");
 const chatActionsMenuButton = $("chatActionsMenuButton");
 const chatActionsPopover = $("chatActionsPopover");
-const chatModePill = $("chatModePill");
 const chatCharacterPill = $("chatCharacterPill");
 const chatUserPersonaPill = $("chatUserPersonaPill");
 const personaList = $("personaList");
@@ -96,7 +95,6 @@ const popupDescription = $("popupDescription");
 const popupField = $("popupField");
 const popupInputLabel = $("popupInputLabel");
 const popupInput = $("popupInput");
-const appNotice = $("appNotice");
 const onboardingModal = $("onboardingModal");
 const onboardingTitle = $("onboardingTitle");
 const onboardingSubtitle = $("onboardingSubtitle");
@@ -116,7 +114,6 @@ export {
     activeChatTitle,
     activePersonaStatus,
     activeUserPersonaStatus,
-    appNotice,
     authDiv,
     authMsg,
     authScreens,
@@ -133,7 +130,6 @@ export {
     chatListLoadingText,
     chatSidebar,
     chatDrawerCloseBtn,
-    chatModePill,
     chatSearchInput,
     chatUserPersonaPill,
     clearChatBtn,

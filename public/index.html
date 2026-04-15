@@ -14,16 +14,11 @@
     <section id="auth" class="card auth-card auth-card-compact">
         <div class="auth-hero auth-hero-compact">
             <div class="brand">
-                <div class="logo" data-theme-logo>FG</div>
+                <div class="logo logo-placeholder" aria-hidden="true"></div>
                 <div>
                     <p class="eyebrow">Private workspace</p>
                     <h1 data-theme-name>FakeGPT</h1>
                 </div>
-            </div>
-            <div class="hero-grid">
-                <article class="hero-panel">
-                    <p>Private chat and roleplay.</p>
-                </article>
             </div>
         </div>
 
@@ -110,9 +105,6 @@
                     <div class="chat-title-block">
                         <div class="chat-title">
                             <h2 id="activeChatTitle">New chat</h2>
-                            <div id="chatParticipants" class="chat-participants chat-participants-inline">
-                                <span id="chatModePill" class="context-pill chat-mode-pill">Assistant mode</span>
-                            </div>
                         </div>
                     </div>
                     <div class="chat-header-actions">
@@ -216,8 +208,6 @@
                     </div>
                 </header>
 
-                <p id="appNotice" class="status inline-status hidden"></p>
-
                 <div id="chatActivityOverlay" class="chat-activity-overlay hidden" role="status" aria-live="polite" aria-atomic="true">
                     <div class="chat-activity-card">
                         <div class="chat-activity-mark" aria-hidden="true">
@@ -238,7 +228,7 @@
                         <p class="composer-hint">Enter to send · Shift+Enter for new line</p>
                     </div>
                     <div class="input-container">
-                        <textarea id="msgInput" placeholder="Type your message..."></textarea>
+                        <textarea id="msgInput" rows="1" placeholder="Type your message..."></textarea>
                         <button id="send" type="button" aria-label="Send message"></button>
                     </div>
                 </div>

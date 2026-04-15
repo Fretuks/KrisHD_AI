@@ -4,7 +4,6 @@ import {
     activeChatTitle,
     activePersonaStatus,
     activeUserPersonaStatus,
-    appNotice,
     authDiv,
     authMsg,
     authScreens,
@@ -21,7 +20,6 @@ import {
     chatListLoadingText,
     chatSidebar,
     chatDrawerCloseBtn,
-    chatModePill,
     chatSearchInput,
     chatUserPersonaPill,
     clearChatBtn,
@@ -119,7 +117,6 @@ let activeUserPersonaId = null, currentSummary = null, publishedPersonaIds = new
 let popupResolver = null, popupMode = null, popupLastFocus = null;
 let roleplayPresetCharacterId = null;
 let roleplayStarterStep = 1;
-let noticeTimer = null;
 let workspaceMode = localStorage.getItem("krishd-workspace-mode") || "basic";
 let onboardingStep = 1, onboardingIntent = "ask";
 let chatLoadingDepth = 0;
@@ -129,24 +126,6 @@ let messageRetryState = new Map();
 
 function setAuthMessage(message, state = "") { authMsg.textContent = message; authMsg.className = state ? `status ${state}` : "status"; }
 function setNotice(message = "", state = "") {
-    if (!appNotice) return {message, state};
-    if (noticeTimer) {
-        clearTimeout(noticeTimer);
-        noticeTimer = null;
-    }
-    if (!message) {
-        appNotice.textContent = "";
-        appNotice.className = "status inline-status hidden";
-        return {message, state};
-    }
-    appNotice.textContent = message;
-    appNotice.className = state ? `status inline-status ${state}` : "status inline-status";
-    noticeTimer = window.setTimeout(() => {
-        if (appNotice.textContent === message) {
-            appNotice.textContent = "";
-            appNotice.className = "status inline-status hidden";
-        }
-    }, state === "error" ? 6000 : 3200);
     return {message, state};
 }
 function setPersonaFormNotice(message = "", state = "") {
@@ -349,6 +328,18 @@ function updateComposerPlaceholder() {
 function updateSendState() {
     const hasText = Boolean(msgInput.value.trim());
     sendBtn.disabled = isProcessing || !hasText;
+}
+
+function resizeComposerInput() {
+    msgInput.style.height = "auto";
+    const nextHeight = Math.min(Math.max(msgInput.scrollHeight, 46), 96);
+    msgInput.style.height = `${nextHeight}px`;
+}
+
+function scrollMessagesToBottom() {
+    requestAnimationFrame(() => {
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    });
 }
 
 function getNewestMessage() {
@@ -652,7 +643,7 @@ function addMessage(contentOrMessage, isUser = false, isLoading = false, options
         }
     }
     messagesDiv.appendChild(msgDiv);
-    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    scrollMessagesToBottom();
     return msgDiv;
 }
 
@@ -670,6 +661,9 @@ function renderMessages() {
     updateChatParticipants();
     updateChatActionState();
     updateComposerPlaceholder();
+    if (currentMessages.length) {
+        scrollMessagesToBottom();
+    }
 }
 
 function createStarterAction(label, className, handler) {
@@ -778,16 +772,14 @@ function renderRoleplayStarterStep() {
 
 function updateChatParticipants() {
     const chat = getChatById(activeChatId);
-    if (!chatModePill || !chatCharacterPill || !chatUserPersonaPill) return;
+    if (!chatCharacterPill || !chatUserPersonaPill) return;
     if (!chat) {
-        chatModePill.textContent = "No chat selected";
         chatCharacterPill.classList.add("hidden");
         chatUserPersonaPill.classList.add("hidden");
         if (contextSummaryLabel) contextSummaryLabel.textContent = "None";
         return;
     }
     if (chat.assistant_persona_id) {
-        chatModePill.textContent = "Roleplay mode";
         chatCharacterPill.textContent = `Character: ${chat.assistant_persona_name || chat.title}`;
         chatCharacterPill.classList.remove("hidden");
         if (chat.user_persona_id) {
@@ -800,7 +792,6 @@ function updateChatParticipants() {
         if (contextSummaryLabel) contextSummaryLabel.textContent = chat.assistant_persona_name || "Roleplay";
         return;
     }
-    chatModePill.textContent = "Assistant mode";
     chatCharacterPill.classList.add("hidden");
     chatUserPersonaPill.classList.add("hidden");
     if (contextSummaryLabel) contextSummaryLabel.textContent = "Assistant";
@@ -1598,7 +1589,9 @@ async function sendMessage() {
         currentChat.title = autoTitle; updateWorkspaceCopy(); renderChatList(); await put(`/chats/${activeChatId}`, {title: autoTitle});
     }
     currentMessages.push({role: "user", content: message}); addMessage(message, true); updateChatActionState();
-    msgInput.value = ""; msgInput.style.height = "auto"; setLoadingState(true, {
+    msgInput.value = "";
+    resizeComposerInput();
+    setLoadingState(true, {
         eyebrow: "Assistant replying",
         title: "Generating response",
         detail: "The assistant is reading your message and preparing a reply."
@@ -1695,10 +1688,10 @@ logoutButton.addEventListener("click", async () => {
 sendBtn.addEventListener("click", () => { void sendMessage(); });
 msgInput.addEventListener("keydown", (event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void sendMessage(); } });
 msgInput.addEventListener("input", function () {
-    this.style.height = "auto";
-    this.style.height = `${Math.min(this.scrollHeight, 180)}px`;
+    resizeComposerInput();
     updateSendState();
 });
+resizeComposerInput();
 newChatBtn.addEventListener("click", () => {
     closeChatActionsPopover();
     closeMobileSidebar();
