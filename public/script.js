@@ -1,34 +1,29 @@
 import {del, get, post, put, stream} from "./app/api.js";
+import {closeChatDrawer} from "./app/chatDrawer.js";
 import {defaultModelProfile, onboardingPrompts, requestedChatId, themes} from "./app/constants.js";
 import {
     activeChatTitle,
-    activePersonaStatus,
     activeUserPersonaStatus,
     authDiv,
     authMsg,
     authScreens,
-    chatActionsMenuButton,
-    chatActionsPopover,
     chatActivityDetail,
     chatActivityEyebrow,
     chatActivityOverlay,
     chatActivityTitle,
     chatCharacterPill,
+    chatDrawerPersonaValue,
     chatDiv,
     chatList,
     chatListLoading,
     chatListLoadingText,
     chatSidebar,
-    chatDrawerCloseBtn,
     chatSearchInput,
     chatUserPersonaPill,
     clearChatBtn,
     archiveChatBtn,
     backupWorkspaceBtn,
     clearUserPersonaBtn,
-    contextChipButton,
-    contextPopover,
-    contextSummaryLabel,
     exportChatBtn,
     moveChatFolderBtn,
     loginForm,
@@ -42,9 +37,7 @@ import {
     modelHelpBadge,
     modelHelpSummary,
     modelHelpTitle,
-    modelMenu,
-    modelMenuButton,
-    modelPopover,
+    modelSection,
     modelSelect,
     msgInput,
     newChatBtn,
@@ -63,12 +56,9 @@ import {
     personaForm,
     personaFormNotice,
     personaFormTitle,
-    personaList,
-    personaMenu,
-    personaMenuButton,
     personaModal,
     personaNameInput,
-    personaPopover,
+    personaSection,
     personaPronounsInput,
     personaTypeSelect,
     personaAppearanceInput,
@@ -177,12 +167,8 @@ function applyWorkspaceMode(nextMode, persist = true) {
     workspaceMode = nextMode === "advanced" ? "advanced" : "basic";
     document.body.dataset.workspaceMode = workspaceMode;
     if (persist) localStorage.setItem("krishd-workspace-mode", workspaceMode);
-    if (workspaceMode === "basic") {
-        closeModelPopover();
-        closePersonaPopover();
-    }
-    if (modelMenu) modelMenu.classList.toggle("hidden", workspaceMode === "basic");
-    if (personaMenu) personaMenu.classList.toggle("hidden", workspaceMode === "basic");
+    if (modelSection) modelSection.classList.toggle("hidden", workspaceMode === "basic");
+    if (personaSection) personaSection.classList.toggle("hidden", workspaceMode === "basic");
     updateComposerPlaceholder();
 }
 
@@ -658,7 +644,7 @@ function renderMessages() {
             isNewest: index === currentMessages.length - 1
         }));
     }
-    updateChatParticipants();
+    renderDrawerSummary();
     updateChatActionState();
     updateComposerPlaceholder();
     if (currentMessages.length) {
@@ -734,7 +720,7 @@ function updateWorkspaceCopy() {
     if (sessionUser) {
         sessionUser.textContent = currentUsername || "-";
     }
-    updateChatParticipants();
+    renderDrawerSummary();
     updateComposerPlaceholder();
 }
 
@@ -770,13 +756,12 @@ function renderRoleplayStarterStep() {
     }
 }
 
-function updateChatParticipants() {
+function renderDrawerSummary() {
     const chat = getChatById(activeChatId);
     if (!chatCharacterPill || !chatUserPersonaPill) return;
     if (!chat) {
         chatCharacterPill.classList.add("hidden");
         chatUserPersonaPill.classList.add("hidden");
-        if (contextSummaryLabel) contextSummaryLabel.textContent = "None";
         return;
     }
     if (chat.assistant_persona_id) {
@@ -789,15 +774,14 @@ function updateChatParticipants() {
             chatUserPersonaPill.textContent = "You as: yourself";
             chatUserPersonaPill.classList.remove("hidden");
         }
-        if (contextSummaryLabel) contextSummaryLabel.textContent = chat.assistant_persona_name || "Roleplay";
         return;
     }
     chatCharacterPill.classList.add("hidden");
     chatUserPersonaPill.classList.add("hidden");
-    if (contextSummaryLabel) contextSummaryLabel.textContent = "Assistant";
 }
 
-function updateContextRail() {
+function renderModelSection() {
+    updateModelHelp();
     return modelSelect?.selectedOptions[0]?.textContent || "";
 }
 
@@ -871,7 +855,7 @@ function applyTheme(themeKey, persist = true) {
     themeLogoTargets.forEach((target) => { target.textContent = theme.short; });
     if (persist) localStorage.setItem("krishd-theme", nextTheme);
     updateWorkspaceCopy();
-    updateContextRail();
+    renderModelSection();
 }
 
 function updateChatActionState() {
@@ -890,6 +874,15 @@ function updateChatActionState() {
     clearChatBtn.disabled = !hasChat;
     exportChatBtn.disabled = !hasChat || currentMessages.length === 0;
     if (backupWorkspaceBtn) backupWorkspaceBtn.disabled = !currentUsername;
+}
+
+function renderPersonaSection() {
+    updateActivePersonaStatus(userPersonas, activeUserPersonaId, activeUserPersonaStatus, "No default user persona set.", "Default user persona");
+    if (chatDrawerPersonaValue) {
+        const active = userPersonas.find((persona) => persona.id === activeUserPersonaId);
+        chatDrawerPersonaValue.textContent = active ? active.name : "None";
+    }
+    if (clearUserPersonaBtn) clearUserPersonaBtn.disabled = !activeUserPersonaId;
 }
 
 function maybeShowPersonaNudge() {
@@ -962,23 +955,13 @@ function renderChatList() {
 }
 
 function updateActivePersonaStatus(items, activeId, statusEl, emptyText, prefix) {
+    if (!statusEl) return;
     const active = items.find((persona) => persona.id === activeId);
     statusEl.textContent = active ? `${prefix}: ${active.name}` : emptyText;
 }
 
-function setActivePersonaStatus() {
-    if (activePersonaStatus) {
-        activePersonaStatus.textContent = assistantPersonas.length
-            ? "Choose an AI Character, pair it with a user persona if needed, and start the scene."
-            : "No AI Characters yet. Create one to start a roleplay.";
-    }
-    updateActivePersonaStatus(userPersonas, activeUserPersonaId, activeUserPersonaStatus, "No default user persona set.", "Default user persona");
-    if (clearUserPersonaBtn) clearUserPersonaBtn.disabled = !activeUserPersonaId;
-    updateContextRail();
-}
-
 function openPersonaForm(persona = null, personaType = "assistant") {
-    closePersonaPopover();
+    closeChatDrawer();
     closePopup(false);
     personaModal.classList.remove("hidden");
     if (persona) {
@@ -1001,28 +984,6 @@ function openPersonaForm(persona = null, personaType = "assistant") {
 }
 
 function closePersonaForm() { personaModal.classList.add("hidden"); editingPersonaId = null; editingPersonaType = "assistant"; personaTypeSelect.disabled = false; setPersonaFormNotice(""); }
-function closePersonaPopover() {
-    if (!personaPopover || personaPopover.dataset.staticPanel === "true") return;
-    personaPopover.classList.add("hidden");
-    if (personaMenuButton) personaMenuButton.setAttribute("aria-expanded", "false");
-}
-function closeContextPopover() {
-    if (!contextPopover || !contextChipButton) return;
-    contextPopover.classList.add("hidden");
-    contextChipButton.setAttribute("aria-expanded", "false");
-}
-function closeChatActionsPopover() {
-    if (!chatActionsPopover || !chatActionsMenuButton) return;
-    chatActionsPopover.classList.add("hidden");
-    chatActionsMenuButton.setAttribute("aria-expanded", "false");
-    document.body.classList.remove("chat-drawer-open");
-}
-function closeAuxiliaryPopovers() {
-    closeModelPopover();
-    closePersonaPopover();
-    closeContextPopover();
-    closeChatActionsPopover();
-}
 function populateRoleplayStarter() {
     if (!roleplayCharacterSelect || !roleplayUserPersonaSelect) return;
     roleplayCharacterSelect.innerHTML = "";
@@ -1065,7 +1026,7 @@ function populateRoleplayStarter() {
     renderRoleplayStarterStep();
 }
 function openRoleplayStarter(characterId = null) {
-    closeAuxiliaryPopovers();
+    closeChatDrawer();
     roleplayPresetCharacterId = characterId;
     roleplayStarterStep = 1;
     populateRoleplayStarter();
@@ -1096,11 +1057,6 @@ function goToRoleplayStarterSceneStep() {
     setRoleplayStarterNotice("");
     renderRoleplayStarterStep();
     if (roleplayScenarioInput) roleplayScenarioInput.focus();
-}
-function closeModelPopover() {
-    if (!modelPopover || modelPopover.dataset.staticPanel === "true") return;
-    modelPopover.classList.add("hidden");
-    if (modelMenuButton) modelMenuButton.setAttribute("aria-expanded", "false");
 }
 function isPopupOpen() { return popupModal && !popupModal.classList.contains("hidden"); }
 function finishPopup(result) {
@@ -1160,7 +1116,7 @@ function promptPopup(options) {
 
 function renderPersonaList(items, activeId, listElement, personaType) {
     if (!listElement) {
-        setActivePersonaStatus();
+        renderPersonaSection();
         return;
     }
     listElement.innerHTML = "";
@@ -1169,7 +1125,7 @@ function renderPersonaList(items, activeId, listElement, personaType) {
         empty.className = "status persona-status";
         empty.textContent = "No personas yet. Create one to get started.";
         listElement.appendChild(empty);
-        setActivePersonaStatus();
+        renderPersonaSection();
         return;
     }
     items.forEach((persona) => {
@@ -1192,7 +1148,7 @@ function renderPersonaList(items, activeId, listElement, personaType) {
         }
         titleRow.append(title, tag); item.append(titleRow, meta, actions); listElement.appendChild(item);
     });
-    setActivePersonaStatus();
+    renderPersonaSection();
 }
 
 async function loadSummary() {
@@ -1207,7 +1163,7 @@ async function loadPersonas() {
     activeUserPersonaId = res.activeUserPersonaId || null; publishedPersonaIds = new Set(res.publishedPersonaIds || []);
     renderPersonaList(userPersonas, activeUserPersonaId, userPersonaList, "user");
     populateRoleplayStarter();
-    setActivePersonaStatus();
+    renderPersonaSection();
     updateWorkspaceCopy();
 }
 
@@ -1533,8 +1489,7 @@ async function displayModels() {
     const models = Array.isArray(res.models) ? res.models : null;
     if (res.error || !models) {
         modelSelect.innerHTML = "<option>Error loading models</option>";
-        updateModelHelp();
-        updateContextRail();
+        renderModelSection();
         return setNotice("Models could not be loaded.", "error");
     }
     modelSelect.innerHTML = "";
@@ -1547,8 +1502,7 @@ async function displayModels() {
         option.selected = preferredIndex >= 0 ? index === preferredIndex : index === 0;
         modelSelect.appendChild(option);
     });
-    updateModelHelp();
-    updateContextRail();
+    renderModelSection();
 }
 
 async function checkSession() {
@@ -1628,55 +1582,55 @@ async function sendMessage() {
     }
 }
 
-function togglePersonaPopover(event) {
-    event.stopPropagation();
-    closeModelPopover();
-    closeContextPopover();
-    closeChatActionsPopover();
-    const isHidden = personaPopover.classList.contains("hidden");
-    personaPopover.classList.toggle("hidden", !isHidden);
-    personaMenuButton.setAttribute("aria-expanded", String(isHidden));
-}
+const chatActions = {
+    archive: async () => {
+        const chat = getChatById(activeChatId);
+        if (chat) await updateChatOrganization(chat.id, {archived: !chat.archived_at});
+    },
+    clear: async () => {
+        if (activeChatId) await clearChat(activeChatId);
+    },
+    export: () => {
+        exportCurrentChat();
+    },
+    folder: async () => {
+        const chat = getChatById(activeChatId);
+        if (!chat) return;
+        const folderName = await promptPopup({
+            eyebrow: "Folder",
+            title: "Move chat to folder",
+            description: "Leave blank to remove the folder.",
+            label: "Folder name",
+            value: chat.folder_name || "",
+            placeholder: "Research"
+        });
+        if (folderName === null) return;
+        await updateChatOrganization(chat.id, {folderName: String(folderName || "").trim() || null});
+    },
+    pin: async () => {
+        const chat = getChatById(activeChatId);
+        if (chat) await updateChatOrganization(chat.id, {isPinned: !chat.is_pinned});
+    },
+    rename: async () => {
+        if (activeChatId) await renameChat(activeChatId);
+    }
+};
 
-function toggleModelPopover(event) {
-    event.stopPropagation();
-    closePersonaPopover();
-    closeContextPopover();
-    closeChatActionsPopover();
-    const isHidden = modelPopover.classList.contains("hidden");
-    modelPopover.classList.toggle("hidden", !isHidden);
-    modelMenuButton.setAttribute("aria-expanded", String(isHidden));
-}
-
-function toggleContextPopover(event) {
-    if (!contextPopover || !contextChipButton) return;
-    event.stopPropagation();
-    closeModelPopover();
-    closePersonaPopover();
-    closeChatActionsPopover();
-    const isHidden = contextPopover.classList.contains("hidden");
-    contextPopover.classList.toggle("hidden", !isHidden);
-    contextChipButton.setAttribute("aria-expanded", String(isHidden));
-}
-
-function toggleChatActionsPopover(event) {
-    if (!chatActionsPopover || !chatActionsMenuButton) return;
-    event.stopPropagation();
-    closeModelPopover();
-    closePersonaPopover();
-    closeContextPopover();
-    if (isMobileLayout()) closeMobileSidebar();
-    const isHidden = chatActionsPopover.classList.contains("hidden");
-    chatActionsPopover.classList.toggle("hidden", !isHidden);
-    chatActionsMenuButton.setAttribute("aria-expanded", String(isHidden));
-    document.body.classList.toggle("chat-drawer-open", isHidden);
+function bindChatDrawerActions() {
+    document.querySelectorAll("[data-chat-action]").forEach((button) => {
+        button.addEventListener("click", async () => {
+            closeChatDrawer();
+            const action = chatActions[button.dataset.chatAction];
+            if (typeof action === "function") await action();
+        });
+    });
 }
 
 toggleButtons.forEach((btn) => btn.addEventListener("click", () => showAuthScreen(btn.dataset.target)));
 loginForm.addEventListener("submit", (event) => { event.preventDefault(); void handleAuth("login", {username: loginUsernameInput.value.trim(), password: loginPasswordInput.value.trim()}); });
 registerForm.addEventListener("submit", (event) => { event.preventDefault(); void handleAuth("register", {username: registerUsernameInput.value.trim(), password: registerPasswordInput.value.trim()}); });
 logoutButton.addEventListener("click", async () => {
-    closeChatActionsPopover();
+    closeChatDrawer();
     await post("/logout", {}); chatDiv.style.display = "none"; authDiv.style.display = "grid";
     activeChatId = null; currentUsername = ""; currentSummary = null; chatSessions = []; currentMessages = []; assistantPersonas = []; userPersonas = [];
     messageRetryState = new Map();
@@ -1693,61 +1647,21 @@ msgInput.addEventListener("input", function () {
 });
 resizeComposerInput();
 newChatBtn.addEventListener("click", () => {
-    closeChatActionsPopover();
+    closeChatDrawer();
     closeMobileSidebar();
     void createNewChat();
 });
-renameChatBtn.addEventListener("click", () => {
-    closeChatActionsPopover();
-    if (activeChatId) void renameChat(activeChatId);
-});
-clearChatBtn.addEventListener("click", () => {
-    closeChatActionsPopover();
-    if (activeChatId) void clearChat(activeChatId);
-});
-exportChatBtn.addEventListener("click", () => {
-    closeChatActionsPopover();
-    exportCurrentChat();
-});
-if (pinChatBtn) pinChatBtn.addEventListener("click", () => {
-    closeChatActionsPopover();
-    const chat = getChatById(activeChatId);
-    if (chat) void updateChatOrganization(chat.id, {isPinned: !chat.is_pinned});
-});
-if (moveChatFolderBtn) moveChatFolderBtn.addEventListener("click", async () => {
-    closeChatActionsPopover();
-    const chat = getChatById(activeChatId);
-    if (!chat) return;
-    const folderName = await promptPopup({
-        eyebrow: "Folder",
-        title: "Move chat to folder",
-        description: "Leave blank to remove the folder.",
-        label: "Folder name",
-        value: chat.folder_name || "",
-        placeholder: "Research"
-    });
-    if (folderName === null) return;
-    void updateChatOrganization(chat.id, {folderName: String(folderName || "").trim() || null});
-});
-if (archiveChatBtn) archiveChatBtn.addEventListener("click", () => {
-    closeChatActionsPopover();
-    const chat = getChatById(activeChatId);
-    if (chat) void updateChatOrganization(chat.id, {archived: !chat.archived_at});
-});
 if (backupWorkspaceBtn) backupWorkspaceBtn.addEventListener("click", () => {
-    closeChatActionsPopover();
+    closeChatDrawer();
     void backupWorkspace();
 });
 chatSearchInput.addEventListener("input", () => { void loadChatSessions(); });
-if (chatDrawerCloseBtn) chatDrawerCloseBtn.addEventListener("click", closeChatActionsPopover);
 modelSelect.addEventListener("change", () => {
-    updateModelHelp();
-    updateContextRail();
-    closeModelPopover();
+    renderModelSection();
 });
 roleplayNewPersonaBtn.addEventListener("click", () => openPersonaForm(null, "assistant"));
 clearUserPersonaBtn.addEventListener("click", () => {
-    closePersonaPopover();
+    closeChatDrawer();
     void clearPersona("user");
 });
 personaForm.addEventListener("submit", (event) => { event.preventDefault(); void savePersona(); }); personaCloseBtn.addEventListener("click", closePersonaForm);
@@ -1787,22 +1701,7 @@ popupInput.addEventListener("keydown", (event) => {
         closePopup(popupInput.value);
     }
 });
-if (modelMenuButton && modelPopover) {
-    modelMenuButton.addEventListener("click", toggleModelPopover);
-    modelPopover.addEventListener("click", (event) => event.stopPropagation());
-}
-if (personaMenuButton && personaPopover) {
-    personaMenuButton.addEventListener("click", togglePersonaPopover);
-    personaPopover.addEventListener("click", (event) => event.stopPropagation());
-}
-if (contextChipButton && contextPopover) {
-    contextChipButton.addEventListener("click", toggleContextPopover);
-    contextPopover.addEventListener("click", (event) => event.stopPropagation());
-}
-if (chatActionsMenuButton && chatActionsPopover) {
-    chatActionsMenuButton.addEventListener("click", toggleChatActionsPopover);
-    chatActionsPopover.addEventListener("click", (event) => event.stopPropagation());
-}
+bindChatDrawerActions();
 if (chatSidebar) {
     chatSidebar.addEventListener("click", (event) => event.stopPropagation());
 }
@@ -1827,7 +1726,6 @@ if (onboardingModal) {
     });
 }
 document.addEventListener("click", () => {
-    closeAuxiliaryPopovers();
     closeMobileSidebar();
 });
 window.addEventListener("resize", () => {
@@ -1835,7 +1733,6 @@ window.addEventListener("resize", () => {
 });
 document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
-        closeAuxiliaryPopovers();
         closeMobileSidebar();
         closeRoleplayStarter();
         closePersonaForm();

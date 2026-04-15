@@ -1308,7 +1308,9 @@ select:focus {
 }
 
 .model-menu,
-.persona-menu {
+.chat-drawer-section--model,
+.persona-menu,
+.chat-drawer-section--persona {
     position: relative;
 }
 
@@ -1343,7 +1345,8 @@ select:focus {
     border-color: var(--secondary-border-strong);
 }
 
-.model-popover {
+.model-popover,
+.model-panel {
     position: absolute;
     top: calc(100% + 10px);
     right: 0;
@@ -1813,14 +1816,17 @@ select:focus {
 }
 
 .chat-header-actions .model-menu,
+.chat-header-actions .chat-drawer-section--model,
 .chat-header-actions .persona-menu,
+.chat-header-actions .chat-drawer-section--persona,
 .chat-header-actions .chat-actions-menu {
     display: flex;
     align-items: stretch;
     align-self: stretch;
 }
 
-.persona-popover {
+.persona-popover,
+.persona-panel {
     position: absolute;
     top: calc(100% + 10px);
     right: 0;
@@ -3034,7 +3040,8 @@ body[data-theme="beta-ai"] .persona-form .field {
         max-width: 100%;
     }
 
-    .persona-popover {
+    .persona-popover,
+    .persona-panel {
         right: auto;
         left: 0;
         width: min(92vw, 560px);
@@ -3116,7 +3123,8 @@ body[data-theme="beta-ai"] .persona-form .field {
         grid-template-columns: 1fr;
     }
 
-    .model-popover {
+    .model-popover,
+    .model-panel {
         left: 0;
         right: auto;
         width: min(92vw, 420px);
@@ -3243,7 +3251,9 @@ body[data-theme="beta-ai"] .persona-form .field {
 }
 
 .chat-header-actions .model-menu,
+.chat-header-actions .chat-drawer-section--model,
 .chat-header-actions .persona-menu,
+.chat-header-actions .chat-drawer-section--persona,
 .chat-header-actions .chat-actions-menu {
     display: block;
     align-self: auto;
@@ -3437,7 +3447,9 @@ body[data-theme="beta-ai"] .persona-form .field {
 }
 
 .chat-header-actions .model-menu,
+.chat-header-actions .chat-drawer-section--model,
 .chat-header-actions .persona-menu,
+.chat-header-actions .chat-drawer-section--persona,
 .chat-header-actions .chat-actions-menu {
     display: block;
 }
@@ -3547,7 +3559,9 @@ body[data-theme="beta-ai"] .persona-form .field {
 }
 
 .persona-popover,
-.model-popover {
+.persona-panel,
+.model-popover,
+.model-panel {
     background: var(--panel-elevated);
     border: 1px solid var(--line);
     border-radius: 20px;
@@ -3556,15 +3570,18 @@ body[data-theme="beta-ai"] .persona-form .field {
     gap: 18px;
 }
 
-.model-popover {
+.model-popover,
+.model-panel {
     width: min(360px, 88vw);
 }
 
-.persona-popover {
+.persona-popover,
+.persona-panel {
     width: min(420px, 88vw);
 }
 
-.chat-actions-menu .persona-popover {
+.chat-actions-menu .persona-popover,
+.chat-actions-menu .persona-panel {
     width: min(520px, 92vw);
 }
 
@@ -3749,7 +3766,9 @@ body[data-theme="beta-ai"] .persona-form .field {
     }
 
     .persona-popover,
-    .model-popover {
+    .persona-panel,
+    .model-popover,
+    .model-panel {
         position: fixed;
         left: 14px;
         right: 14px;
@@ -3795,8 +3814,10 @@ body[data-theme="beta-ai"] .persona-form .field {
     .chat-header-actions .secondary-action,
     .chat-header-actions .model-badge-button,
     .chat-header-actions .persona-menu,
+    .chat-header-actions .chat-drawer-section--persona,
     .chat-header-actions .chat-actions-menu,
-    .chat-header-actions .model-menu {
+    .chat-header-actions .model-menu,
+    .chat-header-actions .chat-drawer-section--model {
         width: 100%;
     }
 
@@ -3962,7 +3983,26 @@ body[data-theme="beta-ai"] .persona-form .field {
 }
 
 .overflow-trigger {
-    min-width: 92px;
+    min-width: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding-inline: 12px 14px;
+}
+
+.overflow-trigger-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    min-width: 24px;
+    font-family: "Space Grotesk", sans-serif;
+    font-size: 1rem;
+    letter-spacing: 0.12em;
+}
+
+.overflow-trigger-label {
+    font-weight: 600;
 }
 
 .messages-panel,
@@ -4031,14 +4071,18 @@ body[data-theme="beta-ai"] .persona-form .field {
     position: fixed;
     inset: 0 0 0 auto;
     width: min(560px, 100vw);
-    padding: 12px;
-    background: rgba(16, 24, 40, 0.18);
-    backdrop-filter: blur(10px);
+    padding: 10px;
+    background: rgba(16, 24, 40, 0.12);
+    backdrop-filter: blur(12px);
     z-index: 50;
+    border-top-left-radius: 30px;
+    border-bottom-left-radius: 30px;
+    overflow: hidden;
 }
 
 .chat-drawer.hidden {
     display: none;
+    border-radius: 30px;
 }
 
 .chat-drawer-panel {
@@ -4046,13 +4090,13 @@ body[data-theme="beta-ai"] .persona-form .field {
     margin-left: auto;
     display: grid;
     grid-template-rows: auto minmax(0, 1fr);
-    gap: 22px;
-    padding: 24px;
+    gap: 18px;
+    padding: 22px;
     background: var(--panel-elevated);
     border: 1px solid var(--line);
-    border-radius: 28px;
+    border-radius: 30px;
     overflow: hidden;
-    box-shadow: 0 28px 80px rgba(0, 0, 0, 0.18);
+    box-shadow: 0 32px 88px rgba(0, 0, 0, 0.14);
 }
 
 .chat-drawer-header,
@@ -4074,21 +4118,21 @@ body[data-theme="beta-ai"] .persona-form .field {
     overflow: auto;
     overflow-x: hidden;
     padding-inline: 2px 8px;
-    gap: 16px;
+    gap: 10px;
     scrollbar-gutter: stable both-edges;
 }
 
 .chat-drawer-section {
-    padding: 18px;
-    background: var(--nav-item-surface);
-    border: 1px solid var(--pill-border);
-    border-radius: 22px;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+    padding: 14px 0 0;
+    background: transparent;
+    border: 0;
+    border-top: 1px solid var(--line);
+    border-radius: 0;
+    box-shadow: none;
 }
 
 .chat-drawer-section:last-child {
-    padding: 18px;
-    border-bottom: 1px solid var(--pill-border);
+    border-bottom: 0;
 }
 
 .chat-drawer .dropdown-header {
@@ -4104,14 +4148,114 @@ body[data-theme="beta-ai"] .persona-form .field {
     max-width: 100%;
 }
 
+.chat-drawer-summary {
+    gap: 10px;
+    padding-bottom: 8px;
+}
+
+.chat-drawer-disclosure {
+    padding-top: 12px;
+}
+
+.chat-drawer-disclosure[open] {
+    gap: 14px;
+}
+
+.chat-drawer-disclosure > summary,
+.chat-drawer-more > summary,
+.chat-drawer-danger > summary {
+    list-style: none;
+}
+
+.chat-drawer-disclosure > summary::-webkit-details-marker,
+.chat-drawer-more > summary::-webkit-details-marker,
+.chat-drawer-danger > summary::-webkit-details-marker {
+    display: none;
+}
+
+.chat-drawer-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 16px;
+    align-items: center;
+    cursor: pointer;
+}
+
+.chat-drawer-row-label,
+.chat-drawer-row-meta {
+    display: grid;
+    gap: 4px;
+}
+
+.chat-drawer-row-label strong,
+.chat-drawer-row-meta strong {
+    font-size: 0.98rem;
+    line-height: 1.2;
+}
+
+.chat-drawer-row-meta {
+    justify-items: end;
+    text-align: right;
+}
+
+.chat-drawer-row-hint {
+    font-size: 0.75rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.chat-drawer-disclosure[open] .chat-drawer-row-hint,
+.chat-drawer-more[open] .chat-drawer-row-hint,
+.chat-drawer-danger[open] .chat-drawer-row-hint {
+    color: var(--brand);
+}
+
+.chat-drawer-row--compact {
+    align-items: baseline;
+}
+
+.chat-drawer-disclosure-panel {
+    margin-top: 12px;
+}
+
+.chat-drawer-action-list {
+    display: grid;
+    gap: 10px;
+}
+
+.chat-drawer-action {
+    width: 100%;
+    justify-content: space-between;
+    text-align: left;
+    padding-inline: 16px;
+    border-radius: 16px;
+    background: var(--panel-soft);
+    border-color: var(--line);
+}
+
+.chat-drawer-action-danger {
+    color: var(--error);
+    border-color: rgba(181, 71, 61, 0.18);
+    background: rgba(181, 71, 61, 0.06);
+}
+
+.chat-drawer-danger {
+    border-top-color: rgba(181, 71, 61, 0.16);
+}
+
 .chat-drawer .model-menu,
-.chat-drawer .persona-menu {
+.chat-drawer .chat-drawer-section--model,
+.chat-drawer .persona-menu,
+.chat-drawer .chat-drawer-section--persona {
     display: grid !important;
     gap: 14px;
 }
 
 .chat-drawer .model-popover,
-.chat-drawer .persona-popover {
+.chat-drawer .model-panel,
+.chat-drawer .persona-popover,
+.chat-drawer .persona-panel {
     position: static;
     width: auto;
     max-height: none;
@@ -4156,6 +4300,10 @@ body[data-theme="beta-ai"] .persona-form .field {
 .chat-drawer .model-select-control select {
     min-height: 54px;
     border-radius: 16px;
+}
+
+.chat-drawer .persona-section-header {
+    padding-inline: 2px;
 }
 
 .model-inline-badge {

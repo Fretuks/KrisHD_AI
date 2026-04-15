@@ -6,13 +6,13 @@ const authMsg = $("authMsg");
 const logoutButton = $("logout");
 const messagesDiv = $("messages");
 const modelSelect = $("model");
-const modelMenuButton = $("modelMenuButton");
-const modelPopover = $("modelPopover");
+const modelPanel = $("modelPanel");
 const modelBadgeName = $("modelBadgeName");
 const modelCount = $("modelCount");
 const modelHelpTitle = $("modelHelpTitle");
 const modelHelpBadge = $("modelHelpBadge");
 const modelHelpSummary = $("modelHelpSummary");
+const chatDrawerPersonaValue = $("chatDrawerPersonaValue");
 const loginForm = $("loginForm");
 const registerForm = $("registerForm");
 const msgInput = $("msgInput");
@@ -27,6 +27,8 @@ const chatList = $("chatList");
 const chatSearchInput = $("chatSearch");
 const chatSidebar = $("chatSidebar");
 const chatDrawerCloseBtn = $("chatDrawerClose");
+const chatDrawerButton = $("chatDrawerButton");
+const chatDrawer = $("chatDrawer");
 const newChatBtn = $("newChat");
 const chatListLoading = $("chatListLoading");
 const chatListLoadingText = $("chatListLoadingText");
@@ -43,14 +45,8 @@ const chatActivityOverlay = $("chatActivityOverlay");
 const chatActivityEyebrow = $("chatActivityEyebrow");
 const chatActivityTitle = $("chatActivityTitle");
 const chatActivityDetail = $("chatActivityDetail");
-const contextChipButton = $("contextChipButton");
-const contextPopover = $("contextPopover");
-const contextSummaryLabel = $("contextSummaryLabel");
-const chatActionsMenuButton = $("chatActionsMenuButton");
-const chatActionsPopover = $("chatActionsPopover");
 const chatCharacterPill = $("chatCharacterPill");
 const chatUserPersonaPill = $("chatUserPersonaPill");
-const personaList = $("personaList");
 const userPersonaList = $("userPersonaList");
 const personaForm = $("personaForm");
 const personaFormTitle = $("personaFormTitle");
@@ -65,12 +61,10 @@ const personaExampleDialoguesInput = $("personaExampleDialogues");
 const personaFormNotice = $("personaFormNotice");
 const roleplayNewPersonaBtn = $("roleplayNewPersona");
 const clearUserPersonaBtn = $("clearUserPersona");
-const activePersonaStatus = $("activePersonaStatus");
 const activeUserPersonaStatus = $("activeUserPersonaStatus");
 const personaModal = $("personaModal");
 const personaCloseBtn = $("personaClose");
-const personaMenuButton = $("personaMenuButton");
-const personaPopover = $("personaPopover");
+const personaPanel = $("personaPanel");
 const roleplayStarterModal = $("roleplayStarterModal");
 const roleplayStarterClose = $("roleplayStarterClose");
 const roleplayStarterCancel = $("roleplayStarterCancel");
@@ -106,24 +100,24 @@ const authScreens = document.querySelectorAll(".auth-screen");
 const toggleButtons = document.querySelectorAll(".auth-toggle .toggle");
 const themeNameTargets = document.querySelectorAll("[data-theme-name]");
 const themeLogoTargets = document.querySelectorAll("[data-theme-logo]");
-const modelMenu = document.querySelector(".model-menu");
-const personaMenu = document.querySelector(".persona-menu");
+const modelSection = document.querySelector(".chat-drawer-section--model");
+const personaSection = document.querySelector(".chat-drawer-section--persona");
 
 export {
     $,
     activeChatTitle,
-    activePersonaStatus,
     activeUserPersonaStatus,
     authDiv,
     authMsg,
     authScreens,
-    chatActionsMenuButton,
-    chatActionsPopover,
     chatActivityDetail,
     chatActivityEyebrow,
     chatActivityOverlay,
     chatActivityTitle,
     chatCharacterPill,
+    chatDrawerPersonaValue,
+    chatDrawer,
+    chatDrawerButton,
     chatDiv,
     chatList,
     chatListLoading,
@@ -134,9 +128,6 @@ export {
     chatUserPersonaPill,
     clearChatBtn,
     clearUserPersonaBtn,
-    contextChipButton,
-    contextPopover,
-    contextSummaryLabel,
     exportChatBtn,
     pinChatBtn,
     moveChatFolderBtn,
@@ -153,9 +144,8 @@ export {
     modelHelpBadge,
     modelHelpSummary,
     modelHelpTitle,
-    modelMenu,
-    modelMenuButton,
-    modelPopover,
+    modelPanel,
+    modelSection,
     modelSelect,
     msgInput,
     newChatBtn,
@@ -173,12 +163,10 @@ export {
     personaForm,
     personaFormNotice,
     personaFormTitle,
-    personaList,
-    personaMenu,
-    personaMenuButton,
     personaModal,
     personaNameInput,
-    personaPopover,
+    personaPanel,
+    personaSection,
     personaPronounsInput,
     personaTypeSelect,
     personaAppearanceInput,
