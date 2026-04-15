@@ -104,6 +104,10 @@ function applyTheme(themeKey) {
     });
 }
 
+function applyThemeMode(modeKey) {
+    document.body.dataset.themeMode = modeKey === "dark" ? "dark" : "light";
+}
+
 function setMarketStatus(message, state = "") {
     marketStatus.textContent = message;
     marketStatus.className = state ? `status persona-status ${state}` : "status persona-status";
@@ -701,6 +705,7 @@ marketPersonaForm.addEventListener("submit", (event) => {
 
 window.addEventListener("load", async () => {
     applyTheme(localStorage.getItem("krishd-theme") || "fakegpt");
+    applyThemeMode(localStorage.getItem("krishd-theme-mode") || "light");
     const params = new URLSearchParams(window.location.search);
     setMarketSort("assistant", params.get("assistantSort") || "best", {reload: false});
     setMarketSort("user", params.get("userSort") || "best", {reload: false});

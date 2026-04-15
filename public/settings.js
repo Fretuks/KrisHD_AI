@@ -1,6 +1,7 @@
 const $ = (id) => document.getElementById(id);
 const settingsNotice = $("settingsNotice");
 const settingsThemeSelect = $("settingsThemeSelect");
+const themeModeSelect = $("themeModeSelect");
 const workspaceModeSelect = $("workspaceModeSelect");
 const currentUsernameInput = $("currentUsername");
 const newUsernameInput = $("newUsername");
@@ -128,6 +129,13 @@ function applyTheme(themeKey, persist = true) {
     document.title = "Settings";
     settingsThemeSelect.value = nextTheme;
     if (persist) localStorage.setItem("krishd-theme", nextTheme);
+}
+
+function applyThemeMode(modeKey, persist = true) {
+    const nextMode = modeKey === "dark" ? "dark" : "light";
+    document.body.dataset.themeMode = nextMode;
+    if (themeModeSelect) themeModeSelect.value = nextMode;
+    if (persist) localStorage.setItem("krishd-theme-mode", nextMode);
 }
 
 function setSettingsView(view) {
@@ -418,6 +426,10 @@ settingsThemeSelect.addEventListener("change", (event) => {
     applyTheme(event.target.value);
     setNotice("Theme updated.", "success");
 });
+themeModeSelect.addEventListener("change", (event) => {
+    applyThemeMode(event.target.value);
+    setNotice(`Theme mode set to ${document.body.dataset.themeMode}.`, "success");
+});
 workspaceModeSelect.addEventListener("change", (event) => {
     const mode = event.target.value === "advanced" ? "advanced" : "basic";
     localStorage.setItem("krishd-workspace-mode", mode);
@@ -455,6 +467,7 @@ settingsPopupInput.addEventListener("keydown", (event) => {
 
 window.addEventListener("load", async () => {
     applyTheme(localStorage.getItem("krishd-theme") || "fakegpt", false);
+    applyThemeMode(localStorage.getItem("krishd-theme-mode") || "light", false);
     workspaceModeSelect.value = localStorage.getItem("krishd-workspace-mode") || "basic";
     const params = new URLSearchParams(window.location.search);
     const view = params.get("view") || "personal";

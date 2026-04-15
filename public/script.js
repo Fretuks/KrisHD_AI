@@ -858,6 +858,12 @@ function applyTheme(themeKey, persist = true) {
     renderModelSection();
 }
 
+function applyThemeMode(modeKey, persist = true) {
+    const nextMode = modeKey === "dark" ? "dark" : "light";
+    document.body.dataset.themeMode = nextMode;
+    if (persist) localStorage.setItem("krishd-theme-mode", nextMode);
+}
+
 function updateChatActionState() {
     const activeChat = getChatById(activeChatId);
     const hasChat = Boolean(activeChat);
@@ -1742,6 +1748,7 @@ document.addEventListener("keydown", (event) => {
 });
 window.addEventListener("load", async () => {
     applyTheme(localStorage.getItem("krishd-theme") || "fakegpt", false);
+    applyThemeMode(localStorage.getItem("krishd-theme-mode") || "light", false);
     applyWorkspaceMode(localStorage.getItem("krishd-workspace-mode") || "basic", false);
     setNotice("Ready.");
     updateChatActionState();
