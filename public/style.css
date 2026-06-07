@@ -2566,49 +2566,49 @@ body[data-theme="fakegpt"] .typing-dot {
     box-shadow: 0 0 10px rgba(80, 242, 194, 0.55);
 }
 
-body[data-theme="fakegpt"] .secondary-action,
-body[data-theme="fakegpt"] .icon-button,
-body[data-theme="fakegpt"] .chat-item button,
-body[data-theme="fakegpt"] .session-chip,
-body[data-theme="fakegpt"] .settings-nav,
-body[data-theme="fakegpt"] .settings-nav-item:not(.active),
-body[data-theme="fakegpt"] .settings-theme-note,
-body[data-theme="fakegpt"] .persona-form-intro,
-body[data-theme="fakegpt"] .persona-form .field {
+body[data-theme-mode="dark"][data-theme="fakegpt"] .secondary-action,
+body[data-theme-mode="dark"][data-theme="fakegpt"] .icon-button,
+body[data-theme-mode="dark"][data-theme="fakegpt"] .chat-item button,
+body[data-theme-mode="dark"][data-theme="fakegpt"] .session-chip,
+body[data-theme-mode="dark"][data-theme="fakegpt"] .settings-nav,
+body[data-theme-mode="dark"][data-theme="fakegpt"] .settings-nav-item:not(.active),
+body[data-theme-mode="dark"][data-theme="fakegpt"] .settings-theme-note,
+body[data-theme-mode="dark"][data-theme="fakegpt"] .persona-form-intro,
+body[data-theme-mode="dark"][data-theme="fakegpt"] .persona-form .field {
     background: rgba(18, 24, 21, 0.96);
     color: #d7fff3;
     border: 1px solid rgba(36, 255, 180, 0.16);
 }
 
-body[data-theme="fakegpt"] input,
-body[data-theme="fakegpt"] textarea,
-body[data-theme="fakegpt"] select,
-body[data-theme="fakegpt"] .model-select-control select {
+body[data-theme-mode="dark"][data-theme="fakegpt"] input,
+body[data-theme-mode="dark"][data-theme="fakegpt"] textarea,
+body[data-theme-mode="dark"][data-theme="fakegpt"] select,
+body[data-theme-mode="dark"][data-theme="fakegpt"] .model-select-control select {
     background: rgba(10, 15, 13, 0.96);
     color: #e8fff7;
     border-color: rgba(36, 255, 180, 0.12);
 }
 
-body[data-theme="fakegpt"] .model-count,
-body[data-theme="fakegpt"] .model-help-badge[data-badge="waiting"] {
+body[data-theme-mode="dark"][data-theme="fakegpt"] .model-count,
+body[data-theme-mode="dark"][data-theme="fakegpt"] .model-help-badge[data-badge="waiting"] {
     color: #87aea3;
 }
 
-body[data-theme="fakegpt"] .model-badge-button {
+body[data-theme-mode="dark"][data-theme="fakegpt"] .model-badge-button {
     background: rgba(18, 24, 21, 0.96);
     color: #d7fff3;
     border-color: rgba(36, 255, 180, 0.16);
 }
 
-body[data-theme="fakegpt"] .model-badge-label {
+body[data-theme-mode="dark"][data-theme="fakegpt"] .model-badge-label {
     color: #87aea3;
 }
 
-body[data-theme="fakegpt"] .model-select-chevron {
+body[data-theme-mode="dark"][data-theme="fakegpt"] .model-select-chevron {
     border-color: #b7d8ce;
 }
 
-body[data-theme="fakegpt"] option {
+body[data-theme-mode="dark"][data-theme="fakegpt"] option {
     background: #101513;
     color: #e8fff7;
 }
@@ -2995,6 +2995,221 @@ body[data-theme="beta-ai"] .persona-form-intro,
 body[data-theme="beta-ai"] .persona-form .field {
     background: linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(243, 238, 255, 0.92));
     border: 1px solid rgba(90, 103, 255, 0.08);
+}
+
+body[data-theme-mode="dark"][data-theme="fraud"] {
+    --bg-gradient: linear-gradient(180deg, #17120f 0%, #241a14 100%);
+    --text: #f5ece2;
+    --text-soft: #d6c2ad;
+    --text-muted: #ad9279;
+    --line: rgba(245, 220, 197, 0.1);
+    --line-strong: rgba(245, 220, 197, 0.18);
+    --panel-elevated: rgba(39, 29, 23, 0.98);
+    --nav-surface: rgba(34, 25, 20, 0.9);
+    --nav-item-surface: rgba(48, 36, 29, 0.9);
+    --field-surface: rgba(31, 23, 18, 0.96);
+    --message-bot-bg: rgba(43, 32, 25, 0.98);
+    --message-bot-text: #f5ece2;
+    --composer-bg: rgba(31, 23, 18, 0.98);
+    --editorial-surface: linear-gradient(180deg, rgba(39, 29, 23, 0.96), rgba(51, 38, 30, 0.94));
+    background: var(--bg-gradient);
+    color: var(--text);
+}
+
+body[data-theme-mode="dark"][data-theme="fraud"] .chat-sidebar,
+body[data-theme-mode="dark"][data-theme="fraud"] .messages-panel,
+body[data-theme-mode="dark"][data-theme="fraud"] .input-shell,
+body[data-theme-mode="dark"][data-theme="fraud"] .market-shell,
+body[data-theme-mode="dark"][data-theme="fraud"] .settings-panel,
+body[data-theme-mode="dark"][data-theme="fraud"] .hero-panel,
+body[data-theme-mode="dark"][data-theme="fraud"] .model-popover,
+body[data-theme-mode="dark"][data-theme="fraud"] .model-select,
+body[data-theme-mode="dark"][data-theme="fraud"] .model-help {
+    background: var(--panel-elevated);
+    color: var(--text);
+    border-color: var(--line);
+}
+
+body[data-theme-mode="dark"][data-theme="fraud"] input,
+body[data-theme-mode="dark"][data-theme="fraud"] textarea,
+body[data-theme-mode="dark"][data-theme="fraud"] select,
+body[data-theme-mode="dark"][data-theme="fraud"] .secondary-action,
+body[data-theme-mode="dark"][data-theme="fraud"] .icon-button,
+body[data-theme-mode="dark"][data-theme="fraud"] .session-chip,
+body[data-theme-mode="dark"][data-theme="fraud"] .settings-nav,
+body[data-theme-mode="dark"][data-theme="fraud"] .settings-nav-item:not(.active),
+body[data-theme-mode="dark"][data-theme="fraud"] .settings-theme-note,
+body[data-theme-mode="dark"][data-theme="fraud"] .persona-form-intro,
+body[data-theme-mode="dark"][data-theme="fraud"] .persona-form .field {
+    background: var(--field-surface);
+    color: var(--text);
+    border-color: var(--line);
+}
+
+body[data-theme-mode="dark"][data-theme="fraud"] .msg.bot,
+body[data-theme-mode="dark"][data-theme="fraud"] .msg.loading {
+    background: var(--message-bot-bg);
+    color: var(--message-bot-text);
+    border-color: var(--line);
+}
+
+body[data-theme-mode="dark"][data-theme="germini"] {
+    --panel-elevated: rgba(24, 27, 52, 0.84);
+    --nav-surface: rgba(21, 24, 47, 0.74);
+    --nav-item-surface: rgba(35, 39, 72, 0.76);
+    --field-surface: rgba(21, 24, 47, 0.82);
+    --message-bot-bg: rgba(29, 33, 61, 0.88);
+    --message-bot-text: #eef3ff;
+    --editorial-surface: linear-gradient(180deg, rgba(26, 30, 58, 0.9), rgba(37, 40, 74, 0.86));
+    background:
+        radial-gradient(circle at top left, rgba(154, 120, 255, 0.18), transparent 24%),
+        radial-gradient(circle at top right, rgba(84, 170, 255, 0.16), transparent 24%),
+        linear-gradient(180deg, #12162a 0%, #1e2440 100%);
+}
+
+body[data-theme-mode="dark"][data-theme="germini"] .card,
+body[data-theme-mode="dark"][data-theme="germini"] .chat-sidebar,
+body[data-theme-mode="dark"][data-theme="germini"] .messages-panel,
+body[data-theme-mode="dark"][data-theme="germini"] .input-shell,
+body[data-theme-mode="dark"][data-theme="germini"] .market-shell,
+body[data-theme-mode="dark"][data-theme="germini"] .settings-panel,
+body[data-theme-mode="dark"][data-theme="germini"] .modal-card,
+body[data-theme-mode="dark"][data-theme="germini"] .persona-popover,
+body[data-theme-mode="dark"][data-theme="germini"] .model-popover,
+body[data-theme-mode="dark"][data-theme="germini"] .model-select,
+body[data-theme-mode="dark"][data-theme="germini"] .model-help,
+body[data-theme-mode="dark"][data-theme="germini"] .hero-panel,
+body[data-theme-mode="dark"][data-theme="germini"] .chat-item,
+body[data-theme-mode="dark"][data-theme="germini"] .persona-item,
+body[data-theme-mode="dark"][data-theme="germini"] .persona-form-intro,
+body[data-theme-mode="dark"][data-theme="germini"] .persona-form .field {
+    background: var(--panel-elevated);
+    color: var(--text);
+    border-color: var(--line);
+}
+
+body[data-theme-mode="dark"][data-theme="germini"] input,
+body[data-theme-mode="dark"][data-theme="germini"] textarea,
+body[data-theme-mode="dark"][data-theme="germini"] select,
+body[data-theme-mode="dark"][data-theme="germini"] .model-select-control select {
+    background: var(--field-surface);
+    color: var(--text);
+    border-color: var(--line);
+}
+
+body[data-theme-mode="dark"][data-theme="slopilot"] {
+    --panel-elevated: rgba(18, 28, 48, 0.98);
+    --nav-surface: rgba(15, 25, 44, 0.92);
+    --nav-item-surface: rgba(24, 39, 66, 0.9);
+    --field-surface: rgba(13, 22, 39, 0.96);
+    --message-bot-bg: rgba(18, 30, 52, 0.98);
+    --message-bot-text: #eef6ff;
+    --composer-bg: rgba(13, 22, 39, 0.98);
+}
+
+body[data-theme-mode="dark"][data-theme="slopilot"] .chat-sidebar,
+body[data-theme-mode="dark"][data-theme="slopilot"] .messages-panel,
+body[data-theme-mode="dark"][data-theme="slopilot"] .chat-header-focus,
+body[data-theme-mode="dark"][data-theme="slopilot"] .chat-item,
+body[data-theme-mode="dark"][data-theme="slopilot"] .session-chip,
+body[data-theme-mode="dark"][data-theme="slopilot"] .settings-nav,
+body[data-theme-mode="dark"][data-theme="slopilot"] .settings-nav-item:not(.active),
+body[data-theme-mode="dark"][data-theme="slopilot"] .settings-theme-note,
+body[data-theme-mode="dark"][data-theme="slopilot"] .persona-form-intro,
+body[data-theme-mode="dark"][data-theme="slopilot"] .model-popover,
+body[data-theme-mode="dark"][data-theme="slopilot"] .model-select,
+body[data-theme-mode="dark"][data-theme="slopilot"] .model-help,
+body[data-theme-mode="dark"][data-theme="slopilot"] .persona-form .field {
+    background: var(--panel-elevated);
+    color: var(--text);
+    border-color: var(--line);
+}
+
+body[data-theme-mode="dark"][data-theme="slopilot"] .msg.bot,
+body[data-theme-mode="dark"][data-theme="slopilot"] .msg.loading,
+body[data-theme-mode="dark"][data-theme="slopilot"] .chat-item button {
+    background: var(--message-bot-bg);
+    color: var(--message-bot-text);
+    border-color: var(--line);
+}
+
+body[data-theme-mode="dark"][data-theme="beta-ai"] {
+    --panel-elevated: rgba(28, 25, 54, 0.98);
+    --field-surface: rgba(22, 19, 45, 0.96);
+    --message-bot-bg: linear-gradient(145deg, rgba(31, 27, 61, 0.98), rgba(43, 36, 78, 0.96));
+    --message-bot-text: #f2efff;
+    --editorial-surface: linear-gradient(180deg, rgba(31, 27, 61, 0.96), rgba(43, 36, 78, 0.94));
+    background:
+        radial-gradient(circle at top left, rgba(115, 117, 255, 0.14), transparent 24%),
+        linear-gradient(180deg, #151329 0%, #221d3e 100%);
+}
+
+body[data-theme-mode="dark"][data-theme="beta-ai"] .chat-sidebar,
+body[data-theme-mode="dark"][data-theme="beta-ai"] .messages-panel,
+body[data-theme-mode="dark"][data-theme="beta-ai"] .input-shell,
+body[data-theme-mode="dark"][data-theme="beta-ai"] .settings-panel,
+body[data-theme-mode="dark"][data-theme="beta-ai"] .model-popover,
+body[data-theme-mode="dark"][data-theme="beta-ai"] .model-select,
+body[data-theme-mode="dark"][data-theme="beta-ai"] .model-help,
+body[data-theme-mode="dark"][data-theme="beta-ai"] .market-shell,
+body[data-theme-mode="dark"][data-theme="beta-ai"] .persona-form-intro,
+body[data-theme-mode="dark"][data-theme="beta-ai"] .persona-form .field {
+    background: var(--panel-elevated);
+    color: var(--text);
+    border-color: var(--line);
+}
+
+body[data-theme-mode="dark"][data-theme="beta-ai"] .msg.bot,
+body[data-theme-mode="dark"][data-theme="beta-ai"] .msg.loading {
+    background: var(--message-bot-bg);
+    color: var(--message-bot-text);
+    border-color: var(--line);
+}
+
+body[data-theme-mode="dark"][data-theme="confusity"] {
+    --panel-elevated: rgba(24, 28, 38, 0.98);
+    --nav-surface: rgba(20, 24, 33, 0.9);
+    --nav-item-surface: rgba(31, 36, 48, 0.94);
+    --field-surface: rgba(18, 22, 31, 0.96);
+    --message-user-bg: rgba(31, 36, 48, 0.94);
+    --message-user-text: #eef3ff;
+    --message-bot-bg: rgba(24, 28, 38, 0.98);
+    --message-bot-text: #eef3ff;
+}
+
+body[data-theme-mode="dark"][data-theme="confusity"] .messages-panel,
+body[data-theme-mode="dark"][data-theme="confusity"] .input-shell,
+body[data-theme-mode="dark"][data-theme="confusity"] .chat-sidebar,
+body[data-theme-mode="dark"][data-theme="confusity"] .settings-panel,
+body[data-theme-mode="dark"][data-theme="confusity"] .model-popover,
+body[data-theme-mode="dark"][data-theme="confusity"] .model-select,
+body[data-theme-mode="dark"][data-theme="confusity"] .model-help,
+body[data-theme-mode="dark"][data-theme="confusity"] .market-shell,
+body[data-theme-mode="dark"][data-theme="confusity"] .chat-item,
+body[data-theme-mode="dark"][data-theme="confusity"] .session-chip,
+body[data-theme-mode="dark"][data-theme="confusity"] .settings-nav,
+body[data-theme-mode="dark"][data-theme="confusity"] .settings-nav-item:not(.active),
+body[data-theme-mode="dark"][data-theme="confusity"] .settings-theme-note,
+body[data-theme-mode="dark"][data-theme="confusity"] .persona-form-intro,
+body[data-theme-mode="dark"][data-theme="confusity"] .persona-form .field {
+    background: var(--panel-elevated);
+    color: var(--text);
+    border-color: var(--line);
+}
+
+body[data-theme-mode="dark"][data-theme="confusity"] .chat-header-focus,
+body[data-theme-mode="dark"][data-theme="confusity"] .msg.user,
+body[data-theme-mode="dark"][data-theme="confusity"] .msg.bot,
+body[data-theme-mode="dark"][data-theme="confusity"] .msg.loading,
+body[data-theme-mode="dark"][data-theme="confusity"] .chat-item button {
+    background: var(--message-bot-bg);
+    color: var(--message-bot-text);
+    border-color: var(--line);
+}
+
+body[data-theme-mode="dark"][data-theme="confusity"] .msg-header,
+body[data-theme-mode="dark"][data-theme="confusity"] .msg-content blockquote {
+    color: var(--text-soft);
 }
 
 @keyframes gemFloat {
