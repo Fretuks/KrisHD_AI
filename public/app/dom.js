@@ -26,6 +26,7 @@ const registerSubmit = $("registerSubmit");
 const chatList = $("chatList");
 const chatSearchInput = $("chatSearch");
 const chatSidebar = $("chatSidebar");
+const chatSidebarToggle = $("chatSidebarToggle");
 const chatDrawerCloseBtn = $("chatDrawerClose");
 const chatDrawerButton = $("chatDrawerButton");
 const chatDrawer = $("chatDrawer");
@@ -123,6 +124,7 @@ export {
     chatListLoading,
     chatListLoadingText,
     chatSidebar,
+    chatSidebarToggle,
     chatDrawerCloseBtn,
     chatSearchInput,
     chatUserPersonaPill,

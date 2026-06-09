@@ -82,6 +82,7 @@ async function request(url, data, method = "POST") {
     try {
         const res = await fetch(url, {
             method,
+            credentials: "same-origin",
             headers: {"Content-Type": "application/json"},
             body: data ? JSON.stringify(data) : undefined
         });
@@ -183,8 +184,16 @@ function setMarketActivity(active, {
 function setMarketView(view) {
     const normalizedView = view === "user-personas" ? "user-personas" : "ai-characters";
     activeMarketView = normalizedView;
-    marketViewButtons.forEach((item) => item.classList.toggle("active", item.dataset.marketView === normalizedView));
-    marketPanels.forEach((panel) => panel.classList.toggle("active", panel.dataset.marketPanel === normalizedView));
+    marketViewButtons.forEach((item) => {
+        const isActive = item.dataset.marketView === normalizedView;
+        item.classList.toggle("active", isActive);
+        item.setAttribute("aria-selected", String(isActive));
+    });
+    marketPanels.forEach((panel) => {
+        const isActive = panel.dataset.marketPanel === normalizedView;
+        panel.classList.toggle("active", isActive);
+        panel.setAttribute("aria-hidden", String(!isActive));
+    });
     syncMarketQuery();
     applyMarketFilter();
 }

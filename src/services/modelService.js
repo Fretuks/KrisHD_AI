@@ -92,18 +92,20 @@ export function createModelService(config, overrides = {}) {
             state.activeRequests += 1;
 
             try {
-                const response = await withTimeout(config.modelRequestTimeoutMs, (signal) => fetchImpl(`${config.modelApiBaseUrl}/chat`, {
-                    method: "POST",
-                    headers: {"Content-Type": "application/json"},
-                    body: JSON.stringify({model, messages: messagesPayload, stream: true}),
-                    signal
-                }));
+                const fullReply = await withTimeout(config.modelRequestTimeoutMs, async (signal) => {
+                    const response = await fetchImpl(`${config.modelApiBaseUrl}/chat`, {
+                        method: "POST",
+                        headers: {"Content-Type": "application/json"},
+                        body: JSON.stringify({model, messages: messagesPayload, stream: true}),
+                        signal
+                    });
 
-                if (!response.ok) {
-                    throw new ModelServiceError("MODEL_UPSTREAM_ERROR", `Model backend returned ${response.status}.`, 502);
-                }
+                    if (!response.ok) {
+                        throw new ModelServiceError("MODEL_UPSTREAM_ERROR", `Model backend returned ${response.status}.`, 502);
+                    }
 
-                const fullReply = await readStreamingReply(response);
+                    return readStreamingReply(response);
+                });
                 lastHealth = {ok: true, checkedAt: new Date().toISOString(), error: null};
                 return fullReply;
             } catch (error) {
@@ -124,18 +126,20 @@ export function createModelService(config, overrides = {}) {
             state.activeRequests += 1;
 
             try {
-                const response = await withTimeout(config.modelRequestTimeoutMs, (signal) => fetchImpl(`${config.modelApiBaseUrl}/chat`, {
-                    method: "POST",
-                    headers: {"Content-Type": "application/json"},
-                    body: JSON.stringify({model, messages: messagesPayload, stream: true}),
-                    signal
-                }));
+                const fullReply = await withTimeout(config.modelRequestTimeoutMs, async (signal) => {
+                    const response = await fetchImpl(`${config.modelApiBaseUrl}/chat`, {
+                        method: "POST",
+                        headers: {"Content-Type": "application/json"},
+                        body: JSON.stringify({model, messages: messagesPayload, stream: true}),
+                        signal
+                    });
 
-                if (!response.ok) {
-                    throw new ModelServiceError("MODEL_UPSTREAM_ERROR", `Model backend returned ${response.status}.`, 502);
-                }
+                    if (!response.ok) {
+                        throw new ModelServiceError("MODEL_UPSTREAM_ERROR", `Model backend returned ${response.status}.`, 502);
+                    }
 
-                const fullReply = await readStreamingReply(response, onChunk);
+                    return readStreamingReply(response, onChunk);
+                });
                 lastHealth = {ok: true, checkedAt: new Date().toISOString(), error: null};
                 return fullReply;
             } catch (error) {
@@ -157,11 +161,13 @@ export function createModelService(config, overrides = {}) {
             }
 
             try {
-                const response = await withTimeout(config.modelListTimeoutMs, (signal) => fetchImpl(`${config.modelApiBaseUrl}/tags`, {signal}));
-                if (!response.ok) {
-                    throw new ModelServiceError("MODEL_LIST_FAILED", "Failed to load models.", 502);
-                }
-                modelsCache = await response.json();
+                modelsCache = await withTimeout(config.modelListTimeoutMs, async (signal) => {
+                    const response = await fetchImpl(`${config.modelApiBaseUrl}/tags`, {signal});
+                    if (!response.ok) {
+                        throw new ModelServiceError("MODEL_LIST_FAILED", "Failed to load models.", 502);
+                    }
+                    return response.json();
+                });
                 modelsCacheAt = Date.now();
                 lastHealth = {ok: true, checkedAt: new Date().toISOString(), error: null};
                 return modelsCache;

@@ -61,6 +61,7 @@ async function request(url, data, method = "POST") {
     try {
         const res = await fetch(url, {
             method,
+            credentials: "same-origin",
             headers: {"Content-Type": "application/json"},
             body: data ? JSON.stringify(data) : undefined
         });
@@ -140,8 +141,16 @@ function applyThemeMode(modeKey, persist = true) {
 
 function setSettingsView(view) {
     const normalizedView = ["my-ai-characters", "my-personas"].includes(view) ? "my-roleplay-companions" : view;
-    settingsNavItems.forEach((item) => item.classList.toggle("active", item.dataset.settingsView === normalizedView));
-    settingsPanels.forEach((panel) => panel.classList.toggle("active", panel.dataset.settingsPanel === normalizedView));
+    settingsNavItems.forEach((item) => {
+        const isActive = item.dataset.settingsView === normalizedView;
+        item.classList.toggle("active", isActive);
+        item.setAttribute("aria-selected", String(isActive));
+    });
+    settingsPanels.forEach((panel) => {
+        const isActive = panel.dataset.settingsPanel === normalizedView;
+        panel.classList.toggle("active", isActive);
+        panel.setAttribute("aria-hidden", String(!isActive));
+    });
     const params = new URLSearchParams(window.location.search);
     params.set("view", normalizedView);
     history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);

@@ -278,6 +278,9 @@ export function createChatService(repositories, modelService, config) {
                 : await modelService.streamReply(model, messagesPayload, onChunk);
 
             if (!fullReply) return {error: "Failed to generate a valid character reply", status: 500};
+            if (activePersona && containsUserVoiceInRoleplayOpener(fullReply, activeUserPersona)) {
+                return {error: "Failed to generate a valid character reply", status: 500};
+            }
             insertChatMessage(chatId, "bot", fullReply, {
                 retryVariants: [fullReply],
                 retryActiveIndex: 0,
@@ -285,9 +288,6 @@ export function createChatService(repositories, modelService, config) {
                 retryPromptMessageId: null
             }, model);
             repositories.touchChat(chatId, user);
-            if (activePersona && containsUserVoiceInRoleplayOpener(fullReply, activeUserPersona)) {
-                return {error: "Failed to generate a valid character reply", status: 500};
-            }
             return {reply: fullReply};
         },
         async retryMessage({user, chatId, selectedModel, targetMessage, retryStyle = null}) {

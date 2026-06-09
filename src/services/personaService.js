@@ -7,6 +7,15 @@ const PERSONA_FIELD_LIMITS = {
     exampleDialogues: 12000
 };
 
+const PERSONA_PROMPT_FIELD_LIMITS = {
+    appearance: 1200,
+    background: 1400,
+    details: 1400,
+    exampleDialogues: 1800,
+    summaryField: 360,
+    scenarioPrompt: 700
+};
+
 const blockedPersonaPatterns = [
     /\b(child|children|kid|kids|minor|underage|under-aged|teenager|young girl|young boy|loli|shota)\b/i,
     /\b(nazi|hitler|third reich|kkk|ku klux klan|white power|nigger|nigga)\b/i,
@@ -59,13 +68,19 @@ export function clampText(value, limit = 260) {
     return `${normalized.slice(0, limit - 3).trimEnd()}...`;
 }
 
+function clampPromptText(value, limit) {
+    const normalized = String(value || "").trim();
+    if (normalized.length <= limit) return normalized;
+    return `${normalized.slice(0, limit - 3).trimEnd()}...`;
+}
+
 export function summarizePersona(persona) {
     if (!persona) return "";
     return [
         persona.name ? `Name: ${persona.name}` : null,
         persona.pronouns ? `Pronouns: ${persona.pronouns}` : null,
-        persona.background ? `Background: ${persona.background}` : null,
-        persona.details ? `Traits: ${persona.details}` : null
+        persona.background ? `Background: ${clampText(persona.background, PERSONA_PROMPT_FIELD_LIMITS.summaryField)}` : null,
+        persona.details ? `Traits: ${clampText(persona.details, PERSONA_PROMPT_FIELD_LIMITS.summaryField)}` : null
     ].filter(Boolean).join(" | ");
 }
 
@@ -85,13 +100,13 @@ export function buildPersonaPrompt(persona) {
     ];
     if (persona.name) lines.push(`Name: ${persona.name}`);
     if (persona.pronouns) lines.push(`Pronouns: ${persona.pronouns}`);
-    if (persona.appearance) lines.push(`Appearance: ${persona.appearance}`);
-    if (persona.background) lines.push(`Background: ${persona.background}`);
-    if (persona.details) lines.push(`Additional Traits: ${persona.details}`);
+    if (persona.appearance) lines.push(`Appearance: ${clampPromptText(persona.appearance, PERSONA_PROMPT_FIELD_LIMITS.appearance)}`);
+    if (persona.background) lines.push(`Background: ${clampPromptText(persona.background, PERSONA_PROMPT_FIELD_LIMITS.background)}`);
+    if (persona.details) lines.push(`Additional Traits: ${clampPromptText(persona.details, PERSONA_PROMPT_FIELD_LIMITS.details)}`);
     if (persona.example_dialogues) {
         lines.push("", "EXAMPLE DIALOGUES:");
         lines.push("Use these examples to mirror tone, cadence, and phrasing without rigidly repeating them.");
-        lines.push(persona.example_dialogues);
+        lines.push(clampPromptText(persona.example_dialogues, PERSONA_PROMPT_FIELD_LIMITS.exampleDialogues));
     }
     return lines.join("\n");
 }
@@ -110,9 +125,9 @@ export function buildUserPersonaPrompt(persona) {
     ];
     if (persona.name) lines.push(`Name: ${persona.name}`);
     if (persona.pronouns) lines.push(`Pronouns: ${persona.pronouns}`);
-    if (persona.appearance) lines.push(`Appearance: ${persona.appearance}`);
-    if (persona.background) lines.push(`Background: ${persona.background}`);
-    if (persona.details) lines.push(`Additional Traits: ${persona.details}`);
+    if (persona.appearance) lines.push(`Appearance: ${clampPromptText(persona.appearance, PERSONA_PROMPT_FIELD_LIMITS.appearance)}`);
+    if (persona.background) lines.push(`Background: ${clampPromptText(persona.background, PERSONA_PROMPT_FIELD_LIMITS.background)}`);
+    if (persona.details) lines.push(`Additional Traits: ${clampPromptText(persona.details, PERSONA_PROMPT_FIELD_LIMITS.details)}`);
     return lines.join("\n");
 }
 
@@ -128,6 +143,7 @@ export function buildRoleplaySceneSummary(assistantPersona, userPersona, scenari
 }
 
 export function buildRoleplayDirectionPrompt({assistantPersona, userPersona, scenarioPrompt, sceneSummary}) {
+    const scenarioSeed = clampPromptText(scenarioPrompt || "", PERSONA_PROMPT_FIELD_LIMITS.scenarioPrompt);
     const lines = [
         "ROLEPLAY DIRECTION:",
         "Create an immersive one-on-one roleplay between the assistant persona and the user.",
@@ -149,7 +165,7 @@ export function buildRoleplayDirectionPrompt({assistantPersona, userPersona, sce
         "",
         `SCENE SUMMARY: ${sceneSummary}`
     ];
-    if (scenarioPrompt) lines.push(`USER SCENARIO SEED: ${scenarioPrompt}`);
+    if (scenarioSeed) lines.push(`USER SCENARIO SEED: ${scenarioSeed}`);
     if (assistantPersona) lines.push("", `ASSISTANT SNAPSHOT: ${summarizePersona(assistantPersona)}`);
     if (userPersona) lines.push(`USER SNAPSHOT: ${summarizePersona(userPersona)}`);
     return lines.join("\n");
@@ -158,8 +174,9 @@ export function buildRoleplayDirectionPrompt({assistantPersona, userPersona, sce
 export function buildRoleplayOpenerPrompt({assistantPersona, userPersona, scenarioPrompt, sceneSummary}) {
     const assistantName = assistantPersona?.name || "the assistant";
     const userName = userPersona?.name || "the user";
+    const scenarioSeedText = clampPromptText(scenarioPrompt || "", PERSONA_PROMPT_FIELD_LIMITS.scenarioPrompt);
     const sceneSeed = scenarioPrompt
-        ? `Use this scenario seed: ${scenarioPrompt}`
+        ? `Use this scenario seed: ${scenarioSeedText}`
         : `Invent a fresh scenario that suits ${assistantName} and how they would realistically meet or confront ${userName}.`;
 
     return [

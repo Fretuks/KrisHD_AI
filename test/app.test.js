@@ -20,9 +20,9 @@ class CookieJar {
     }
 }
 
-async function startTestServer() {
+async function startTestServer(overrides = {}) {
     let replyCount = 0;
-    const modelService = {
+    const modelService = overrides.modelService || {
         async generateReply() {
             replyCount += 1;
             return `stub-reply-${replyCount}`;
@@ -52,7 +52,8 @@ async function startTestServer() {
             port: 0,
             dbPath: ":memory:",
             testMode: true,
-            sessionSecret: "test-secret"
+            sessionSecret: "test-secret",
+            ...(overrides.config || {})
         },
         modelService
     });
@@ -152,6 +153,90 @@ test("chat creation, send, and retry endpoints work with stubbed model service",
     assert.equal(retry.status, 200);
     assert.equal(retry.json.message.content, "stub-reply-2");
     assert.equal(retry.json.message.retryVariants.length, 2);
+
+    await server.close();
+});
+
+test("roleplay start keeps the session and roleplay messages work", async () => {
+    const server = await startTestServer();
+    const jar = new CookieJar();
+
+    await request(server.baseUrl, "/register", {method: "POST", body: {username: "roleplayer", password: "password123"}});
+    await request(server.baseUrl, "/login", {method: "POST", body: {username: "roleplayer", password: "password123"}, jar});
+
+    const persona = await request(server.baseUrl, "/personas", {
+        method: "POST",
+        body: {personaType: "assistant", name: "Guide", details: "Patient and direct"},
+        jar
+    });
+    assert.equal(persona.status, 200);
+
+    const started = await request(server.baseUrl, "/roleplays/start", {
+        method: "POST",
+        body: {assistantPersonaId: persona.json.persona.id, scenarioPrompt: "A quiet station.", model: "mistral:latest"},
+        jar
+    });
+    assert.equal(started.status, 200);
+    assert.equal(started.json.generatedInitialMessage, true);
+    assert.ok(started.json.chat.id);
+
+    const session = await request(server.baseUrl, "/session", {jar});
+    assert.equal(session.status, 200);
+    assert.equal(session.json.user, "roleplayer");
+
+    const sendMessage = await request(server.baseUrl, "/chat", {
+        method: "POST",
+        body: {chatId: started.json.chat.id, message: "I step closer.", model: "mistral:latest"},
+        jar
+    });
+    assert.equal(sendMessage.status, 200);
+    assert.equal(sendMessage.json.reply, "stub-reply-2");
+
+    await server.close();
+});
+
+test("roleplay start degrades to an open chat when opener generation fails", async () => {
+    const modelService = {
+        async generateReply() {
+            throw new Error("Model backend timed out.");
+        },
+        async streamReply() {
+            return "unused";
+        },
+        async listModels() {
+            return {models: [{name: "mistral:latest"}]};
+        },
+        async checkHealth() {
+            return {ok: false, checkedAt: new Date().toISOString(), error: "Model backend timed out."};
+        },
+        mapError(error) {
+            return {status: 504, body: {error: error.message, code: "MODEL_TIMEOUT"}};
+        }
+    };
+    const server = await startTestServer({modelService});
+    const jar = new CookieJar();
+
+    await request(server.baseUrl, "/register", {method: "POST", body: {username: "degraded", password: "password123"}});
+    await request(server.baseUrl, "/login", {method: "POST", body: {username: "degraded", password: "password123"}, jar});
+
+    const persona = await request(server.baseUrl, "/personas", {
+        method: "POST",
+        body: {personaType: "assistant", name: "Guide", details: "Patient and direct"},
+        jar
+    });
+
+    const started = await request(server.baseUrl, "/roleplays/start", {
+        method: "POST",
+        body: {assistantPersonaId: persona.json.persona.id, model: "mistral:latest"},
+        jar
+    });
+    assert.equal(started.status, 200);
+    assert.equal(started.json.degraded, true);
+    assert.equal(started.json.generatedInitialMessage, false);
+    assert.ok(started.json.chat.id);
+
+    const session = await request(server.baseUrl, "/session", {jar});
+    assert.equal(session.json.user, "degraded");
 
     await server.close();
 });

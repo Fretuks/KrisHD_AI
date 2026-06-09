@@ -25,14 +25,14 @@
     <p id="settingsNotice" class="status">Loading settings...</p>
 
     <section class="settings-layout">
-        <aside class="settings-nav" aria-label="Settings sections">
-            <button class="settings-nav-item active" type="button" data-settings-view="personal">Account</button>
-            <button class="settings-nav-item" type="button" data-settings-view="my-roleplay-companions">Personas</button>
-            <button class="settings-nav-item" type="button" data-settings-view="design">Appearance</button>
+        <aside class="settings-nav" aria-label="Settings sections" role="tablist">
+            <button class="settings-nav-item active" type="button" role="tab" aria-selected="true" data-settings-view="personal">Account</button>
+            <button class="settings-nav-item" type="button" role="tab" aria-selected="false" data-settings-view="my-roleplay-companions">Personas</button>
+            <button class="settings-nav-item" type="button" role="tab" aria-selected="false" data-settings-view="design">Appearance</button>
         </aside>
 
         <div class="settings-content">
-            <section class="settings-view active" data-settings-panel="personal">
+            <section class="settings-view active" role="tabpanel" data-settings-panel="personal">
                 <div class="settings-panel">
                     <div class="settings-section-header">
                         <div>
@@ -82,7 +82,7 @@
                 </div>
             </section>
 
-            <section class="settings-view" data-settings-panel="my-roleplay-companions">
+            <section class="settings-view" role="tabpanel" aria-hidden="true" data-settings-panel="my-roleplay-companions">
                 <div class="settings-panel">
                     <div class="settings-section-header">
                         <div>
@@ -101,7 +101,7 @@
                 </div>
             </section>
 
-            <section class="settings-view" data-settings-panel="design">
+            <section class="settings-view" role="tabpanel" aria-hidden="true" data-settings-panel="design">
                 <div class="settings-panel settings-panel-compact">
                     <div class="settings-section-header">
                         <div>

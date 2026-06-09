@@ -2,6 +2,7 @@ export async function request(url, data, method = "POST") {
     try {
         const res = await fetch(url, {
             method,
+            credentials: "same-origin",
             headers: {"Content-Type": "application/json"},
             body: data ? JSON.stringify(data) : undefined
         });
@@ -19,12 +20,24 @@ export const del = (url) => request(url, null, "DELETE");
 export async function stream(url, data, handlers = {}) {
     const response = await fetch(url, {
         method: "POST",
+        credentials: "same-origin",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify(data || {})
     });
 
     if (!response.ok || !response.body) {
-        throw new Error("Streaming request failed");
+        let error = "Streaming request failed";
+        try {
+            const payload = await response.json();
+            error = payload.error || error;
+        } catch {
+            // Keep the generic error if the server did not send JSON.
+        }
+        if (handlers.onError) {
+            handlers.onError({error});
+            return;
+        }
+        throw new Error(error);
     }
 
     const reader = response.body.getReader();

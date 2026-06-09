@@ -314,7 +314,9 @@ export function createPersonasRouter({repositories, chatService, modelService, c
                 scenarioPrompt,
                 sceneSummary
             });
-            if (!opener) return res.status(500).json({error: "Failed to generate the character opener"});
+            if (!opener || chatService.containsUserVoiceInRoleplayOpener(opener, userPersona)) {
+                return res.json({chat, existing: false, generatedInitialMessage: false, degraded: true});
+            }
             chatService.insertChatMessage(chat.id, "bot", opener, {
                 retryVariants: [opener],
                 retryActiveIndex: 0,
@@ -325,7 +327,14 @@ export function createPersonasRouter({repositories, chatService, modelService, c
             return res.json({chat: repositories.getChat(chat.id, user), existing: false, generatedInitialMessage: true, opener});
         } catch (error) {
             const mapped = modelService.mapError(error);
-            return res.status(mapped.status).json(mapped.body);
+            return res.json({
+                chat,
+                existing: false,
+                generatedInitialMessage: false,
+                degraded: true,
+                modelError: mapped.body.error,
+                modelErrorCode: mapped.body.code
+            });
         }
     });
 

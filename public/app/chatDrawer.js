@@ -1,11 +1,41 @@
 import {chatDrawer, chatDrawerButton, chatDrawerCloseBtn} from "./dom.js";
 
+let lastFocusedElement = null;
+
+const focusableSelector = [
+    "a[href]",
+    "button:not([disabled])",
+    "textarea:not([disabled])",
+    "input:not([disabled])",
+    "select:not([disabled])",
+    "summary",
+    "[tabindex]:not([tabindex='-1'])"
+].join(",");
+
+function getFocusableElements() {
+    if (!chatDrawer) return [];
+    return Array.from(chatDrawer.querySelectorAll(focusableSelector))
+        .filter((element) => element instanceof HTMLElement && element.offsetParent !== null);
+}
+
 function syncChatDrawerState(isOpen) {
     if (!chatDrawer || !chatDrawerButton) return;
-    if (isOpen) document.body.classList.remove("sidebar-open");
+    if (isOpen) {
+        lastFocusedElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        document.body.classList.remove("sidebar-open");
+    }
     chatDrawer.classList.toggle("hidden", !isOpen);
     chatDrawerButton.setAttribute("aria-expanded", String(isOpen));
     document.body.classList.toggle("chat-drawer-open", isOpen);
+    if (isOpen) {
+        window.requestAnimationFrame(() => {
+            const firstFocusable = getFocusableElements()[0];
+            (chatDrawerCloseBtn || firstFocusable)?.focus();
+        });
+    } else if (lastFocusedElement) {
+        lastFocusedElement.focus();
+        lastFocusedElement = null;
+    }
 }
 
 function isChatDrawerOpen() {
@@ -34,7 +64,27 @@ function handleDocumentClick(event) {
 }
 
 function handleDocumentKeydown(event) {
-    if (event.key === "Escape") closeChatDrawer();
+    if (!isChatDrawerOpen()) return;
+    if (event.key === "Escape") {
+        closeChatDrawer();
+        return;
+    }
+    if (event.key !== "Tab") return;
+
+    const focusableElements = getFocusableElements();
+    if (!focusableElements.length) return;
+
+    const first = focusableElements[0];
+    const last = focusableElements[focusableElements.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+        return;
+    }
+    if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+    }
 }
 
 if (chatDrawerButton && chatDrawer) {

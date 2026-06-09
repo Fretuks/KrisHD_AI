@@ -31,13 +31,13 @@
     <p id="marketStatus" class="status persona-status">Loading market personas...</p>
 
     <section class="settings-layout market-settings-layout">
-        <aside class="settings-nav" aria-label="Market sections">
-            <button class="settings-nav-item active" type="button" data-market-view="ai-characters">Characters</button>
-            <button class="settings-nav-item" type="button" data-market-view="user-personas">User personas</button>
+        <aside class="settings-nav" aria-label="Market sections" role="tablist">
+            <button class="settings-nav-item active" type="button" role="tab" aria-selected="true" data-market-view="ai-characters">Characters</button>
+            <button class="settings-nav-item" type="button" role="tab" aria-selected="false" data-market-view="user-personas">User personas</button>
         </aside>
 
         <div class="settings-content">
-            <section class="settings-view active" data-market-panel="ai-characters">
+            <section class="settings-view active" role="tabpanel" data-market-panel="ai-characters">
                 <div class="settings-panel">
                     <div class="settings-section-header">
                         <div>
@@ -63,7 +63,7 @@
                 </div>
             </section>
 
-            <section class="settings-view" data-market-panel="user-personas">
+            <section class="settings-view" role="tabpanel" aria-hidden="true" data-market-panel="user-personas">
                 <div class="settings-panel">
                     <div class="settings-section-header">
                         <div>

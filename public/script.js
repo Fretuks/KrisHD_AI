@@ -18,6 +18,7 @@ import {
     chatListLoading,
     chatListLoadingText,
     chatSidebar,
+    chatSidebarToggle,
     chatSearchInput,
     chatUserPersonaPill,
     clearChatBtn,
@@ -179,6 +180,13 @@ function isMobileLayout() {
 function closeMobileSidebar() {
     if (!chatSidebar) return;
     document.body.classList.remove("sidebar-open");
+    if (chatSidebarToggle) chatSidebarToggle.setAttribute("aria-expanded", "false");
+}
+
+function openMobileSidebar() {
+    if (!chatSidebar) return;
+    document.body.classList.add("sidebar-open");
+    if (chatSidebarToggle) chatSidebarToggle.setAttribute("aria-expanded", "true");
 }
 
 function hasCompletedOnboarding() {
@@ -541,7 +549,10 @@ async function switchRetryVariant(messageId, direction, fallbackIndex = -1) {
 function addMessage(contentOrMessage, isUser = false, isLoading = false, options = {}) {
     const msgDiv = document.createElement("div");
     msgDiv.className = `msg ${isUser ? "user" : "bot"}${isLoading ? " loading" : ""}`;
+    msgDiv.setAttribute("role", "article");
+    msgDiv.tabIndex = 0;
     if (isLoading) {
+        msgDiv.setAttribute("aria-label", "Assistant is responding");
         msgDiv.innerHTML = `
             <div class="loading-shell" aria-live="polite" aria-label="Assistant is responding">
                 <div class="loading-bars">
@@ -560,9 +571,11 @@ function addMessage(contentOrMessage, isUser = false, isLoading = false, options
             : {id: null, role: isUser ? "user" : "bot", content: String(contentOrMessage || "")};
         const isMessageUser = message.role === "user";
         msgDiv.className = `msg ${isMessageUser ? "user" : "bot"}`;
+        msgDiv.setAttribute("aria-label", isMessageUser ? "Your message" : "Assistant message");
         const header = document.createElement("div"), body = document.createElement("div"), actions = document.createElement("div");
         header.className = "msg-header"; body.className = "msg-content";
         actions.className = "msg-actions";
+        actions.setAttribute("aria-label", "Message actions");
         const activeChat = getChatById(activeChatId);
         header.textContent = isMessageUser ? "You" : (activeChat?.assistant_persona_name || "Assistant");
         setMessageContent(body, message.content);
@@ -571,6 +584,7 @@ function addMessage(contentOrMessage, isUser = false, isLoading = false, options
         editBtn.type = "button";
         editBtn.className = "msg-action-btn";
         editBtn.textContent = "Edit";
+        editBtn.setAttribute("aria-label", `Edit ${isMessageUser ? "your" : "assistant"} message`);
         editBtn.addEventListener("click", () => {
             void editChatMessage(message.id, options.messageIndex ?? -1);
         });
@@ -580,6 +594,7 @@ function addMessage(contentOrMessage, isUser = false, isLoading = false, options
         deleteBtn.type = "button";
         deleteBtn.className = "msg-action-btn";
         deleteBtn.textContent = "Delete";
+        deleteBtn.setAttribute("aria-label", `Delete ${isMessageUser ? "your" : "assistant"} message`);
         deleteBtn.addEventListener("click", () => {
             void deleteChatMessage(message.id, options.messageIndex ?? -1);
         });
@@ -591,6 +606,7 @@ function addMessage(contentOrMessage, isUser = false, isLoading = false, options
             retryBtn.type = "button";
             retryBtn.className = "msg-action-btn";
             retryBtn.textContent = `Retry (${state.retriesUsed}/5)`;
+            retryBtn.setAttribute("aria-label", `Retry assistant message, ${state.retriesUsed} of 5 retries used`);
             retryBtn.disabled = state.retriesUsed >= 5 || isProcessing;
             retryBtn.addEventListener("click", () => {
                 void retryLatestAssistantMessage(message.id, options.messageIndex ?? -1);
@@ -602,6 +618,7 @@ function addMessage(contentOrMessage, isUser = false, isLoading = false, options
                 prevBtn.type = "button";
                 prevBtn.className = "msg-action-btn";
                 prevBtn.textContent = "Prev";
+                prevBtn.setAttribute("aria-label", "Show previous retry variant");
                 prevBtn.disabled = state.activeIndex <= 0;
                 prevBtn.addEventListener("click", () => {
                     void switchRetryVariant(message.id, -1, options.messageIndex ?? -1);
@@ -611,6 +628,7 @@ function addMessage(contentOrMessage, isUser = false, isLoading = false, options
                 nextBtn.type = "button";
                 nextBtn.className = "msg-action-btn";
                 nextBtn.textContent = "Next";
+                nextBtn.setAttribute("aria-label", "Show next retry variant");
                 nextBtn.disabled = state.activeIndex >= state.variants.length - 1;
                 nextBtn.addEventListener("click", () => {
                     void switchRetryVariant(message.id, 1, options.messageIndex ?? -1);
@@ -935,10 +953,15 @@ function renderChatList() {
         heading.className = "chat-list-section-header";
         heading.textContent = group.label;
         list.className = "chat-list-section-body";
+        list.setAttribute("role", "list");
         section.append(heading, list);
         group.items.forEach((chat) => {
             const item = document.createElement("div"), content = document.createElement("div"), title = document.createElement("span"), meta = document.createElement("small"), remove = document.createElement("button");
             item.className = `chat-item${chat.id === activeChatId ? " active" : ""}`;
+            item.setAttribute("role", "button");
+            item.tabIndex = 0;
+            item.setAttribute("aria-label", `Open chat ${chat.title}`);
+            if (chat.id === activeChatId) item.setAttribute("aria-current", "page");
             content.className = "chat-item-copy";
             title.textContent = chat.title;
             meta.className = "chat-item-meta";
@@ -946,14 +969,25 @@ function renderChatList() {
                 ? `Roleplay${chat.user_persona_name ? ` · ${chat.user_persona_name}` : ""}`
                 : "Assistant chat";
             remove.type = "button";
+            remove.className = "chat-item-delete";
             remove.textContent = "Delete";
+            remove.setAttribute("aria-label", `Delete chat ${chat.title}`);
             remove.addEventListener("click", async (event) => {
                 event.stopPropagation();
                 await deleteChat(chat.id);
             });
             content.append(title, meta);
             item.append(content, remove);
-            item.addEventListener("click", () => setActiveChat(chat.id));
+            item.addEventListener("click", () => {
+                closeMobileSidebar();
+                setActiveChat(chat.id);
+            });
+            item.addEventListener("keydown", (event) => {
+                if (event.key !== "Enter" && event.key !== " ") return;
+                event.preventDefault();
+                closeMobileSidebar();
+                void setActiveChat(chat.id);
+            });
             list.appendChild(item);
         });
         chatList.appendChild(section);
@@ -1356,7 +1390,12 @@ async function startRoleplay() {
     closeRoleplayStarter();
     await loadChatSessions();
     await setActiveChat(res.chat.id);
-    setNotice(res.generatedInitialMessage ? "Roleplay started with a fresh scene." : "Roleplay reopened.", "success");
+    setNotice(
+        res.degraded
+            ? "Roleplay started, but the opening scene timed out. Send the first message to continue."
+            : res.generatedInitialMessage ? "Roleplay started with a fresh scene." : "Roleplay reopened.",
+        res.degraded ? "error" : "success"
+    );
     setChatLoading(false);
     setChatActivity(false);
 }
@@ -1710,6 +1749,16 @@ popupInput.addEventListener("keydown", (event) => {
 bindChatDrawerActions();
 if (chatSidebar) {
     chatSidebar.addEventListener("click", (event) => event.stopPropagation());
+}
+if (chatSidebarToggle) {
+    chatSidebarToggle.addEventListener("click", (event) => {
+        event.stopPropagation();
+        if (document.body.classList.contains("sidebar-open")) {
+            closeMobileSidebar();
+            return;
+        }
+        openMobileSidebar();
+    });
 }
 if (onboardingContinue) {
     onboardingContinue.addEventListener("click", () => {

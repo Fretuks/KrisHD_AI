@@ -68,9 +68,9 @@
         </div>
     </section>
 
-    <section id="chat" class="card chat-card chat-focus-card" style="display:none;">
+    <section id="chat" class="card chat-card chat-focus-card" aria-label="AI chat workspace" style="display:none;">
         <div class="chat-layout chat-layout-focus">
-            <aside id="chatSidebar" class="chat-sidebar">
+            <aside id="chatSidebar" class="chat-sidebar" aria-label="Workspace navigation">
                 <div class="sidebar-top">
                     <div class="sidebar-workspace-card">
                         <div>
@@ -100,8 +100,9 @@
                 </div>
             </aside>
 
-            <section class="chat-main chat-main-focus">
+            <section class="chat-main chat-main-focus" aria-label="Active conversation">
                 <header class="chat-header chat-header-focus">
+                    <button id="chatSidebarToggle" class="icon-button sidebar-toggle" type="button" aria-controls="chatSidebar" aria-expanded="false" aria-label="Open chat sidebar">Menu</button>
                     <div class="chat-title-block">
                         <div class="chat-title">
                             <h2 id="activeChatTitle">New chat</h2>
@@ -112,7 +113,7 @@
                             <button id="chatDrawerButton" class="secondary-action overflow-trigger" type="button" aria-expanded="false" aria-controls="chatDrawer">
                                 <span class="overflow-trigger-label">Controls</span>
                             </button>
-                            <div id="chatDrawer" class="chat-drawer hidden" role="dialog" aria-modal="false" aria-labelledby="chatDrawerTitle">
+                            <div id="chatDrawer" class="chat-drawer hidden" role="dialog" aria-modal="true" aria-labelledby="chatDrawerTitle">
                                 <div class="chat-drawer-panel">
                                     <div class="chat-drawer-header">
                                         <div>
@@ -242,13 +243,14 @@
                     </div>
                 </div>
 
-                <div id="messages" class="messages-panel messages-panel-focus"></div>
+                <div id="messages" class="messages-panel messages-panel-focus" role="log" aria-live="polite" aria-relevant="additions text"></div>
 
                 <div class="input-shell input-shell-focus">
                     <div class="input-meta">
                         <p class="composer-hint">Enter to send · Shift+Enter for new line</p>
                     </div>
                     <div class="input-container">
+                        <label class="visually-hidden" for="msgInput">Message</label>
                         <textarea id="msgInput" rows="1" placeholder="Type your message..."></textarea>
                         <button id="send" type="button" aria-label="Send message"></button>
                     </div>
