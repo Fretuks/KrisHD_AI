@@ -12,6 +12,10 @@ const focusableSelector = [
     "[tabindex]:not([tabindex='-1'])"
 ].join(",");
 
+if (chatDrawer && chatDrawer.parentElement !== document.body) {
+    document.body.appendChild(chatDrawer);
+}
+
 function getFocusableElements() {
     if (!chatDrawer) return [];
     return Array.from(chatDrawer.querySelectorAll(focusableSelector))

@@ -22,6 +22,7 @@ const files = [
     "src/services/personaService.js",
     "public/script.js",
     "public/app/api.js",
+    "public/app/chatDrawer.js",
     "public/app/constants.js",
     "public/app/dom.js"
 ];
