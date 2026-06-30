@@ -6406,12 +6406,14 @@ body[data-theme-mode="dark"][data-theme="fraud"] .card {
 #chatDrawer.chat-drawer {
     position: fixed;
     display: grid;
-    inset: 0 0 0 auto;
-    width: min(560px, 100vw);
-    height: 100vh;
-    padding: 10px;
+    inset: 10px 10px 10px auto;
+    width: min(500px, calc(100vw - 20px));
+    height: auto;
+    max-height: calc(100dvh - 20px);
+    padding: 0;
     z-index: 100;
     overflow: hidden;
+    box-sizing: border-box;
 }
 
 #chatDrawer.chat-drawer.hidden {
@@ -6421,10 +6423,11 @@ body[data-theme-mode="dark"][data-theme="fraud"] .card {
 #chatDrawer .chat-drawer-panel {
     width: 100%;
     height: 100%;
+    max-height: calc(100dvh - 20px);
     min-height: 0;
     display: grid;
     grid-template-rows: auto minmax(0, 1fr);
-    gap: 18px;
+    gap: 14px;
     overflow: hidden;
 }
 
@@ -6440,6 +6443,7 @@ body[data-theme-mode="dark"][data-theme="fraud"] .card {
     align-content: start;
     overflow: auto;
     gap: 10px;
+    padding-bottom: 8px;
 }
 
 #chatDrawer .chat-drawer-summary,
@@ -6451,14 +6455,16 @@ body[data-theme-mode="dark"][data-theme="fraud"] .card {
 
 @media (max-width: 820px) {
     #chatDrawer.chat-drawer {
-        inset: auto 0 0 0;
-        width: 100vw;
-        height: min(86vh, 880px);
-        padding: 12px 12px calc(12px + env(safe-area-inset-bottom, 0px));
+        inset: auto 10px calc(10px + env(safe-area-inset-bottom, 0px)) 10px;
+        width: auto;
+        height: min(78dvh, 760px);
+        max-height: calc(100dvh - 20px - env(safe-area-inset-bottom, 0px));
+        padding: 0;
     }
 
     #chatDrawer .chat-drawer-panel {
         height: 100%;
+        max-height: min(78dvh, 760px);
         border-radius: 28px 28px 18px 18px;
     }
 }
