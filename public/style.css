@@ -6406,6 +6406,8 @@ body[data-theme-mode="dark"][data-theme="fraud"] .card {
 #chatDrawer.chat-drawer {
     position: fixed;
     display: grid;
+    align-items: stretch;
+    justify-items: stretch;
     inset: 10px 10px 10px auto;
     width: min(500px, calc(100vw - 20px));
     height: auto;
@@ -6425,16 +6427,40 @@ body[data-theme-mode="dark"][data-theme="fraud"] .card {
     height: 100%;
     max-height: calc(100dvh - 20px);
     min-height: 0;
+    min-width: 0;
     display: grid;
     grid-template-rows: auto minmax(0, 1fr);
     gap: 14px;
+    padding: 24px;
+    box-sizing: border-box;
     overflow: hidden;
 }
 
 #chatDrawer .chat-drawer-header {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: start;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    min-width: 0;
+    min-height: 58px;
+}
+
+#chatDrawer .chat-drawer-header > div {
+    min-width: 0;
+}
+
+#chatDrawerTitle {
+    line-height: 1.15;
+    overflow-wrap: anywhere;
+}
+
+#chatDrawerClose {
+    flex: 0 0 auto;
+    min-width: 74px;
+    min-height: 42px;
+    padding: 8px 14px;
+    border-radius: 14px;
+    line-height: 1;
 }
 
 #chatDrawer .chat-drawer-body {
@@ -6465,6 +6491,7 @@ body[data-theme-mode="dark"][data-theme="fraud"] .card {
     #chatDrawer .chat-drawer-panel {
         height: 100%;
         max-height: min(78dvh, 760px);
+        padding: 20px;
         border-radius: 28px 28px 18px 18px;
     }
 }
