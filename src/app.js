@@ -6,7 +6,7 @@ import FileStoreFactory from "session-file-store";
 import {createConfig} from "./config.js";
 import {createDatabase} from "./db/index.js";
 import {createRepositories} from "./db/repositories.js";
-import {createRateLimiter} from "./middleware/rateLimit.js";
+import {createAuthRateLimiters, createChatRateLimiters} from "./middleware/rateLimiters.js";
 import {createModelService} from "./services/modelService.js";
 import {createChatService} from "./services/chatService.js";
 import {createAuthRouter} from "./routes/auth.js";
@@ -16,72 +16,104 @@ import {createPersonasRouter} from "./routes/personas.js";
 import {createSettingsRouter} from "./routes/settings.js";
 import {createSystemRouter} from "./routes/system.js";
 
+function createCloseHandler(resources) {
+    let closed = false;
+    return async () => {
+        if (closed) return;
+        closed = true;
+
+        for (const close of resources) {
+            await close();
+        }
+    };
+}
+
+function createLifecycleMonitors(app, config) {
+    const resources = [];
+
+    if (config.eventLoopLagMonitorEnabled) {
+        let last = performance.now();
+        const lagMonitor = setInterval(() => {
+            const now = performance.now();
+            const drift = now - last - 1000;
+            last = now;
+            if (drift > config.eventLoopLagWarnMs) {
+                console.warn("EVENT LOOP LAG", Math.round(drift), "ms", new Date().toISOString());
+            }
+        }, 1000);
+        lagMonitor.unref();
+        resources.push(() => clearInterval(lagMonitor));
+    }
+
+    if (config.slowRequestLoggingEnabled) {
+        app.use((req, res, next) => {
+            const start = Date.now();
+            res.on("finish", () => {
+                const ms = Date.now() - start;
+                if (ms > config.slowRequestWarnMs) {
+                    console.warn("SLOW REQ", `${ms}ms`, req.method, req.url);
+                }
+            });
+            next();
+        });
+    }
+
+    return resources;
+}
+
+function wantsJson(req) {
+    const accept = req.get("Accept") || "";
+    const contentType = req.get("Content-Type") || "";
+    return req.xhr
+        || req.path.startsWith("/api/")
+        || accept.includes("application/json")
+        || contentType.includes("application/json");
+}
+
+function notFoundHandler(req, res) {
+    if (wantsJson(req)) {
+        return res.status(404).json({error: "Not found"});
+    }
+    return res.status(404).type("text").send("Not found");
+}
+
+function errorHandler(err, req, res, next) {
+    if (res.headersSent) {
+        return next(err);
+    }
+
+    const status = Number.isInteger(err.status) ? err.status : 500;
+    const message = status >= 500 ? "Internal server error" : err.message;
+    console.warn("REQUEST ERROR", status, req.method, req.url, err);
+    if (wantsJson(req)) {
+        return res.status(status).json({error: message});
+    }
+    return res.status(status).type("text").send(message);
+}
+
 export function createApp(options = {}) {
     const config = createConfig(options.config);
     const app = express();
+    app.set("trust proxy", config.trustProxy);
 
     if (config.dbPath !== ":memory:") {
         fs.mkdirSync(config.sessionsDir, {recursive: true});
     }
 
-    let last = performance.now();
-    const lagMonitor = setInterval(() => {
-        const now = performance.now();
-        const drift = now - last - 1000;
-        last = now;
-        if (drift > 50) {
-            console.log("EVENT LOOP LAG", Math.round(drift), "ms", new Date().toISOString());
-        }
-    }, 1000);
-    lagMonitor.unref();
-
-    app.use((req, res, next) => {
-        const start = Date.now();
-        res.on("finish", () => {
-            const ms = Date.now() - start;
-            if (ms > 50) console.log("SLOW REQ", `${ms}ms`, req.method, req.url);
-        });
-        next();
-    });
+    const closeHandlers = createLifecycleMonitors(app, config);
 
     const db = createDatabase(config);
     const repositories = createRepositories(db, config);
     const modelService = options.modelService || createModelService(config, options.modelOverrides);
     const chatService = createChatService(repositories, modelService, config);
     const FileStore = FileStoreFactory(session);
-
-    const authRateLimiters = [
-        createRateLimiter({
-            windowMs: config.authRateLimitWindowMs,
-            max: config.authRateLimitMaxPerIp,
-            keyGenerator: (req) => `auth:ip:${req.ip}`,
-            message: "Too many authentication attempts from this IP. Please try again later."
-        }),
-        createRateLimiter({
-            windowMs: config.authRateLimitWindowMs,
-            max: config.authRateLimitMaxPerAccount,
-            keyGenerator: (req) => {
-                const username = String(req.body?.username || "").trim().toLowerCase();
-                return username ? `auth:user:${username}` : null;
-            },
-            message: "Too many authentication attempts for this account. Please try again later."
-        })
-    ];
-
-    const chatRateLimiters = [
-        createRateLimiter({
-            windowMs: config.chatRateLimitWindowMs,
-            max: config.chatRateLimitMaxPerIp,
-            keyGenerator: (req) => `chat:ip:${req.ip}`,
-            message: "Too many chat requests from this IP. Please slow down."
-        }),
-        createRateLimiter({
-            windowMs: config.chatRateLimitWindowMs,
-            max: config.chatRateLimitMaxPerAccount,
-            keyGenerator: (req) => req.session.user ? `chat:user:${req.session.user}` : null,
-            message: "Too many chat requests for this account. Please slow down."
-        })
-    ];
+    const authRateLimiters = createAuthRateLimiters(config);
+    const chatRateLimiters = createChatRateLimiters(config);
+    closeHandlers.push(
+        ...authRateLimiters.map((limiter) => limiter.close),
+        ...chatRateLimiters.map((limiter) => limiter.close),
+        () => db.close()
+    );
 
     app.use(express.json({limit: "1mb"}));
     app.use(express.static(config.publicDir));
@@ -102,6 +134,7 @@ export function createApp(options = {}) {
     app.locals.db = db;
     app.locals.repositories = repositories;
     app.locals.modelService = modelService;
+    app.locals.close = createCloseHandler(closeHandlers);
 
     app.use(createAuthRouter({repositories, authRateLimiters}));
     app.use(createSettingsRouter({repositories}));
@@ -109,6 +142,8 @@ export function createApp(options = {}) {
     app.use(createPersonasRouter({repositories, chatService, modelService, config}));
     app.use(createSystemRouter({modelService}));
     app.use(createPagesRouter(config));
+    app.use(notFoundHandler);
+    app.use(errorHandler);
 
     return app;
 }
@@ -119,5 +154,9 @@ export function startServer(options = {}) {
     const server = app.listen(port, () => {
         console.log(`Server running at http://localhost:${port}`);
     });
-    return {app, server};
+    const close = async () => {
+        await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+        await app.locals.close();
+    };
+    return {app, server, close};
 }

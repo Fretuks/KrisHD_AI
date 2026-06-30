@@ -9,6 +9,7 @@ const files = [
     "src/db/schema.js",
     "src/middleware/auth.js",
     "src/middleware/rateLimit.js",
+    "src/middleware/rateLimiters.js",
     "src/middleware/validate.js",
     "src/routes/auth.js",
     "src/routes/chats.js",

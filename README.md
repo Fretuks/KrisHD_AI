@@ -20,8 +20,12 @@ KrisHD_AI is an Express + SQLite app for account-based chat, persona management,
 - `PORT`: HTTP port for the Express server.
 - `DB_PATH`: SQLite database path. Use `:memory:` for isolated tests.
 - `SESSION_SECRET`: session signing secret. Required outside local throwaway environments.
-- `COOKIE_SECURE`: set to `true` when serving over HTTPS.
+- `COOKIE_SECURE`: set to `true` when serving over HTTPS. Required in production unless `ALLOW_INSECURE_COOKIES=true` is set.
+- `ALLOW_INSECURE_COOKIES`: explicit production override for non-HTTPS deployments.
+- `TRUST_PROXY`: Express trust proxy setting for reverse proxy deployments.
 - `SESSION_MAX_AGE_MS`: cookie lifetime.
+- `EVENT_LOOP_LAG_*`: enable and tune event-loop lag warnings.
+- `SLOW_REQUEST_*`: enable and tune slow request warnings.
 - `CHAT_LIMIT`: per-account maximum chat sessions.
 - `CHAT_HISTORY_LIMIT`: number of recent messages included in model prompts.
 - `MODEL_API_BASE_URL`: base URL of the remote model backend. The server expects `/chat` and `/tags`.
@@ -31,6 +35,7 @@ KrisHD_AI is an Express + SQLite app for account-based chat, persona management,
 - `MODELS_CACHE_TTL_MS`: model list cache TTL.
 - `AUTH_RATE_LIMIT_*`: rate-limit window and thresholds for registration/login.
 - `CHAT_RATE_LIMIT_*`: rate-limit window and thresholds for chat and retry endpoints.
+- `RATE_LIMIT_CLEANUP_INTERVAL_MS`: interval for pruning stale in-memory rate-limit buckets.
 - `DROP_LEGACY_CHATS`: when `true`, migrate any legacy `chats` table into `chat_sessions` / `chat_messages` and remove the old table.
 
 ## Model Backend Expectations
