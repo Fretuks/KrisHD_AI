@@ -4247,6 +4247,21 @@ body[data-theme] .msg.loading {
     --ui-space-6: 32px;
 }
 
+body[data-theme] {
+    --ui-bg: var(--bg-gradient);
+    --ui-surface: var(--surface-strong);
+    --ui-surface-raised: var(--panel-elevated);
+    --ui-surface-soft: var(--panel-soft);
+    --ui-border: var(--line);
+    --ui-border-strong: var(--line-strong);
+    --ui-text: var(--text);
+    --ui-text-secondary: var(--text-soft);
+    --ui-text-muted: var(--text-muted);
+    --ui-accent: var(--brand);
+    --ui-accent-strong: var(--brand-strong);
+    --ui-danger: var(--error);
+}
+
 .visually-hidden {
     position: absolute !important;
     width: 1px;
