@@ -6374,3 +6374,30 @@ body[data-theme-mode="dark"] .chat-item .chat-item-delete:focus-visible {
     border-color: color-mix(in srgb, var(--ui-danger) 28%, transparent);
     color: var(--ui-danger);
 }
+
+/* Notices should follow the selected brand; only FakeGPT should read as green. */
+body[data-theme] .status.success {
+    color: var(--brand-strong);
+    background: color-mix(in srgb, var(--brand) 12%, var(--status-surface));
+    border-color: color-mix(in srgb, var(--brand) 24%, var(--status-border));
+}
+
+body[data-theme-mode="dark"] .status.success {
+    color: color-mix(in srgb, var(--brand) 72%, #f7fbff);
+    background: color-mix(in srgb, var(--brand) 14%, var(--status-surface));
+    border-color: color-mix(in srgb, var(--brand) 30%, var(--status-border));
+}
+
+body[data-theme-mode="dark"][data-theme="fraud"] {
+    --surface: rgba(34, 25, 20, 0.88);
+    --surface-strong: rgba(42, 31, 25, 0.94);
+    --ui-surface: var(--surface-strong);
+}
+
+body[data-theme-mode="dark"][data-theme="fraud"] .settings-shell,
+body[data-theme-mode="dark"][data-theme="fraud"] .market-shell,
+body[data-theme-mode="dark"][data-theme="fraud"] .chat-card,
+body[data-theme-mode="dark"][data-theme="fraud"] .card {
+    background: var(--editorial-surface);
+    border-color: var(--line);
+}
