@@ -6401,3 +6401,64 @@ body[data-theme-mode="dark"][data-theme="fraud"] .card {
     background: var(--editorial-surface);
     border-color: var(--line);
 }
+
+/* Drawer layout precedence: keep controls visible despite header-action/theme overrides. */
+#chatDrawer.chat-drawer {
+    position: fixed;
+    display: grid;
+    inset: 0 0 0 auto;
+    width: min(560px, 100vw);
+    height: 100vh;
+    padding: 10px;
+    z-index: 100;
+    overflow: hidden;
+}
+
+#chatDrawer.chat-drawer.hidden {
+    display: none;
+}
+
+#chatDrawer .chat-drawer-panel {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 18px;
+    overflow: hidden;
+}
+
+#chatDrawer .chat-drawer-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+}
+
+#chatDrawer .chat-drawer-body {
+    display: grid;
+    min-height: 0;
+    align-content: start;
+    overflow: auto;
+    gap: 10px;
+}
+
+#chatDrawer .chat-drawer-summary,
+#chatDrawer .chat-drawer-section:not(.hidden),
+#chatDrawer .chat-drawer-more,
+#chatDrawer .chat-drawer-danger {
+    display: grid;
+}
+
+@media (max-width: 820px) {
+    #chatDrawer.chat-drawer {
+        inset: auto 0 0 0;
+        width: 100vw;
+        height: min(86vh, 880px);
+        padding: 12px 12px calc(12px + env(safe-area-inset-bottom, 0px));
+    }
+
+    #chatDrawer .chat-drawer-panel {
+        height: 100%;
+        border-radius: 28px 28px 18px 18px;
+    }
+}
