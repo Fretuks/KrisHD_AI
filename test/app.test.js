@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {createApp} from "../src/app.js";
+import fs from "fs";
+import os from "os";
+import path from "path";
+import session from "express-session";
+import {createApp, createCloseHandler} from "../src/app.js";
 
 class CookieJar {
     constructor() {
@@ -55,7 +59,8 @@ async function startTestServer(overrides = {}) {
             sessionSecret: "test-secret",
             ...(overrides.config || {})
         },
-        modelService
+        modelService,
+        sessionStore: overrides.sessionStore
     });
 
     const server = await new Promise((resolve) => {
@@ -116,6 +121,140 @@ test("auth flow validates inputs and persists session", async () => {
     });
 
     await server.close();
+});
+
+test("createApp can use an injected session store", async () => {
+    class CountingStore extends session.Store {
+        constructor() {
+            super();
+            this.sessions = new Map();
+            this.setCount = 0;
+        }
+
+        get(sid, callback) {
+            callback(null, this.sessions.get(sid));
+        }
+
+        set(sid, value, callback) {
+            this.setCount += 1;
+            this.sessions.set(sid, value);
+            callback();
+        }
+
+        destroy(sid, callback) {
+            this.sessions.delete(sid);
+            callback();
+        }
+    }
+
+    const store = new CountingStore();
+    const server = await startTestServer({sessionStore: store});
+    const jar = new CookieJar();
+
+    await request(server.baseUrl, "/register", {
+        method: "POST",
+        body: {username: "alice", password: "password123"}
+    }).then(({status}) => assert.equal(status, 200));
+
+    await request(server.baseUrl, "/login", {
+        method: "POST",
+        body: {username: "alice", password: "password123"},
+        jar
+    }).then(({status}) => assert.equal(status, 200));
+
+    assert.equal(store.setCount > 0, true);
+    await server.close();
+});
+
+test("invalid JSON returns a clean 400 response", async () => {
+    const server = await startTestServer();
+
+    const response = await fetch(`${server.baseUrl}/register`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: "{"
+    });
+    const json = await response.json();
+
+    assert.equal(response.status, 400);
+    assert.deepEqual(json, {error: "Invalid JSON"});
+    await server.close();
+});
+
+test("cross-origin state-changing requests are blocked", async () => {
+    const server = await startTestServer();
+
+    const response = await fetch(`${server.baseUrl}/register`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Origin: "https://example.test"
+        },
+        body: JSON.stringify({username: "alice", password: "password123"})
+    });
+    const json = await response.json();
+
+    assert.equal(response.status, 403);
+    assert.deepEqual(json, {error: "Cross-origin request blocked"});
+    await server.close();
+});
+
+test("file-backed startup creates data and session directories", async () => {
+    const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "krishd-app-"));
+    const dataDir = path.join(rootDir, "data");
+    const sessionsDir = path.join(rootDir, "sessions");
+    const app = createApp({
+        config: {
+            rootDir,
+            dataDir,
+            sessionsDir,
+            dbPath: path.join(dataDir, "app.db"),
+            testMode: true,
+            sessionSecret: "test-secret"
+        },
+        modelService: {
+            async generateReply() {},
+            async streamReply() {},
+            async listModels() {
+                return {models: []};
+            },
+            async checkHealth() {
+                return {ok: true, checkedAt: new Date().toISOString(), error: null};
+            },
+            mapError(error) {
+                return {status: 500, body: {error: error.message}};
+            }
+        }
+    });
+
+    assert.equal(fs.existsSync(dataDir), true);
+    assert.equal(fs.existsSync(sessionsDir), true);
+    await app.locals.close();
+});
+
+test("close handler attempts all resources and reports collected failures", async () => {
+    const closed = [];
+    const close = createCloseHandler([
+        () => {
+            closed.push("first");
+            throw new Error("first failed");
+        },
+        () => {
+            closed.push("second");
+        },
+        () => {
+            closed.push("third");
+            throw new Error("third failed");
+        }
+    ]);
+
+    await assert.rejects(close, (error) => {
+        assert.equal(error instanceof AggregateError, true);
+        assert.equal(error.errors.length, 2);
+        assert.deepEqual(error.errors.map((item) => item.message), ["first failed", "third failed"]);
+        return true;
+    });
+    assert.deepEqual(closed, ["first", "second", "third"]);
 });
 
 test("chat creation, send, and retry endpoints work with stubbed model service", async () => {

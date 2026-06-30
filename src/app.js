@@ -16,14 +16,23 @@ import {createPersonasRouter} from "./routes/personas.js";
 import {createSettingsRouter} from "./routes/settings.js";
 import {createSystemRouter} from "./routes/system.js";
 
-function createCloseHandler(resources) {
+export function createCloseHandler(resources) {
     let closed = false;
     return async () => {
         if (closed) return;
         closed = true;
 
+        const errors = [];
         for (const close of resources) {
-            await close();
+            try {
+                await close();
+            } catch (error) {
+                errors.push(error);
+            }
+        }
+
+        if (errors.length) {
+            throw new AggregateError(errors, "Failed to close one or more resources");
         }
     };
 }
@@ -82,13 +91,50 @@ function errorHandler(err, req, res, next) {
         return next(err);
     }
 
-    const status = Number.isInteger(err.status) ? err.status : 500;
+    if (err?.type === "entity.parse.failed") {
+        return res.status(400).json({error: "Invalid JSON"});
+    }
+
+    const status = Number.isInteger(err.status) ? err.status : Number.isInteger(err.statusCode) ? err.statusCode : 500;
     const message = status >= 500 ? "Internal server error" : err.message;
-    console.warn("REQUEST ERROR", status, req.method, req.url, err);
+    if (status >= 500) {
+        console.warn("REQUEST ERROR", status, req.method, req.url, err);
+    } else {
+        console.warn("REQUEST ERROR", status, req.method, req.url, message);
+    }
     if (wantsJson(req)) {
         return res.status(status).json({error: message});
     }
     return res.status(status).type("text").send(message);
+}
+
+function sameOriginProtection(config) {
+    return (req, res, next) => {
+        if (!config.sameOriginProtectionEnabled || !["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) {
+            return next();
+        }
+
+        const secFetchSite = req.get("Sec-Fetch-Site");
+        if (secFetchSite && !["same-origin", "none"].includes(secFetchSite)) {
+            return res.status(403).json({error: "Cross-origin request blocked"});
+        }
+
+        const origin = req.get("Origin");
+        if (!origin) return next();
+
+        let parsedOrigin;
+        try {
+            parsedOrigin = new URL(origin);
+        } catch {
+            return res.status(403).json({error: "Cross-origin request blocked"});
+        }
+
+        if (parsedOrigin.protocol !== `${req.protocol}:` || parsedOrigin.host !== req.get("Host")) {
+            return res.status(403).json({error: "Cross-origin request blocked"});
+        }
+
+        return next();
+    };
 }
 
 export function createApp(options = {}) {
@@ -97,6 +143,7 @@ export function createApp(options = {}) {
     app.set("trust proxy", config.trustProxy);
 
     if (config.dbPath !== ":memory:") {
+        fs.mkdirSync(config.dataDir, {recursive: true});
         fs.mkdirSync(config.sessionsDir, {recursive: true});
     }
 
@@ -116,9 +163,13 @@ export function createApp(options = {}) {
     );
 
     app.use(express.json({limit: "1mb"}));
-    app.use(express.static(config.publicDir));
+    app.use(express.static(config.publicDir, {
+        maxAge: config.staticMaxAge,
+        etag: config.staticEtag,
+        fallthrough: config.staticFallthrough
+    }));
     app.use(session({
-        store: config.testMode ? undefined : new FileStore({path: config.sessionsDir, reapInterval: 3600}),
+        store: options.sessionStore || (config.testMode ? undefined : new FileStore({path: config.sessionsDir, reapInterval: 3600})),
         secret: config.sessionSecret,
         resave: false,
         saveUninitialized: false,
@@ -129,6 +180,7 @@ export function createApp(options = {}) {
             maxAge: config.sessionMaxAgeMs
         }
     }));
+    app.use(sameOriginProtection(config));
 
     app.locals.config = config;
     app.locals.db = db;
@@ -155,8 +207,39 @@ export function startServer(options = {}) {
         console.log(`Server running at http://localhost:${port}`);
     });
     const close = async () => {
-        await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
-        await app.locals.close();
+        const errors = [];
+        try {
+            await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+        } catch (error) {
+            errors.push(error);
+        }
+        try {
+            await app.locals.close();
+        } catch (error) {
+            if (error instanceof AggregateError) {
+                errors.push(...error.errors);
+            } else {
+                errors.push(error);
+            }
+        }
+        if (errors.length) {
+            throw new AggregateError(errors, "Failed to close server cleanly");
+        }
     };
+    if (options.handleSignals !== false) {
+        let shuttingDown = false;
+        const shutdown = (signal) => {
+            if (shuttingDown) return;
+            shuttingDown = true;
+            close()
+                .then(() => process.exit(0))
+                .catch((error) => {
+                    console.error(`Failed to shut down after ${signal}`, error);
+                    process.exit(1);
+                });
+        };
+        process.once("SIGINT", shutdown);
+        process.once("SIGTERM", shutdown);
+    }
     return {app, server, close};
 }
