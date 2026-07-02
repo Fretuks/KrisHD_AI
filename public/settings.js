@@ -21,6 +21,9 @@ const usernamePasswordInput = $("usernamePassword");
 const currentPasswordInput = $("currentPassword");
 const newPasswordInput = $("newPassword");
 const repeatPasswordInput = $("repeatPassword");
+const exportAccountBtn = $("exportAccount");
+const logoutAllSessionsBtn = $("logoutAllSessions");
+const deleteAccountBtn = $("deleteAccount");
 const usernameForm = $("usernameForm");
 const passwordForm = $("passwordForm");
 const settingsNavItems = document.querySelectorAll("[data-settings-view]");
@@ -458,6 +461,56 @@ async function unpublishPersona(id) {
     setNotice("Persona unpublished.", "success");
 }
 
+function downloadJson(filename, payload) {
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {type: "application/json;charset=utf-8"});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+}
+
+async function exportAccount() {
+    const res = await get("/settings/export");
+    if (res.error) return setNotice(res.error, "error");
+    const username = currentUsernameInput.value || "account";
+    downloadJson(`account-export-${username}-${new Date().toISOString().slice(0, 10)}.json`, res.account);
+    setNotice("Account export downloaded.", "success");
+}
+
+async function logoutAllSessions() {
+    const confirmed = await promptSettingsPopup({
+        eyebrow: "Security",
+        title: "Logout all sessions",
+        description: "Type logout to sign out this browser and every other active session.",
+        label: "Confirmation",
+        placeholder: "logout",
+        confirmLabel: "Logout all"
+    });
+    if (String(confirmed || "").trim().toLowerCase() !== "logout") return;
+    const res = await post("/settings/logout-all-sessions", {});
+    if (res.error) return setNotice(res.error, "error");
+    window.location.href = "/";
+}
+
+async function deleteAccount() {
+    const currentPassword = await promptSettingsPopup({
+        eyebrow: "Danger zone",
+        title: "Delete account",
+        description: "Enter your current password to permanently delete your account and all account data.",
+        label: "Current password",
+        placeholder: "Password",
+        confirmLabel: "Delete account"
+    });
+    if (currentPassword === null) return;
+    const res = await request("/settings/account", {currentPassword}, "DELETE");
+    if (res.error) return setNotice(res.error, "error");
+    window.location.href = "/";
+}
+
 usernameForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     const username = newUsernameInput.value.trim();
@@ -514,6 +567,9 @@ workspaceModeSelect.addEventListener("change", (event) => {
     localStorage.setItem("krishd-workspace-mode", mode);
     setNotice(`Workspace mode set to ${mode}.`, "success");
 });
+exportAccountBtn.addEventListener("click", () => { void exportAccount(); });
+logoutAllSessionsBtn.addEventListener("click", () => { void logoutAllSessions(); });
+deleteAccountBtn.addEventListener("click", () => { void deleteAccount(); });
 refreshDiagnosticsBtn.addEventListener("click", () => { void loadDiagnostics(); });
 
 settingsNavItems.forEach((item) => item.addEventListener("click", () => setSettingsView(item.dataset.settingsView)));

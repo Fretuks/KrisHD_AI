@@ -21,6 +21,8 @@ const loginUsernameInput = $("loginUsername");
 const loginPasswordInput = $("loginPassword");
 const registerUsernameInput = $("registerUsername");
 const registerPasswordInput = $("registerPassword");
+const registerInviteField = $("registerInviteField");
+const registerInviteCodeInput = $("registerInviteCode");
 const loginSubmit = $("loginSubmit");
 const registerSubmit = $("registerSubmit");
 const chatList = $("chatList");
@@ -190,6 +192,8 @@ export {
     popupModal,
     popupTitle,
     registerForm,
+    registerInviteCodeInput,
+    registerInviteField,
     registerPasswordInput,
     registerSubmit,
     registerUsernameInput,

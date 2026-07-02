@@ -41,9 +41,10 @@ function normalizeMarketPersonaType(personaType) {
 export function createRepositories(db, config) {
     const statements = {
         insertUser: db.prepare("INSERT INTO users (username, password) VALUES (?, ?)"),
-        getUser: db.prepare("SELECT username, password FROM users WHERE username = ?"),
+        getUser: db.prepare("SELECT username, password, session_version FROM users WHERE username = ?"),
         updateUsername: db.prepare("UPDATE users SET username = ? WHERE username = ?"),
         updatePassword: db.prepare("UPDATE users SET password = ? WHERE username = ?"),
+        incrementSessionVersion: db.prepare("UPDATE users SET session_version = COALESCE(session_version, 0) + 1 WHERE username = ?"),
         insertChatSession: db.prepare(
             "INSERT INTO chat_sessions (username, title, assistant_persona_id, user_persona_id, folder_name, is_pinned, archived_at, scenario_prompt, scenario_summary) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
         ),
@@ -547,6 +548,17 @@ export function createRepositories(db, config) {
         updateMarketFavoritesUsername: db.prepare("UPDATE persona_market_favorites SET username = ? WHERE username = ?"),
         updateMarketRatingsUsername: db.prepare("UPDATE persona_market_ratings SET username = ? WHERE username = ?"),
         updateMarketReportsUsername: db.prepare("UPDATE persona_market_reports SET reporter_username = ? WHERE reporter_username = ?"),
+        deleteChatMemoriesByUser: db.prepare("DELETE FROM chat_memories WHERE username = ?"),
+        deleteChatSessionsByUser: db.prepare("DELETE FROM chat_sessions WHERE username = ?"),
+        deletePersonasByUser: db.prepare("DELETE FROM personas WHERE username = ?"),
+        deleteUserSettingsByUser: db.prepare("DELETE FROM user_settings WHERE username = ?"),
+        deletePersonaVersionsByUser: db.prepare("DELETE FROM persona_versions WHERE username = ?"),
+        deletePromptTemplatesByUser: db.prepare("DELETE FROM prompt_templates WHERE username = ?"),
+        deleteMarketPersonasByCreator: db.prepare("DELETE FROM persona_market WHERE creator_username = ?"),
+        deleteMarketFavoritesByUser: db.prepare("DELETE FROM persona_market_favorites WHERE username = ?"),
+        deleteMarketRatingsByUser: db.prepare("DELETE FROM persona_market_ratings WHERE username = ?"),
+        deleteMarketReportsByUser: db.prepare("DELETE FROM persona_market_reports WHERE reporter_username = ?"),
+        deleteUser: db.prepare("DELETE FROM users WHERE username = ?"),
         deleteMarketPersonaByPersonaId: db.prepare("DELETE FROM persona_market WHERE persona_id = ? AND creator_username = ?"),
         incrementMarketUsageCount: db.prepare("UPDATE persona_market SET usage_count = usage_count + 1 WHERE id = ?")
     };
@@ -564,6 +576,20 @@ export function createRepositories(db, config) {
         statements.updateMarketFavoritesUsername.run(nextUsername, currentUsername);
         statements.updateMarketRatingsUsername.run(nextUsername, currentUsername);
         statements.updateMarketReportsUsername.run(nextUsername, currentUsername);
+    });
+
+    const deleteUserTransaction = db.transaction((username) => {
+        statements.deleteMarketFavoritesByUser.run(username);
+        statements.deleteMarketRatingsByUser.run(username);
+        statements.deleteMarketReportsByUser.run(username);
+        statements.deleteMarketPersonasByCreator.run(username);
+        statements.deletePromptTemplatesByUser.run(username);
+        statements.deletePersonaVersionsByUser.run(username);
+        statements.deleteChatMemoriesByUser.run(username);
+        statements.deleteChatSessionsByUser.run(username);
+        statements.deleteUserSettingsByUser.run(username);
+        statements.deletePersonasByUser.run(username);
+        return statements.deleteUser.run(username);
     });
 
     const savePersonaVersion = db.transaction((personaId, username) => {
@@ -670,7 +696,12 @@ export function createRepositories(db, config) {
         getUser: (username) => statements.getUser.get(username),
         insertUser: (username, passwordHash) => statements.insertUser.run(username, passwordHash),
         updatePassword: (passwordHash, username) => statements.updatePassword.run(passwordHash, username),
+        incrementSessionVersion(username) {
+            statements.incrementSessionVersion.run(username);
+            return statements.getUser.get(username);
+        },
         renameUser: (currentUsername, nextUsername) => renameUserTransaction(currentUsername, nextUsername),
+        deleteUser: (username) => deleteUserTransaction(username),
         listChats: (username) => statements.listChatSessions.all(username),
         searchChats(username, query) {
             const like = `%${String(query || "").trim().toLowerCase()}%`;

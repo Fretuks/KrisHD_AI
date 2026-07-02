@@ -140,6 +140,25 @@ test("auth flow validates inputs and persists session", async () => {
     await server.close();
 });
 
+test("invite-only registration requires invite code", async () => {
+    const server = await startTestServer({config: {registrationInviteCode: "let-me-in"}});
+
+    await request(server.baseUrl, "/register", {
+        method: "POST",
+        body: {username: "invitee", password: "password123"}
+    }).then(({status, json}) => {
+        assert.equal(status, 403);
+        assert.match(json.error, /invite code/i);
+    });
+
+    await request(server.baseUrl, "/register", {
+        method: "POST",
+        body: {username: "invitee", password: "password123", inviteCode: "let-me-in"}
+    }).then(({status}) => assert.equal(status, 200));
+
+    await server.close();
+});
+
 test("createApp can use an injected session store", async () => {
     class CountingStore extends session.Store {
         constructor() {
@@ -180,6 +199,53 @@ test("createApp can use an injected session store", async () => {
     }).then(({status}) => assert.equal(status, 200));
 
     assert.equal(store.setCount > 0, true);
+    await server.close();
+});
+
+test("account export, logout-all, and deletion controls work", async () => {
+    const server = await startTestServer();
+    const firstJar = new CookieJar();
+    const secondJar = new CookieJar();
+
+    await request(server.baseUrl, "/register", {method: "POST", body: {username: "owner", password: "password123"}});
+    await request(server.baseUrl, "/login", {method: "POST", body: {username: "owner", password: "password123"}, jar: firstJar});
+    await request(server.baseUrl, "/login", {method: "POST", body: {username: "owner", password: "password123"}, jar: secondJar});
+
+    const exported = await request(server.baseUrl, "/settings/export", {jar: firstJar});
+    assert.equal(exported.status, 200);
+    assert.equal(exported.json.account.username, "owner");
+    assert.ok(exported.json.account.workspace);
+
+    const logoutAll = await request(server.baseUrl, "/settings/logout-all-sessions", {
+        method: "POST",
+        body: {},
+        jar: firstJar
+    });
+    assert.equal(logoutAll.status, 200);
+    const staleSession = await request(server.baseUrl, "/settings/profile", {jar: secondJar});
+    assert.equal(staleSession.status, 403);
+
+    await request(server.baseUrl, "/login", {method: "POST", body: {username: "owner", password: "password123"}, jar: firstJar});
+    const wrongDelete = await request(server.baseUrl, "/settings/account", {
+        method: "DELETE",
+        body: {currentPassword: "wrong-password"},
+        jar: firstJar
+    });
+    assert.equal(wrongDelete.status, 403);
+
+    const deleted = await request(server.baseUrl, "/settings/account", {
+        method: "DELETE",
+        body: {currentPassword: "password123"},
+        jar: firstJar
+    });
+    assert.equal(deleted.status, 200);
+
+    const loginAfterDelete = await request(server.baseUrl, "/login", {
+        method: "POST",
+        body: {username: "owner", password: "password123"}
+    });
+    assert.equal(loginAfterDelete.status, 400);
+
     await server.close();
 });
 

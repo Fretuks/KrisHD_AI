@@ -5,18 +5,22 @@ import {validateBody} from "../middleware/validate.js";
 const credentialsValidator = (body) => {
     const username = String(body?.username || "").trim();
     const password = String(body?.password || "");
+    const inviteCode = String(body?.inviteCode || "").trim();
     if (!username) return {error: "Username is required"};
     if (username.length < 3) return {error: "Username must be at least 3 characters"};
     if (!password) return {error: "Password is required"};
     if (password.length < 6) return {error: "Password must be at least 6 characters"};
-    return {value: {username, password}};
+    return {value: {username, password, inviteCode}};
 };
 
-export function createAuthRouter({repositories, authRateLimiters}) {
+export function createAuthRouter({repositories, authRateLimiters, config}) {
     const router = express.Router();
 
     router.post("/register", ...authRateLimiters, validateBody(credentialsValidator), async (req, res) => {
-        const {username, password} = req.validatedBody;
+        const {username, password, inviteCode} = req.validatedBody;
+        if (config.registrationInviteCode && inviteCode !== config.registrationInviteCode) {
+            return res.status(403).json({error: "Valid invite code is required"});
+        }
         if (repositories.getUser(username)) {
             return res.status(400).json({error: "User already exists"});
         }
@@ -33,6 +37,7 @@ export function createAuthRouter({repositories, authRateLimiters}) {
         const valid = await bcrypt.compare(password, user.password);
         if (!valid) return res.status(403).json({error: "Invalid password"});
         req.session.user = username;
+        req.session.sessionVersion = Number(user.session_version || 0);
         return res.json({message: "Login successful"});
     });
 
@@ -41,7 +46,10 @@ export function createAuthRouter({repositories, authRateLimiters}) {
     });
 
     router.get("/session", (req, res) => {
-        return res.json({user: req.session.user || null});
+        return res.json({
+            user: req.session.user || null,
+            inviteOnlyRegistration: Boolean(config.registrationInviteCode)
+        });
     });
 
     return router;

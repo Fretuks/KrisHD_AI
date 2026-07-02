@@ -6,7 +6,8 @@ export function initializeSchema(db) {
         CREATE TABLE IF NOT EXISTS users
         (
             username TEXT PRIMARY KEY,
-            password TEXT NOT NULL
+            password TEXT NOT NULL,
+            session_version INTEGER DEFAULT 0
         )
     `).run();
 
@@ -203,6 +204,10 @@ export function runMigrations(db, {dropLegacyChats = true} = {}) {
             db.prepare(sql).run();
         }
     };
+
+    const userColumns = db.prepare("PRAGMA table_info(users)").all();
+    ensureColumn("users", userColumns, "session_version", "ALTER TABLE users ADD COLUMN session_version INTEGER DEFAULT 0");
+    db.prepare("UPDATE users SET session_version = 0 WHERE session_version IS NULL").run();
 
     const personaColumns = db.prepare("PRAGMA table_info(personas)").all();
     ensureColumn("personas", personaColumns, "custom_fields", "ALTER TABLE personas ADD COLUMN custom_fields TEXT");

@@ -137,6 +137,23 @@ function sameOriginProtection(config) {
     };
 }
 
+function enforceSessionVersion(repositories) {
+    return (req, res, next) => {
+        if (!req.session.user) return next();
+        const user = repositories.getUser(req.session.user);
+        const currentVersion = Number(user?.session_version || 0);
+        const sessionVersion = Number(req.session.sessionVersion || 0);
+        if (user && currentVersion === sessionVersion) return next();
+
+        req.session.destroy(() => {
+            if (req.path === "/session") {
+                return res.json({user: null});
+            }
+            return res.status(403).json({error: "Session expired. Please log in again."});
+        });
+    };
+}
+
 export function createApp(options = {}) {
     const config = createConfig(options.config);
     const app = express();
@@ -181,6 +198,7 @@ export function createApp(options = {}) {
         }
     }));
     app.use(sameOriginProtection(config));
+    app.use(enforceSessionVersion(repositories));
 
     app.locals.config = config;
     app.locals.db = db;
@@ -188,7 +206,7 @@ export function createApp(options = {}) {
     app.locals.modelService = modelService;
     app.locals.close = createCloseHandler(closeHandlers);
 
-    app.use(createAuthRouter({repositories, authRateLimiters}));
+    app.use(createAuthRouter({repositories, authRateLimiters, config}));
     app.use(createSettingsRouter({repositories}));
     app.use(createChatsRouter({repositories, chatService, modelService, config, chatRateLimiters}));
     app.use(createPersonasRouter({repositories, chatService, modelService, config}));

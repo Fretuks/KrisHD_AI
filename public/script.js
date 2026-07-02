@@ -78,6 +78,8 @@ import {
     popupModal,
     popupTitle,
     registerForm,
+    registerInviteCodeInput,
+    registerInviteField,
     registerPasswordInput,
     registerSubmit,
     registerUsernameInput,
@@ -1643,6 +1645,7 @@ async function displayModels() {
 
 async function checkSession() {
     const res = await get("/session");
+    if (registerInviteField) registerInviteField.classList.toggle("hidden", !res.inviteOnlyRegistration);
     if (!res.user) return false;
     currentUsername = res.user; authDiv.style.display = "none"; chatDiv.style.display = "block";
     await Promise.all([displayModels(), loadSummary(), loadChatSessions(), loadPersonas()]);
@@ -1654,7 +1657,10 @@ async function handleAuth(endpoint, credentials) {
     const {username, password} = credentials, submitBtn = endpoint === "login" ? loginSubmit : registerSubmit;
     if (!username || !password) return setAuthMessage("Please enter both username and password.", "error");
     submitBtn.disabled = true; setAuthMessage("Processing...");
-    const res = await post(`/${endpoint}`, {username, password});
+    const payload = endpoint === "register"
+        ? {username, password, inviteCode: registerInviteCodeInput?.value.trim() || ""}
+        : {username, password};
+    const res = await post(`/${endpoint}`, payload);
     submitBtn.disabled = false;
     if (res.error) return setAuthMessage(res.error, "error");
     if (endpoint === "login") {
