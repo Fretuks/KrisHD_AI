@@ -3,6 +3,18 @@ const settingsNotice = $("settingsNotice");
 const settingsThemeSelect = $("settingsThemeSelect");
 const themeModeSelect = $("themeModeSelect");
 const workspaceModeSelect = $("workspaceModeSelect");
+const diagnosticsNavItem = $("diagnosticsNavItem");
+const refreshDiagnosticsBtn = $("refreshDiagnostics");
+const diagnosticsStatus = $("diagnosticsStatus");
+const diagnosticsBackend = $("diagnosticsBackend");
+const diagnosticsLatency = $("diagnosticsLatency");
+const diagnosticsCheckedAt = $("diagnosticsCheckedAt");
+const diagnosticsModelCount = $("diagnosticsModelCount");
+const diagnosticsCacheAge = $("diagnosticsCacheAge");
+const diagnosticsActiveRequests = $("diagnosticsActiveRequests");
+const diagnosticsLastFailure = $("diagnosticsLastFailure");
+const diagnosticsModels = $("diagnosticsModels");
+const diagnosticsWarnings = $("diagnosticsWarnings");
 const currentUsernameInput = $("currentUsername");
 const newUsernameInput = $("newUsername");
 const usernamePasswordInput = $("usernamePassword");
@@ -56,6 +68,7 @@ let userPersonas = [];
 let publishedPersonaIds = new Set();
 let editingPersonaId = null;
 let settingsPopupResolver = null;
+let isAdminUser = false;
 
 async function request(url, data, method = "POST") {
     try {
@@ -141,6 +154,10 @@ function applyThemeMode(modeKey, persist = true) {
 
 function setSettingsView(view) {
     const normalizedView = ["my-ai-characters", "my-personas"].includes(view) ? "my-roleplay-companions" : view;
+    if (normalizedView === "diagnostics" && !isAdminUser) {
+        setNotice("Diagnostics are available to admin users only.", "error");
+        return;
+    }
     settingsNavItems.forEach((item) => {
         const isActive = item.dataset.settingsView === normalizedView;
         item.classList.toggle("active", isActive);
@@ -154,6 +171,57 @@ function setSettingsView(view) {
     const params = new URLSearchParams(window.location.search);
     params.set("view", normalizedView);
     history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
+    if (normalizedView === "diagnostics") void loadDiagnostics();
+}
+
+function formatDuration(ms) {
+    if (!Number.isFinite(ms)) return "n/a";
+    if (ms < 1000) return `${Math.round(ms)} ms`;
+    return `${(ms / 1000).toFixed(1)} s`;
+}
+
+function renderDiagnosticsList(element, items, emptyText) {
+    element.innerHTML = "";
+    if (!items.length) {
+        const empty = document.createElement("p");
+        empty.className = "status persona-status";
+        empty.textContent = emptyText;
+        element.appendChild(empty);
+        return;
+    }
+    items.forEach((item) => {
+        const row = document.createElement("div");
+        row.className = "diagnostics-list-item";
+        row.textContent = item;
+        element.appendChild(row);
+    });
+}
+
+async function loadDiagnostics() {
+    if (!isAdminUser) return false;
+    diagnosticsStatus.textContent = "Checking...";
+    const res = await get("/admin/diagnostics");
+    if (res.error) {
+        setNotice(res.error, "error");
+        diagnosticsStatus.textContent = "Unavailable";
+        return false;
+    }
+
+    const model = res.model || {};
+    const lastFailure = model.lastFailure;
+    const activeRequests = (model.activeRequests || []).reduce((sum, item) => sum + Number(item.activeRequests || 0), 0);
+    diagnosticsStatus.textContent = model.ok ? "Online" : "Degraded";
+    diagnosticsBackend.textContent = model.backendUrl || "Backend unavailable";
+    diagnosticsLatency.textContent = formatDuration(model.latencyMs ?? model.listLatencyMs);
+    diagnosticsCheckedAt.textContent = model.checkedAt ? `Checked ${new Date(model.checkedAt).toLocaleString()}` : "Not checked yet";
+    diagnosticsModelCount.textContent = String(model.modelCount || 0);
+    diagnosticsCacheAge.textContent = `Cache age ${formatDuration(model.cacheAgeMs)}`;
+    diagnosticsActiveRequests.textContent = String(activeRequests);
+    diagnosticsLastFailure.textContent = lastFailure ? `${lastFailure.error} (${new Date(lastFailure.at).toLocaleString()})` : "No recorded failures";
+    renderDiagnosticsList(diagnosticsModels, model.availableModels || [], "No models returned by the backend.");
+    renderDiagnosticsList(diagnosticsWarnings, res.configWarnings || [], "No config warnings.");
+    setNotice("Diagnostics loaded.", model.ok ? "success" : "error");
+    return true;
 }
 
 function formatMeta(persona) {
@@ -266,6 +334,8 @@ async function loadProfile() {
     }
     currentUsernameInput.value = res.username || "";
     newUsernameInput.value = res.username || "";
+    isAdminUser = res.username === "admin";
+    diagnosticsNavItem.classList.toggle("hidden", !isAdminUser);
     return true;
 }
 
@@ -444,6 +514,7 @@ workspaceModeSelect.addEventListener("change", (event) => {
     localStorage.setItem("krishd-workspace-mode", mode);
     setNotice(`Workspace mode set to ${mode}.`, "success");
 });
+refreshDiagnosticsBtn.addEventListener("click", () => { void loadDiagnostics(); });
 
 settingsNavItems.forEach((item) => item.addEventListener("click", () => setSettingsView(item.dataset.settingsView)));
 createAiCharacterBtn.addEventListener("click", () => openPersonaModal(null, "assistant"));
@@ -480,9 +551,10 @@ window.addEventListener("load", async () => {
     workspaceModeSelect.value = localStorage.getItem("krishd-workspace-mode") || "basic";
     const params = new URLSearchParams(window.location.search);
     const view = params.get("view") || "personal";
+    const profileOk = await loadProfile();
     setSettingsView(view);
-    const [profileOk, personasOk] = await Promise.all([loadProfile(), loadPersonas()]);
-    if (profileOk && personasOk) setNotice("Settings loaded.");
+    const personasOk = await loadPersonas();
+    if (profileOk && personasOk && view !== "diagnostics") setNotice("Settings loaded.");
 
     const create = params.get("create");
     if (create === "assistant") {

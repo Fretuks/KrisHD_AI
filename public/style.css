@@ -2351,6 +2351,52 @@ select:focus {
     align-items: end;
 }
 
+.diagnostics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+}
+
+.diagnostics-card {
+    border: 1px solid var(--pill-border);
+    border-radius: 8px;
+    padding: 14px;
+    background: var(--pill-surface);
+}
+
+.diagnostics-card span {
+    display: block;
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.diagnostics-card strong {
+    display: block;
+    margin-top: 6px;
+    font-size: 1.4rem;
+}
+
+.diagnostics-columns {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+}
+
+.diagnostics-list {
+    display: grid;
+    gap: 8px;
+}
+
+.diagnostics-list-item {
+    border: 1px solid var(--pill-border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    background: var(--surface-strong);
+    overflow-wrap: anywhere;
+}
+
 .settings-theme-note {
     display: grid;
     gap: 4px;

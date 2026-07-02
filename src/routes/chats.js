@@ -1,6 +1,7 @@
 import express from "express";
 import {requireLogin} from "../middleware/auth.js";
 import {validateBody} from "../middleware/validate.js";
+import {validateWorkspaceImport} from "../services/workspaceImportService.js";
 
 const createChatValidator = (body) => ({
     value: {
@@ -30,6 +31,13 @@ const organizationValidator = (body) => ({
         archived: Boolean(body?.archived)
     }
 });
+
+const memoryValidator = (body) => {
+    const fact = String(body?.fact || "").replace(/\s+/g, " ").trim();
+    if (!fact) return {error: "Memory fact is required"};
+    if (fact.length > 800) return {error: "Memory fact must be 800 characters or fewer"};
+    return {value: {fact}};
+};
 
 export function createChatsRouter({repositories, chatService, modelService, config, chatRateLimiters}) {
     const router = express.Router();
@@ -202,8 +210,41 @@ export function createChatsRouter({repositories, chatService, modelService, conf
         const chat = repositories.getChat(chatId, req.session.user);
         if (!chat) return res.status(404).json({error: "Chat not found"});
         repositories.clearChatMessages(chatId);
+        repositories.updateChatContextSummary(chatId, req.session.user, null, 0);
         repositories.touchChat(chatId, req.session.user);
         return res.json({message: "Chat cleared"});
+    });
+
+    router.get("/chats/:id/memories", (req, res) => {
+        const chatId = Number(req.params.id);
+        const chat = repositories.getChat(chatId, req.session.user);
+        if (!chat) return res.status(404).json({error: "Chat not found"});
+        return res.json({memories: repositories.listChatMemories(chatId, req.session.user)});
+    });
+
+    router.post("/chats/:id/memories", validateBody(memoryValidator), (req, res) => {
+        const chatId = Number(req.params.id);
+        const chat = repositories.getChat(chatId, req.session.user);
+        if (!chat) return res.status(404).json({error: "Chat not found"});
+        return res.json({memory: repositories.createChatMemory(req.session.user, chat, req.validatedBody.fact)});
+    });
+
+    router.put("/chats/:id/memories/:memoryId", validateBody(memoryValidator), (req, res) => {
+        const chatId = Number(req.params.id);
+        const chat = repositories.getChat(chatId, req.session.user);
+        if (!chat) return res.status(404).json({error: "Chat not found"});
+        const result = repositories.updateChatMemory(chatId, Number(req.params.memoryId), req.session.user, req.validatedBody.fact);
+        if (result.changes === 0) return res.status(404).json({error: "Memory not found"});
+        return res.json({memory: repositories.getChatMemory(chatId, Number(req.params.memoryId), req.session.user)});
+    });
+
+    router.delete("/chats/:id/memories/:memoryId", (req, res) => {
+        const chatId = Number(req.params.id);
+        const chat = repositories.getChat(chatId, req.session.user);
+        if (!chat) return res.status(404).json({error: "Chat not found"});
+        const result = repositories.deleteChatMemory(chatId, Number(req.params.memoryId), req.session.user);
+        if (result.changes === 0) return res.status(404).json({error: "Memory not found"});
+        return res.json({message: "Memory deleted"});
     });
 
     router.post("/chat", ...chatRateLimiters, validateBody(sendMessageValidator), async (req, res) => {
@@ -326,7 +367,35 @@ export function createChatsRouter({repositories, chatService, modelService, conf
     });
 
     router.get("/exports/workspace", (req, res) => res.json({workspace: repositories.exportWorkspace(req.session.user)}));
-    router.post("/imports/workspace", (req, res) => res.json({imported: repositories.importWorkspace(req.session.user, req.body?.workspace || {})}));
+    router.post("/imports/workspace/preview", (req, res) => {
+        const validation = validateWorkspaceImport(req.body?.workspace, repositories.exportWorkspace(req.session.user));
+        return res.status(validation.ok ? 200 : 400).json({
+            ok: validation.ok,
+            errors: validation.errors,
+            warnings: validation.warnings,
+            preview: validation.preview
+        });
+    });
+    router.post("/imports/workspace", (req, res) => {
+        const validation = validateWorkspaceImport(req.body?.workspace, repositories.exportWorkspace(req.session.user));
+        if (!validation.ok) {
+            return res.status(400).json({
+                error: "Workspace import validation failed",
+                errors: validation.errors,
+                warnings: validation.warnings,
+                preview: validation.preview
+            });
+        }
+        if (validation.preview.duplicates.length && !req.body?.allowDuplicates) {
+            return res.status(409).json({
+                error: "Workspace import contains duplicate records",
+                errors: [],
+                warnings: validation.warnings,
+                preview: validation.preview
+            });
+        }
+        return res.json({imported: repositories.importWorkspace(req.session.user, validation.workspace), preview: validation.preview});
+    });
 
     router.get("/chat/history", (req, res) => res.json({history: repositories.listChats(req.session.user)}));
 

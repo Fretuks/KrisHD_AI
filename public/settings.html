@@ -29,6 +29,7 @@
             <button class="settings-nav-item active" type="button" role="tab" aria-selected="true" data-settings-view="personal">Account</button>
             <button class="settings-nav-item" type="button" role="tab" aria-selected="false" data-settings-view="my-roleplay-companions">Personas</button>
             <button class="settings-nav-item" type="button" role="tab" aria-selected="false" data-settings-view="design">Appearance</button>
+            <button id="diagnosticsNavItem" class="settings-nav-item hidden" type="button" role="tab" aria-selected="false" data-settings-view="diagnostics">Diagnostics</button>
         </aside>
 
         <div class="settings-content">
@@ -136,6 +137,51 @@
                                 <option value="advanced">Advanced</option>
                             </select>
                         </label>
+                    </div>
+                </div>
+            </section>
+
+            <section class="settings-view" role="tabpanel" aria-hidden="true" data-settings-panel="diagnostics">
+                <div class="settings-panel">
+                    <div class="settings-section-header">
+                        <div>
+                            <p class="eyebrow">Admin</p>
+                            <h2>Model diagnostics</h2>
+                            <p class="subtitle">Backend status, model inventory, latency, and configuration warnings.</p>
+                        </div>
+                        <button id="refreshDiagnostics" type="button" class="secondary-action">Refresh</button>
+                    </div>
+                    <div class="diagnostics-grid">
+                        <div class="diagnostics-card">
+                            <span>Status</span>
+                            <strong id="diagnosticsStatus">Unknown</strong>
+                            <p id="diagnosticsBackend" class="subtitle">Backend unavailable</p>
+                        </div>
+                        <div class="diagnostics-card">
+                            <span>Latency</span>
+                            <strong id="diagnosticsLatency">n/a</strong>
+                            <p id="diagnosticsCheckedAt" class="subtitle">Not checked yet</p>
+                        </div>
+                        <div class="diagnostics-card">
+                            <span>Models</span>
+                            <strong id="diagnosticsModelCount">0</strong>
+                            <p id="diagnosticsCacheAge" class="subtitle">Cache age n/a</p>
+                        </div>
+                        <div class="diagnostics-card">
+                            <span>Active requests</span>
+                            <strong id="diagnosticsActiveRequests">0</strong>
+                            <p id="diagnosticsLastFailure" class="subtitle">No recorded failures</p>
+                        </div>
+                    </div>
+                    <div class="diagnostics-columns">
+                        <div>
+                            <h3>Available models</h3>
+                            <div id="diagnosticsModels" class="diagnostics-list"></div>
+                        </div>
+                        <div>
+                            <h3>Config warnings</h3>
+                            <div id="diagnosticsWarnings" class="diagnostics-list"></div>
+                        </div>
                     </div>
                 </div>
             </section>

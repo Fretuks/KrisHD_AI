@@ -38,8 +38,11 @@ const clearChatBtn = $("clearChat");
 const exportChatBtn = $("exportChat");
 const pinChatBtn = $("pinChat");
 const moveChatFolderBtn = $("moveChatFolder");
+const manageChatMemoryBtn = $("manageChatMemory");
 const archiveChatBtn = $("archiveChat");
 const backupWorkspaceBtn = $("backupWorkspace");
+const importWorkspaceBtn = $("importWorkspace");
+const importWorkspaceFileInput = $("importWorkspaceFile");
 const activeChatTitle = $("activeChatTitle");
 const sessionUser = $("sessionUser");
 const chatActivityOverlay = $("chatActivityOverlay");
@@ -133,8 +136,11 @@ export {
     exportChatBtn,
     pinChatBtn,
     moveChatFolderBtn,
+    manageChatMemoryBtn,
     archiveChatBtn,
     backupWorkspaceBtn,
+    importWorkspaceBtn,
+    importWorkspaceFileInput,
     loginForm,
     loginPasswordInput,
     loginSubmit,

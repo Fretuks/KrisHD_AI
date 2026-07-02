@@ -23,6 +23,8 @@ export function initializeSchema(db) {
             archived_at DATETIME,
             scenario_prompt TEXT,
             scenario_summary TEXT,
+            context_summary TEXT,
+            context_summary_message_id INTEGER DEFAULT 0,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (assistant_persona_id) REFERENCES personas (id) ON DELETE SET NULL,
@@ -44,6 +46,24 @@ export function initializeSchema(db) {
             retry_prompt_message_id INTEGER,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (chat_id) REFERENCES chat_sessions (id) ON DELETE CASCADE
+        )
+    `).run();
+
+    db.prepare(`
+        CREATE TABLE IF NOT EXISTS chat_memories
+        (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL,
+            chat_id INTEGER NOT NULL,
+            assistant_persona_id INTEGER,
+            user_persona_id INTEGER,
+            fact TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (username) REFERENCES users (username) ON DELETE CASCADE,
+            FOREIGN KEY (chat_id) REFERENCES chat_sessions (id) ON DELETE CASCADE,
+            FOREIGN KEY (assistant_persona_id) REFERENCES personas (id) ON DELETE SET NULL,
+            FOREIGN KEY (user_persona_id) REFERENCES personas (id) ON DELETE SET NULL
         )
     `).run();
 
@@ -227,7 +247,28 @@ export function runMigrations(db, {dropLegacyChats = true} = {}) {
     ensureColumn("chat_sessions", chatSessionColumns, "archived_at", "ALTER TABLE chat_sessions ADD COLUMN archived_at DATETIME");
     ensureColumn("chat_sessions", chatSessionColumns, "scenario_prompt", "ALTER TABLE chat_sessions ADD COLUMN scenario_prompt TEXT");
     ensureColumn("chat_sessions", chatSessionColumns, "scenario_summary", "ALTER TABLE chat_sessions ADD COLUMN scenario_summary TEXT");
+    ensureColumn("chat_sessions", chatSessionColumns, "context_summary", "ALTER TABLE chat_sessions ADD COLUMN context_summary TEXT");
+    ensureColumn("chat_sessions", chatSessionColumns, "context_summary_message_id", "ALTER TABLE chat_sessions ADD COLUMN context_summary_message_id INTEGER DEFAULT 0");
     db.prepare("UPDATE chat_sessions SET is_pinned = 0 WHERE is_pinned IS NULL").run();
+    db.prepare("UPDATE chat_sessions SET context_summary_message_id = 0 WHERE context_summary_message_id IS NULL").run();
+
+    db.prepare(`
+        CREATE TABLE IF NOT EXISTS chat_memories
+        (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL,
+            chat_id INTEGER NOT NULL,
+            assistant_persona_id INTEGER,
+            user_persona_id INTEGER,
+            fact TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (username) REFERENCES users (username) ON DELETE CASCADE,
+            FOREIGN KEY (chat_id) REFERENCES chat_sessions (id) ON DELETE CASCADE,
+            FOREIGN KEY (assistant_persona_id) REFERENCES personas (id) ON DELETE SET NULL,
+            FOREIGN KEY (user_persona_id) REFERENCES personas (id) ON DELETE SET NULL
+        )
+    `).run();
 
     db.prepare(`
         CREATE TABLE IF NOT EXISTS persona_versions

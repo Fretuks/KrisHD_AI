@@ -63,6 +63,8 @@ export function createRepositories(db, config) {
                    cs.archived_at,
                    cs.scenario_prompt,
                    cs.scenario_summary,
+                   cs.context_summary,
+                   cs.context_summary_message_id,
                    cs.created_at,
                    cs.updated_at
             FROM chat_sessions cs
@@ -88,6 +90,8 @@ export function createRepositories(db, config) {
                    cs.archived_at,
                    cs.scenario_prompt,
                    cs.scenario_summary,
+                   cs.context_summary,
+                   cs.context_summary_message_id,
                    cs.created_at,
                    cs.updated_at
             FROM chat_sessions cs
@@ -112,6 +116,8 @@ export function createRepositories(db, config) {
                    cs.archived_at,
                    cs.scenario_prompt,
                    cs.scenario_summary,
+                   cs.context_summary,
+                   cs.context_summary_message_id,
                    cs.created_at,
                    cs.updated_at
             FROM chat_sessions cs
@@ -125,6 +131,7 @@ export function createRepositories(db, config) {
         `),
         updateChatSessionTitle: db.prepare("UPDATE chat_sessions SET title = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND username = ?"),
         updateChatSessionScene: db.prepare("UPDATE chat_sessions SET scenario_prompt = ?, scenario_summary = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND username = ?"),
+        updateChatContextSummary: db.prepare("UPDATE chat_sessions SET context_summary = ?, context_summary_message_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND username = ?"),
         updateChatSessionOrganization: db.prepare(`
             UPDATE chat_sessions
             SET folder_name = ?,
@@ -201,6 +208,33 @@ export function createRepositories(db, config) {
             ORDER BY id DESC
             LIMIT 1
         `),
+        listChatMemories: db.prepare(`
+            SELECT id, username, chat_id, assistant_persona_id, user_persona_id, fact, created_at, updated_at
+            FROM chat_memories
+            WHERE chat_id = ?
+              AND username = ?
+            ORDER BY datetime(updated_at) DESC, id DESC
+        `),
+        getChatMemory: db.prepare(`
+            SELECT id, username, chat_id, assistant_persona_id, user_persona_id, fact, created_at, updated_at
+            FROM chat_memories
+            WHERE id = ?
+              AND chat_id = ?
+              AND username = ?
+        `),
+        insertChatMemory: db.prepare(`
+            INSERT INTO chat_memories (username, chat_id, assistant_persona_id, user_persona_id, fact)
+            VALUES (?, ?, ?, ?, ?)
+        `),
+        updateChatMemory: db.prepare(`
+            UPDATE chat_memories
+            SET fact = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+              AND chat_id = ?
+              AND username = ?
+        `),
+        deleteChatMemory: db.prepare("DELETE FROM chat_memories WHERE id = ? AND chat_id = ? AND username = ?"),
         updateChatMessage: db.prepare("UPDATE chat_messages SET content = ? WHERE id = ? AND chat_id = ?"),
         updateChatMessageWithRetryState: db.prepare("UPDATE chat_messages SET content = ?, retry_variants = ?, retry_active_index = ?, retry_retries_used = ?, retry_prompt_message_id = ? WHERE id = ? AND chat_id = ?"),
         deleteChatMessage: db.prepare("DELETE FROM chat_messages WHERE id = ? AND chat_id = ?"),
@@ -221,6 +255,8 @@ export function createRepositories(db, config) {
                             cs.archived_at,
                             cs.scenario_prompt,
                             cs.scenario_summary,
+                            cs.context_summary,
+                            cs.context_summary_message_id,
                             cs.created_at,
                             cs.updated_at,
                             cm.content AS matched_content
@@ -507,6 +543,7 @@ export function createRepositories(db, config) {
         updatePersonaMarketCreator: db.prepare("UPDATE persona_market SET creator_username = ? WHERE creator_username = ?"),
         updatePersonaVersionsUsername: db.prepare("UPDATE persona_versions SET username = ? WHERE username = ?"),
         updatePromptTemplatesUsername: db.prepare("UPDATE prompt_templates SET username = ? WHERE username = ?"),
+        updateChatMemoriesUsername: db.prepare("UPDATE chat_memories SET username = ? WHERE username = ?"),
         updateMarketFavoritesUsername: db.prepare("UPDATE persona_market_favorites SET username = ? WHERE username = ?"),
         updateMarketRatingsUsername: db.prepare("UPDATE persona_market_ratings SET username = ? WHERE username = ?"),
         updateMarketReportsUsername: db.prepare("UPDATE persona_market_reports SET reporter_username = ? WHERE reporter_username = ?"),
@@ -523,6 +560,7 @@ export function createRepositories(db, config) {
         statements.updatePersonaMarketCreator.run(nextUsername, currentUsername);
         statements.updatePersonaVersionsUsername.run(nextUsername, currentUsername);
         statements.updatePromptTemplatesUsername.run(nextUsername, currentUsername);
+        statements.updateChatMemoriesUsername.run(nextUsername, currentUsername);
         statements.updateMarketFavoritesUsername.run(nextUsername, currentUsername);
         statements.updateMarketRatingsUsername.run(nextUsername, currentUsername);
         statements.updateMarketReportsUsername.run(nextUsername, currentUsername);
@@ -597,6 +635,14 @@ export function createRepositories(db, config) {
                 chat.scenario_prompt ?? null,
                 chat.scenario_summary ?? null
             ).lastInsertRowid;
+            if (chat.context_summary) {
+                statements.updateChatContextSummary.run(
+                    chat.context_summary,
+                    Number(chat.context_summary_message_id || 0),
+                    chatId,
+                    username
+                );
+            }
             for (const message of chat.messages || []) {
                 statements.insertChatMessage.run(
                     chatId,
@@ -608,6 +654,11 @@ export function createRepositories(db, config) {
                     Number(message.retryRetriesUsed || 0),
                     message.retryPromptMessageId ?? null
                 );
+            }
+            for (const memory of chat.memories || []) {
+                const fact = String(memory?.fact || "").trim();
+                if (!fact) continue;
+                statements.insertChatMemory.run(username, chatId, null, null, fact);
             }
             imported.chats += 1;
         }
@@ -644,6 +695,7 @@ export function createRepositories(db, config) {
         },
         updateChatTitle: (chatId, username, title) => statements.updateChatSessionTitle.run(title, chatId, username),
         updateChatScene: (chatId, username, scenarioPrompt, scenarioSummary) => statements.updateChatSessionScene.run(scenarioPrompt, scenarioSummary, chatId, username),
+        updateChatContextSummary: (chatId, username, summary, messageId) => statements.updateChatContextSummary.run(summary, Number(messageId || 0), chatId, username),
         updateChatOrganization(chatId, username, {folderName = null, isPinned = false, archivedAt = null}) {
             return statements.updateChatSessionOrganization.run(folderName, isPinned ? 1 : 0, archivedAt, chatId, username);
         },
@@ -656,6 +708,20 @@ export function createRepositories(db, config) {
         getChatMessageByIndex: (chatId, index) => statements.getChatMessageByIndex.get(chatId, index),
         getLatestChatMessage: (chatId) => statements.getLatestChatMessage.get(chatId),
         getPreviousUserMessage: (chatId, messageId) => statements.getPreviousUserMessage.get(chatId, messageId),
+        listChatMemories: (chatId, username) => statements.listChatMemories.all(chatId, username),
+        getChatMemory: (chatId, memoryId, username) => statements.getChatMemory.get(memoryId, chatId, username),
+        createChatMemory(username, chat, fact) {
+            const result = statements.insertChatMemory.run(
+                username,
+                chat.id,
+                chat.assistant_persona_id ?? null,
+                chat.user_persona_id ?? null,
+                String(fact || "").trim()
+            );
+            return statements.getChatMemory.get(result.lastInsertRowid, chat.id, username);
+        },
+        updateChatMemory: (chatId, memoryId, username, fact) => statements.updateChatMemory.run(String(fact || "").trim(), memoryId, chatId, username),
+        deleteChatMemory: (chatId, memoryId, username) => statements.deleteChatMemory.run(memoryId, chatId, username),
         insertChatMessage(chatId, role, content, retryState = null, modelName = null) {
             return statements.insertChatMessage.run(
                 chatId,
@@ -896,6 +962,7 @@ export function createRepositories(db, config) {
                 exportedAt: new Date().toISOString(),
                 chats: this.listChats(username).map((chat) => ({
                     ...chat,
+                    memories: this.listChatMemories(chat.id, username),
                     messages: this.listChatMessages(chat.id).map((message) => ({
                         ...message,
                         retryVariants: parseJsonArray(message.retry_variants)

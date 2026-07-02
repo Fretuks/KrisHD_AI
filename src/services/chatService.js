@@ -87,6 +87,89 @@ export function createChatService(repositories, modelService, config) {
         return repositories.getChatMessageByIndex(chatId, safeIndex) || null;
     };
 
+    const buildMemoryPrompt = (memories) => {
+        const facts = (memories || [])
+            .map((memory) => String(memory.fact || "").trim())
+            .filter(Boolean)
+            .slice(0, 30);
+        if (!facts.length) return null;
+        return [
+            "LONG-TERM MEMORY:",
+            "These are durable facts the assistant should remember for this chat/persona context.",
+            "Use them for continuity, but do not mention them unless relevant.",
+            ...facts.map((fact, index) => `${index + 1}. ${fact}`)
+        ].join("\n");
+    };
+
+    const clampSummary = (value) => {
+        const normalized = String(value || "").trim();
+        if (normalized.length <= config.chatSummaryMaxChars) return normalized;
+        return `${normalized.slice(0, Math.max(0, config.chatSummaryMaxChars - 3)).trimEnd()}...`;
+    };
+
+    const buildContextSummaryPrompt = (summary) => {
+        if (!summary) return null;
+        return [
+            "CONVERSATION SUMMARY:",
+            "This is compressed background context from earlier messages in this chat.",
+            "Use it for continuity. Recent raw messages below are more authoritative.",
+            summary
+        ].join("\n");
+    };
+
+    const formatMessagesForSummary = (messages) => messages.map((message) => {
+        const speaker = message.role === "bot" ? "Assistant" : message.role === "user" ? "User" : message.role;
+        return `${speaker}: ${String(message.content || "").trim()}`;
+    }).join("\n\n");
+
+    const maybeUpdateContextSummary = async ({user, chatId, selectedModel}) => {
+        if (config.chatSummaryUpdateEveryMessages <= 0) return;
+        const session = repositories.getChat(chatId, user);
+        if (!session) return;
+        const allMessages = repositories.listChatMessages(chatId);
+        const keepRecent = Math.max(0, config.chatHistoryLimit);
+        const cutoffIndex = allMessages.length - keepRecent - 1;
+        if (cutoffIndex < 0) return;
+        const cutoffMessage = allMessages[cutoffIndex];
+        const summarizable = allMessages
+            .filter((message) => message.id > Number(session.context_summary_message_id || 0) && message.id <= cutoffMessage.id);
+        if (summarizable.length < config.chatSummaryUpdateEveryMessages) return;
+
+        const previousSummary = String(session.context_summary || "").trim();
+        const summary = await modelService.generateReply(selectedModel, [
+            {
+                role: "system",
+                content: [
+                    "You maintain a compact running summary for a chat application.",
+                    "Merge the previous summary and new transcript into one concise continuity summary.",
+                    "Preserve durable facts, decisions, goals, relationships, unresolved threads, locations, preferences, and roleplay continuity.",
+                    "Do not invent details. Do not include generic filler. Keep it under 12 bullet points."
+                ].join("\n")
+            },
+            {
+                role: "user",
+                content: [
+                    previousSummary ? `Previous summary:\n${previousSummary}` : "Previous summary: none",
+                    "",
+                    "New transcript to compress:",
+                    formatMessagesForSummary(summarizable)
+                ].join("\n")
+            }
+        ]);
+
+        const latestSummarized = summarizable[summarizable.length - 1];
+        if (!latestSummarized || !summary) return;
+        repositories.updateChatContextSummary(chatId, user, clampSummary(summary), latestSummarized.id);
+    };
+
+    const updateContextSummaryWithoutBreakingReply = async ({user, chatId, selectedModel}) => {
+        try {
+            await maybeUpdateContextSummary({user, chatId, selectedModel});
+        } catch (error) {
+            console.warn("CHAT SUMMARY UPDATE FAILED", chatId, error?.message || error);
+        }
+    };
+
     const getOrCreatePersonaChat = (user, persona, userPersonaId = null, scenarioPrompt = null, scenarioSummary = null) => {
         const existing = repositories.getChatByParticipants(user, persona.id, userPersonaId);
         if (existing) return existing;
@@ -149,6 +232,7 @@ export function createChatService(repositories, modelService, config) {
         const activePersona = repositories.getAssistantPersonaForChat(chatId, user);
         const activeUserPersona = repositories.getUserPersonaForChat(chatId, user) || repositories.getActiveUserPersona(user);
         const promptMessage = repositories.getPreviousUserMessage(chatId, targetMessage.id);
+        const memoryPrompt = buildMemoryPrompt(repositories.listChatMemories(chatId, user));
 
         if (!promptMessage) {
             if (!activePersona || !session.scenario_summary) {
@@ -182,6 +266,9 @@ export function createChatService(repositories, modelService, config) {
                 })
             });
         }
+        const contextSummaryPrompt = buildContextSummaryPrompt(session.context_summary);
+        if (contextSummaryPrompt) messagesPayload.push({role: "system", content: contextSummaryPrompt});
+        if (memoryPrompt) messagesPayload.push({role: "system", content: memoryPrompt});
         messagesPayload.push(...conversation.map((message) => ({
             role: message.role === "bot" ? "assistant" : "user",
             content: message.content
@@ -227,6 +314,10 @@ export function createChatService(repositories, modelService, config) {
                     })
                 });
             }
+            const contextSummaryPrompt = buildContextSummaryPrompt(session.context_summary);
+            if (contextSummaryPrompt) messagesPayload.push({role: "system", content: contextSummaryPrompt});
+            const memoryPrompt = buildMemoryPrompt(repositories.listChatMemories(chatId, user));
+            if (memoryPrompt) messagesPayload.push({role: "system", content: memoryPrompt});
             messagesPayload.push(...conversation.map((entry) => ({
                 role: entry.role === "bot" ? "assistant" : "user",
                 content: entry.content
@@ -259,6 +350,7 @@ export function createChatService(repositories, modelService, config) {
                 retryPromptMessageId: null
             }, model);
             repositories.touchChat(chatId, user);
+            await updateContextSummaryWithoutBreakingReply({user, chatId, selectedModel: model});
             return {reply: fullReply};
         },
         async streamChatMessage({user, chatId, message, model, onChunk}) {
@@ -288,6 +380,7 @@ export function createChatService(repositories, modelService, config) {
                 retryPromptMessageId: null
             }, model);
             repositories.touchChat(chatId, user);
+            await updateContextSummaryWithoutBreakingReply({user, chatId, selectedModel: model});
             return {reply: fullReply};
         },
         async retryMessage({user, chatId, selectedModel, targetMessage, retryStyle = null}) {

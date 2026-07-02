@@ -47,6 +47,8 @@ export function createConfig(overrides = {}) {
         slowRequestWarnMs: int(process.env.SLOW_REQUEST_WARN_MS, 50),
         chatLimit: int(process.env.CHAT_LIMIT, 10),
         chatHistoryLimit: int(process.env.CHAT_HISTORY_LIMIT, 20),
+        chatSummaryUpdateEveryMessages: int(process.env.CHAT_SUMMARY_UPDATE_EVERY_MESSAGES, 8),
+        chatSummaryMaxChars: int(process.env.CHAT_SUMMARY_MAX_CHARS, 2200),
         modelApiBaseUrl: process.env.MODEL_API_BASE_URL || "https://ai.krishd.ch/api",
         modelRequestTimeoutMs: int(process.env.MODEL_REQUEST_TIMEOUT_MS, 15000),
         modelListTimeoutMs: int(process.env.MODEL_LIST_TIMEOUT_MS, 4000),

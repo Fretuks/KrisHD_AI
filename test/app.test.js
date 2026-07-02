@@ -46,6 +46,23 @@ async function startTestServer(overrides = {}) {
         async checkHealth() {
             return {ok: true, checkedAt: new Date().toISOString(), error: null};
         },
+        async getDiagnostics() {
+            return {
+                model: {
+                    ok: true,
+                    checkedAt: new Date().toISOString(),
+                    error: null,
+                    latencyMs: 12,
+                    backendUrl: "http://model.test",
+                    availableModels: ["mistral:latest"],
+                    modelCount: 1,
+                    listLatencyMs: 12,
+                    cacheAgeMs: 0,
+                    lastFailure: null,
+                    activeRequests: []
+                }
+            };
+        },
         mapError(error) {
             return {status: 500, body: {error: error.message, code: "TEST_MODEL"}};
         }
@@ -166,6 +183,34 @@ test("createApp can use an injected session store", async () => {
     await server.close();
 });
 
+test("admin diagnostics require admin and return model status", async () => {
+    const server = await startTestServer({
+        config: {
+            sessionSecret: "change-me-session-secret",
+            slowRequestLoggingEnabled: false,
+            eventLoopLagMonitorEnabled: false
+        }
+    });
+    const userJar = new CookieJar();
+    const adminJar = new CookieJar();
+
+    await request(server.baseUrl, "/register", {method: "POST", body: {username: "alice", password: "password123"}});
+    await request(server.baseUrl, "/login", {method: "POST", body: {username: "alice", password: "password123"}, jar: userJar});
+    const userDiagnostics = await request(server.baseUrl, "/admin/diagnostics", {jar: userJar});
+    assert.equal(userDiagnostics.status, 403);
+    assert.equal(userDiagnostics.json.error, "Admin only");
+
+    await request(server.baseUrl, "/register", {method: "POST", body: {username: "admin", password: "password123"}});
+    await request(server.baseUrl, "/login", {method: "POST", body: {username: "admin", password: "password123"}, jar: adminJar});
+    const diagnostics = await request(server.baseUrl, "/admin/diagnostics", {jar: adminJar});
+    assert.equal(diagnostics.status, 200);
+    assert.equal(diagnostics.json.model.ok, true);
+    assert.deepEqual(diagnostics.json.model.availableModels, ["mistral:latest"]);
+    assert.ok(diagnostics.json.configWarnings.some((warning) => warning.includes("SESSION_SECRET")));
+
+    await server.close();
+});
+
 test("invalid JSON returns a clean 400 response", async () => {
     const server = await startTestServer();
 
@@ -220,6 +265,9 @@ test("file-backed startup creates data and session directories", async () => {
             },
             async checkHealth() {
                 return {ok: true, checkedAt: new Date().toISOString(), error: null};
+            },
+            async getDiagnostics() {
+                return {model: {ok: true, availableModels: [], modelCount: 0, activeRequests: []}};
             },
             mapError(error) {
                 return {status: 500, body: {error: error.message}};
@@ -293,6 +341,135 @@ test("chat creation, send, and retry endpoints work with stubbed model service",
     assert.equal(retry.status, 200);
     assert.equal(retry.json.message.content, "stub-reply-2");
     assert.equal(retry.json.message.retryVariants.length, 2);
+
+    await server.close();
+});
+
+test("chat memories are durable facts included in model payload", async () => {
+    let capturedMessages = [];
+    const modelService = {
+        async generateReply(model, messagesPayload) {
+            capturedMessages = messagesPayload;
+            return "memory-aware reply";
+        },
+        async streamReply() {
+            return "unused";
+        },
+        async listModels() {
+            return {models: [{name: "mistral:latest"}]};
+        },
+        async checkHealth() {
+            return {ok: true, checkedAt: new Date().toISOString(), error: null};
+        },
+        async getDiagnostics() {
+            return {model: {ok: true, availableModels: ["mistral:latest"], modelCount: 1, activeRequests: []}};
+        },
+        mapError(error) {
+            return {status: 500, body: {error: error.message, code: "TEST_MODEL"}};
+        }
+    };
+    const server = await startTestServer({modelService});
+    const jar = new CookieJar();
+
+    await request(server.baseUrl, "/register", {method: "POST", body: {username: "memoryuser", password: "password123"}});
+    await request(server.baseUrl, "/login", {method: "POST", body: {username: "memoryuser", password: "password123"}, jar});
+    const createChat = await request(server.baseUrl, "/chats", {
+        method: "POST",
+        body: {title: "Memory chat"},
+        jar
+    });
+    const chatId = createChat.json.chat.id;
+
+    const memory = await request(server.baseUrl, `/chats/${chatId}/memories`, {
+        method: "POST",
+        body: {fact: "The user prefers terse answers."},
+        jar
+    });
+    assert.equal(memory.status, 200);
+    assert.equal(memory.json.memory.fact, "The user prefers terse answers.");
+
+    const memories = await request(server.baseUrl, `/chats/${chatId}/memories`, {jar});
+    assert.equal(memories.status, 200);
+    assert.equal(memories.json.memories.length, 1);
+
+    const sendMessage = await request(server.baseUrl, "/chat", {
+        method: "POST",
+        body: {chatId, message: "hello", model: "mistral:latest"},
+        jar
+    });
+    assert.equal(sendMessage.status, 200);
+    assert.ok(capturedMessages.some((message) => message.role === "system" && message.content.includes("The user prefers terse answers.")));
+
+    const deleted = await request(server.baseUrl, `/chats/${chatId}/memories/${memory.json.memory.id}`, {
+        method: "DELETE",
+        jar
+    });
+    assert.equal(deleted.status, 200);
+
+    await server.close();
+});
+
+test("chat context summary rolls up older messages into future payloads", async () => {
+    let replyCount = 0;
+    let latestPayload = [];
+    const modelService = {
+        async generateReply(model, messagesPayload) {
+            if (messagesPayload.some((message) => message.content.includes("Merge the previous summary"))) {
+                return "Summary: user greeted the assistant and asked for continuity.";
+            }
+            latestPayload = messagesPayload;
+            replyCount += 1;
+            return `reply-${replyCount}`;
+        },
+        async streamReply() {
+            return "unused";
+        },
+        async listModels() {
+            return {models: [{name: "mistral:latest"}]};
+        },
+        async checkHealth() {
+            return {ok: true, checkedAt: new Date().toISOString(), error: null};
+        },
+        async getDiagnostics() {
+            return {model: {ok: true, availableModels: ["mistral:latest"], modelCount: 1, activeRequests: []}};
+        },
+        mapError(error) {
+            return {status: 500, body: {error: error.message, code: "TEST_MODEL"}};
+        }
+    };
+    const server = await startTestServer({
+        modelService,
+        config: {chatHistoryLimit: 2, chatSummaryUpdateEveryMessages: 2}
+    });
+    const jar = new CookieJar();
+
+    await request(server.baseUrl, "/register", {method: "POST", body: {username: "summarized", password: "password123"}});
+    await request(server.baseUrl, "/login", {method: "POST", body: {username: "summarized", password: "password123"}, jar});
+    const createChat = await request(server.baseUrl, "/chats", {
+        method: "POST",
+        body: {title: "Summary chat"},
+        jar
+    });
+    const chatId = createChat.json.chat.id;
+
+    await request(server.baseUrl, "/chat", {
+        method: "POST",
+        body: {chatId, message: "hello", model: "mistral:latest"},
+        jar
+    });
+    await request(server.baseUrl, "/chat", {
+        method: "POST",
+        body: {chatId, message: "remember this", model: "mistral:latest"},
+        jar
+    });
+    await request(server.baseUrl, "/chat", {
+        method: "POST",
+        body: {chatId, message: "what is next?", model: "mistral:latest"},
+        jar
+    });
+
+    assert.ok(latestPayload.some((message) => message.role === "system" && message.content.includes("CONVERSATION SUMMARY")));
+    assert.ok(latestPayload.some((message) => message.content.includes("user greeted the assistant")));
 
     await server.close();
 });
@@ -457,6 +634,50 @@ test("chat search, organization, and workspace export work", async () => {
     const exported = await request(server.baseUrl, "/exports/workspace", {jar});
     assert.equal(exported.status, 200);
     assert.equal(exported.json.workspace.chats.length, 1);
+
+    const invalidImport = await request(server.baseUrl, "/imports/workspace/preview", {
+        method: "POST",
+        body: {workspace: {personas: [{details: "Missing name"}]}},
+        jar
+    });
+    assert.equal(invalidImport.status, 400);
+    assert.match(invalidImport.json.errors[0], /missing a name/i);
+
+    const duplicateImport = await request(server.baseUrl, "/imports/workspace", {
+        method: "POST",
+        body: {workspace: exported.json.workspace},
+        jar
+    });
+    assert.equal(duplicateImport.status, 409);
+    assert.match(duplicateImport.json.error, /duplicate/i);
+
+    const workspace = {
+        personas: [{name: "Imported Guide", persona_type: "assistant", details: "Imported"}],
+        templates: [{name: "Imported Template", prompt_text: "Say hello"}],
+        chats: [{
+            title: "Imported Notes",
+            memories: [{fact: "The imported chat remembers the old station."}],
+            messages: [
+                {role: "user", content: "Imported question"},
+                {role: "assistant", content: "Imported answer"}
+            ]
+        }]
+    };
+    const preview = await request(server.baseUrl, "/imports/workspace/preview", {
+        method: "POST",
+        body: {workspace},
+        jar
+    });
+    assert.equal(preview.status, 200);
+    assert.deepEqual(preview.json.preview, {personas: 1, chats: 1, messages: 2, memories: 1, templates: 1, duplicates: []});
+
+    const imported = await request(server.baseUrl, "/imports/workspace", {
+        method: "POST",
+        body: {workspace},
+        jar
+    });
+    assert.equal(imported.status, 200);
+    assert.deepEqual(imported.json.imported, {personas: 1, chats: 1, templates: 1});
 
     await server.close();
 });

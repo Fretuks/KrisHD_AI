@@ -26,6 +26,9 @@ import {
     backupWorkspaceBtn,
     clearUserPersonaBtn,
     exportChatBtn,
+    importWorkspaceBtn,
+    manageChatMemoryBtn,
+    importWorkspaceFileInput,
     moveChatFolderBtn,
     loginForm,
     loginPasswordInput,
@@ -891,6 +894,7 @@ function updateChatActionState() {
         if (hasChat) pinChatBtn.textContent = activeChat.is_pinned ? "Unpin" : "Pin";
     }
     if (moveChatFolderBtn) moveChatFolderBtn.disabled = !hasChat;
+    if (manageChatMemoryBtn) manageChatMemoryBtn.disabled = !hasChat;
     if (archiveChatBtn) {
         archiveChatBtn.disabled = !hasChat;
         if (hasChat) archiveChatBtn.textContent = activeChat.archived_at ? "Unarchive" : "Archive";
@@ -898,6 +902,7 @@ function updateChatActionState() {
     clearChatBtn.disabled = !hasChat;
     exportChatBtn.disabled = !hasChat || currentMessages.length === 0;
     if (backupWorkspaceBtn) backupWorkspaceBtn.disabled = !currentUsername;
+    if (importWorkspaceBtn) importWorkspaceBtn.disabled = !currentUsername;
 }
 
 function renderPersonaSection() {
@@ -1497,6 +1502,92 @@ async function backupWorkspace() {
     setNotice("Workspace backup downloaded.", "success");
 }
 
+function formatImportPreview(preview, warnings = []) {
+    const counts = [
+        `${preview.personas || 0} persona${preview.personas === 1 ? "" : "s"}`,
+        `${preview.chats || 0} chat${preview.chats === 1 ? "" : "s"}`,
+        `${preview.messages || 0} message${preview.messages === 1 ? "" : "s"}`,
+        `${preview.templates || 0} template${preview.templates === 1 ? "" : "s"}`
+    ].join(", ");
+    const warningText = warnings.length ? ` Warnings: ${warnings.slice(0, 4).join("; ")}${warnings.length > 4 ? "; ..." : ""}` : "";
+    return `Import preview: ${counts}.${warningText}`;
+}
+
+async function importWorkspaceFromFile(file) {
+    if (!file) return;
+    setChatLoading(true, "Reading workspace backup...");
+    let workspace;
+    try {
+        workspace = JSON.parse(await file.text());
+    } catch {
+        setChatLoading(false);
+        return setNotice("Import failed: choose a valid JSON workspace backup.", "error");
+    }
+
+    const preview = await post("/imports/workspace/preview", {workspace});
+    if (preview.error || preview.ok === false) {
+        setChatLoading(false);
+        const detail = (preview.errors || []).slice(0, 4).join("; ");
+        return setNotice(detail || preview.error || "Workspace import validation failed.", "error");
+    }
+
+    setChatLoading(false);
+    const confirmed = await confirmPopup({
+        eyebrow: "Workspace import",
+        title: "Review import",
+        description: formatImportPreview(preview.preview || {}, preview.warnings || []),
+        confirmLabel: "Import"
+    });
+    if (!confirmed) return;
+
+    setChatLoading(true, "Importing workspace...");
+    const imported = await post("/imports/workspace", {
+        workspace,
+        allowDuplicates: Boolean(preview.preview?.duplicates?.length)
+    });
+    if (imported.error) {
+        setChatLoading(false);
+        const detail = (imported.errors || imported.warnings || []).slice(0, 4).join("; ");
+        return setNotice(detail || imported.error, "error");
+    }
+    await Promise.all([loadPersonas(), loadChatSessions()]);
+    setChatLoading(false);
+    setNotice(`Workspace imported: ${imported.imported.personas} personas, ${imported.imported.chats} chats, ${imported.imported.templates} templates.`, "success");
+}
+
+function formatMemoryList(memories) {
+    if (!memories.length) return "No memory facts saved for this chat yet.";
+    return memories.map((memory, index) => `${index + 1}. ${memory.fact}`).join("\n");
+}
+
+async function manageChatMemory() {
+    if (!activeChatId) return;
+    const loaded = await get(`/chats/${activeChatId}/memories`);
+    if (loaded.error) return setNotice(loaded.error, "error");
+    const memories = loaded.memories || [];
+    const action = await promptPopup({
+        eyebrow: "Memory",
+        title: "Memory facts",
+        description: `${formatMemoryList(memories)}\n\nType a new fact to add it, or type delete 1 to remove a fact.`,
+        label: "Fact or command",
+        placeholder: "The user prefers terse answers.",
+        confirmLabel: "Save"
+    });
+    const value = String(action || "").trim();
+    if (!value) return;
+    const deleteMatch = value.match(/^delete\s+(\d+)$/i);
+    if (deleteMatch) {
+        const target = memories[Number(deleteMatch[1]) - 1];
+        if (!target) return setNotice("Memory number not found.", "error");
+        const removed = await del(`/chats/${activeChatId}/memories/${target.id}`);
+        if (removed.error) return setNotice(removed.error, "error");
+        return setNotice("Memory fact deleted.", "success");
+    }
+    const saved = await post(`/chats/${activeChatId}/memories`, {fact: value});
+    if (saved.error) return setNotice(saved.error, "error");
+    return setNotice("Memory fact saved.", "success");
+}
+
 async function deleteChat(id) {
     setChatLoading(true, "Deleting chat...");
     const chat = getChatById(id);
@@ -1652,6 +1743,9 @@ const chatActions = {
         if (folderName === null) return;
         await updateChatOrganization(chat.id, {folderName: String(folderName || "").trim() || null});
     },
+    memory: async () => {
+        await manageChatMemory();
+    },
     pin: async () => {
         const chat = getChatById(activeChatId);
         if (chat) await updateChatOrganization(chat.id, {isPinned: !chat.is_pinned});
@@ -1699,6 +1793,14 @@ newChatBtn.addEventListener("click", () => {
 if (backupWorkspaceBtn) backupWorkspaceBtn.addEventListener("click", () => {
     closeChatDrawer();
     void backupWorkspace();
+});
+if (importWorkspaceBtn) importWorkspaceBtn.addEventListener("click", () => {
+    closeChatDrawer();
+    importWorkspaceFileInput.value = "";
+    importWorkspaceFileInput.click();
+});
+if (importWorkspaceFileInput) importWorkspaceFileInput.addEventListener("change", () => {
+    void importWorkspaceFromFile(importWorkspaceFileInput.files?.[0]);
 });
 chatSearchInput.addEventListener("input", () => { void loadChatSessions(); });
 modelSelect.addEventListener("change", () => {

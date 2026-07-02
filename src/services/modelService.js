@@ -12,7 +12,9 @@ export function createModelService(config, overrides = {}) {
     const modelState = new Map();
     let modelsCache = null;
     let modelsCacheAt = 0;
-    let lastHealth = {ok: true, checkedAt: null, error: null};
+    let lastHealth = {ok: true, checkedAt: null, error: null, latencyMs: null};
+    let lastFailure = null;
+    let lastListLatencyMs = null;
     const fetchImpl = overrides.fetch || global.fetch;
 
     const ensureModelState = (model) => {
@@ -92,6 +94,7 @@ export function createModelService(config, overrides = {}) {
             state.activeRequests += 1;
 
             try {
+                const startedAt = Date.now();
                 const fullReply = await withTimeout(config.modelRequestTimeoutMs, async (signal) => {
                     const response = await fetchImpl(`${config.modelApiBaseUrl}/chat`, {
                         method: "POST",
@@ -106,14 +109,17 @@ export function createModelService(config, overrides = {}) {
 
                     return readStreamingReply(response);
                 });
-                lastHealth = {ok: true, checkedAt: new Date().toISOString(), error: null};
+                lastHealth = {ok: true, checkedAt: new Date().toISOString(), error: null, latencyMs: Date.now() - startedAt};
                 return fullReply;
             } catch (error) {
+                const failure = error instanceof ModelServiceError ? error.message : "Model backend unavailable.";
                 lastHealth = {
                     ok: false,
                     checkedAt: new Date().toISOString(),
-                    error: error instanceof ModelServiceError ? error.message : "Model backend unavailable."
+                    error: failure,
+                    latencyMs: null
                 };
+                lastFailure = {at: lastHealth.checkedAt, error: failure};
                 if (error instanceof ModelServiceError) throw error;
                 throw new ModelServiceError("MODEL_UNAVAILABLE", "Model backend unavailable.", 502);
             } finally {
@@ -126,6 +132,7 @@ export function createModelService(config, overrides = {}) {
             state.activeRequests += 1;
 
             try {
+                const startedAt = Date.now();
                 const fullReply = await withTimeout(config.modelRequestTimeoutMs, async (signal) => {
                     const response = await fetchImpl(`${config.modelApiBaseUrl}/chat`, {
                         method: "POST",
@@ -140,14 +147,17 @@ export function createModelService(config, overrides = {}) {
 
                     return readStreamingReply(response, onChunk);
                 });
-                lastHealth = {ok: true, checkedAt: new Date().toISOString(), error: null};
+                lastHealth = {ok: true, checkedAt: new Date().toISOString(), error: null, latencyMs: Date.now() - startedAt};
                 return fullReply;
             } catch (error) {
+                const failure = error instanceof ModelServiceError ? error.message : "Model backend unavailable.";
                 lastHealth = {
                     ok: false,
                     checkedAt: new Date().toISOString(),
-                    error: error instanceof ModelServiceError ? error.message : "Model backend unavailable."
+                    error: failure,
+                    latencyMs: null
                 };
+                lastFailure = {at: lastHealth.checkedAt, error: failure};
                 if (error instanceof ModelServiceError) throw error;
                 throw new ModelServiceError("MODEL_UNAVAILABLE", "Model backend unavailable.", 502);
             } finally {
@@ -161,6 +171,7 @@ export function createModelService(config, overrides = {}) {
             }
 
             try {
+                const startedAt = Date.now();
                 modelsCache = await withTimeout(config.modelListTimeoutMs, async (signal) => {
                     const response = await fetchImpl(`${config.modelApiBaseUrl}/tags`, {signal});
                     if (!response.ok) {
@@ -168,29 +179,58 @@ export function createModelService(config, overrides = {}) {
                     }
                     return response.json();
                 });
+                lastListLatencyMs = Date.now() - startedAt;
                 modelsCacheAt = Date.now();
-                lastHealth = {ok: true, checkedAt: new Date().toISOString(), error: null};
+                lastHealth = {ok: true, checkedAt: new Date().toISOString(), error: null, latencyMs: lastListLatencyMs};
                 return modelsCache;
             } catch (error) {
+                const failure = error instanceof ModelServiceError ? error.message : "Failed to load models.";
                 lastHealth = {
                     ok: false,
                     checkedAt: new Date().toISOString(),
-                    error: error instanceof ModelServiceError ? error.message : "Failed to load models."
+                    error: failure,
+                    latencyMs: null
                 };
+                lastFailure = {at: lastHealth.checkedAt, error: failure};
                 if (error instanceof ModelServiceError) throw error;
                 throw new ModelServiceError("MODEL_UNAVAILABLE", "Failed to load models.", 502);
             }
         },
         async checkHealth() {
+            const startedAt = Date.now();
             try {
                 await this.listModels();
-                return {ok: true, checkedAt: new Date().toISOString(), error: null};
+                const health = {ok: true, checkedAt: new Date().toISOString(), error: null, latencyMs: Date.now() - startedAt};
+                lastHealth = health;
+                return health;
             } catch (error) {
-                return {ok: false, checkedAt: new Date().toISOString(), error: error.message};
+                const health = {ok: false, checkedAt: new Date().toISOString(), error: error.message, latencyMs: null};
+                lastHealth = health;
+                lastFailure = {at: health.checkedAt, error: error.message};
+                return health;
             }
         },
         getLastHealth() {
             return lastHealth;
+        },
+        async getDiagnostics() {
+            const model = await this.checkHealth();
+            const models = Array.isArray(modelsCache?.models) ? modelsCache.models : [];
+            return {
+                model: {
+                    ...model,
+                    backendUrl: config.modelApiBaseUrl,
+                    availableModels: models.map((item) => item.name).filter(Boolean),
+                    modelCount: models.length,
+                    listLatencyMs: lastListLatencyMs,
+                    cacheAgeMs: modelsCacheAt ? Date.now() - modelsCacheAt : null,
+                    lastFailure,
+                    activeRequests: Array.from(modelState.entries()).map(([name, state]) => ({
+                        name,
+                        activeRequests: state.activeRequests
+                    }))
+                }
+            };
         },
         mapError(error) {
             if (error instanceof ModelServiceError) {
