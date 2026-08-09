@@ -372,7 +372,11 @@ input:focus, textarea:focus, select:focus { border-color: var(--brand); }
 .chat-header-actions { display: flex; align-items: center; }
 .overflow-trigger { min-height: 38px; padding: 8px 12px; border-radius: 999px; font-size: .8rem; }
 
-.messages-panel { min-height: 0; padding: 28px clamp(20px, 5vw, 72px); display: flex; flex-direction: column; gap: 38px; overflow-y: auto; }
+.messages-panel {
+    min-height: 0;
+    padding: 28px max(16px, calc((100% - 940px) / 2));
+    display: flex; flex-direction: column; gap: 38px; overflow-y: auto;
+}
 .messages-empty {
     width: min(680px, 100%); margin: auto; padding: clamp(24px, 5vw, 44px);
     text-align: center; background: var(--surface-soft); border: 1px solid var(--border); border-radius: var(--radius-lg);
@@ -383,7 +387,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--brand); }
 .prompt-chip { min-height: 38px; padding: 8px 12px; color: var(--text); background: var(--surface-raised); border: 1px solid var(--border); border-radius: 999px; }
 .msg { position: relative; width: fit-content; max-width: min(760px, 88%); display: grid; gap: 5px; }
 .msg.user { align-self: flex-end; padding: 10px 13px; color: var(--message-user-text); background: var(--message-user); border-radius: 17px 17px 5px 17px; }
-.msg.bot, .msg.loading { width: fit-content; min-width: min(280px, 80%); align-self: center; padding: 12px 14px; background: var(--message-bot); border: 1px solid var(--border); border-radius: var(--radius-md); box-shadow: var(--shadow-sm); }
+.msg.bot, .msg.loading { width: fit-content; min-width: min(280px, 80%); align-self: flex-start; padding: 12px 14px; background: var(--message-bot); border: 1px solid var(--border); border-radius: var(--radius-md); box-shadow: var(--shadow-sm); }
 .msg-header { display: flex; align-items: center; justify-content: space-between; color: var(--text-muted); font-size: .72rem; }
 .msg-content { min-width: 0; overflow-wrap: anywhere; }
 .msg-content > :last-child { margin-bottom: 0; }
@@ -579,7 +583,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--brand); }
     .settings-section-header .action-pair > * { width: 100%; min-width: 0; }
     .chat-drawer { inset: auto 8px 8px 8px; width: auto; }
     .chat-drawer-panel { max-height: 82dvh; }
-    .messages-panel { padding: 20px 14px; }
+    .messages-panel { padding: 20px 10px; }
     .input-shell { padding: 8px 10px calc(10px + env(safe-area-inset-bottom)); }
 }
 @media (max-width: 480px) {
