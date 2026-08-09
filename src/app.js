@@ -1,4 +1,5 @@
 import fs from "fs";
+import {randomUUID} from "crypto";
 import {performance} from "perf_hooks";
 import express from "express";
 import session from "express-session";
@@ -70,6 +71,78 @@ function createLifecycleMonitors(app, config) {
     return resources;
 }
 
+function safeRequestId(value) {
+    const candidate = String(value || "").trim();
+    if (/^[A-Za-z0-9._:-]{8,128}$/.test(candidate)) return candidate;
+    return randomUUID();
+}
+
+function createObservability(config) {
+    const counters = {
+        startedAt: new Date().toISOString(),
+        requestsTotal: 0,
+        responsesByStatus: {},
+        errorsTotal: 0,
+        slowRequestsTotal: 0,
+        lastFailure: null
+    };
+
+    const recordError = (req, error, status = 500) => {
+        counters.errorsTotal += 1;
+        counters.lastFailure = {
+            at: new Date().toISOString(),
+            requestId: req?.id || null,
+            method: req?.method || null,
+            path: req?.originalUrl || req?.url || null,
+            status,
+            message: String(error?.message || error || "Unknown error").slice(0, 500)
+        };
+    };
+
+    const middleware = (req, res, next) => {
+        const start = Date.now();
+        req.id = safeRequestId(req.get("X-Request-ID"));
+        res.setHeader("X-Request-ID", req.id);
+
+        res.on("finish", () => {
+            const durationMs = Date.now() - start;
+            const status = res.statusCode;
+            const statusKey = String(status);
+            counters.requestsTotal += 1;
+            counters.responsesByStatus[statusKey] = (counters.responsesByStatus[statusKey] || 0) + 1;
+            if (durationMs > config.slowRequestWarnMs) counters.slowRequestsTotal += 1;
+            if (status >= 500 && counters.lastFailure?.requestId !== req.id) {
+                recordError(req, `HTTP ${status}`, status);
+            }
+            if (config.structuredRequestLoggingEnabled) {
+                console.log(JSON.stringify({
+                    type: "request",
+                    requestId: req.id,
+                    method: req.method,
+                    path: req.originalUrl || req.url,
+                    status,
+                    durationMs,
+                    slow: durationMs > config.slowRequestWarnMs,
+                    user: req.session?.user || null
+                }));
+            }
+        });
+
+        next();
+    };
+
+    return {
+        middleware,
+        recordError,
+        getSnapshot() {
+            return {
+                ...counters,
+                responsesByStatus: {...counters.responsesByStatus}
+            };
+        }
+    };
+}
+
 function wantsJson(req) {
     const accept = req.get("Accept") || "";
     const contentType = req.get("Content-Type") || "";
@@ -92,11 +165,13 @@ function errorHandler(err, req, res, next) {
     }
 
     if (err?.type === "entity.parse.failed") {
+        req.app?.locals?.observability?.recordError(req, err, 400);
         return res.status(400).json({error: "Invalid JSON"});
     }
 
     const status = Number.isInteger(err.status) ? err.status : Number.isInteger(err.statusCode) ? err.statusCode : 500;
     const message = status >= 500 ? "Internal server error" : err.message;
+    req.app?.locals?.observability?.recordError(req, err, status);
     if (status >= 500) {
         console.warn("REQUEST ERROR", status, req.method, req.url, err);
     } else {
@@ -165,6 +240,7 @@ export function createApp(options = {}) {
     }
 
     const closeHandlers = createLifecycleMonitors(app, config);
+    const observability = createObservability(config);
 
     const db = createDatabase(config);
     const repositories = createRepositories(db, config);
@@ -179,6 +255,7 @@ export function createApp(options = {}) {
         () => db.close()
     );
 
+    app.use(observability.middleware);
     app.use(express.json({limit: "1mb"}));
     app.use(express.static(config.publicDir, {
         maxAge: config.staticMaxAge,
@@ -204,6 +281,7 @@ export function createApp(options = {}) {
     app.locals.db = db;
     app.locals.repositories = repositories;
     app.locals.modelService = modelService;
+    app.locals.observability = observability;
     app.locals.close = createCloseHandler(closeHandlers);
 
     app.use(createAuthRouter({repositories, authRateLimiters, config}));

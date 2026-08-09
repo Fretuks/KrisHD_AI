@@ -1,6 +1,7 @@
 import {del, get, post, put, stream} from "./app/api.js";
 import {closeChatDrawer} from "./app/chatDrawer.js";
-import {defaultModelProfile, onboardingPrompts, requestedChatId, themes} from "./app/constants.js";
+import {defaultModelProfile, onboardingPrompts, requestedChatId} from "./app/constants.js";
+import {applyTheme as applySharedTheme, applyThemeMode as applySharedThemeMode, readStoredAppearance} from "./app/themeController.js";
 import {
     activeChatTitle,
     activeUserPersonaStatus,
@@ -28,7 +29,10 @@ import {
     exportChatBtn,
     importWorkspaceBtn,
     manageChatMemoryBtn,
+    managePersonaStateBtn,
     importWorkspaceFileInput,
+    headerModelName,
+    headerPersonaName,
     moveChatFolderBtn,
     loginForm,
     loginPasswordInput,
@@ -559,6 +563,7 @@ function addMessage(contentOrMessage, isUser = false, isLoading = false, options
     if (isLoading) {
         msgDiv.setAttribute("aria-label", "Assistant is responding");
         msgDiv.innerHTML = `
+            <div class="msg-header">Assistant</div>
             <div class="loading-shell" aria-live="polite" aria-label="Assistant is responding">
                 <div class="loading-bars">
                     <span class="loading-bar"></span>
@@ -569,7 +574,8 @@ function addMessage(contentOrMessage, isUser = false, isLoading = false, options
                 <div class="loading-copy">
                     <strong>Thinking</strong>
                 </div>
-            </div>`;
+            </div>
+            <div class="msg-content streaming-content"></div>`;
     } else {
         const message = typeof contentOrMessage === "object" && contentOrMessage
             ? contentOrMessage
@@ -728,7 +734,13 @@ function renderMessageEmptyState() {
             createStarterAction("Change setup", "secondary-action", () => openRoleplayStarter())
         );
     } else {
-        return;
+        title.textContent = "What can I help with?";
+        description.textContent = "Write a message below or start with one of these prompts.";
+        actions.append(
+            createMessageStarterPrompt("Explain something", "Explain this topic in simple terms: "),
+            createMessageStarterPrompt("Plan a task", "Help me make a practical step-by-step plan for: "),
+            createMessageStarterPrompt("Brainstorm ideas", "Give me several creative ideas for: ")
+        );
     }
 
     empty.append(title, description, actions);
@@ -849,6 +861,7 @@ function updateModelHelp() {
     if (!selectedOption || selectedOption.disabled) {
         if (modelCount) modelCount.textContent = "No models";
         if (modelBadgeName) modelBadgeName.textContent = "Unavailable";
+        if (headerModelName) headerModelName.textContent = "Unavailable";
         modelHelpBadge.dataset.badge = "waiting";
         modelHelpTitle.textContent = "Choose a model";
         modelHelpBadge.textContent = "Waiting";
@@ -863,6 +876,7 @@ function updateModelHelp() {
     const modelName = selectedOption.textContent || modelId;
     const profile = getModelProfile(modelId, modelName);
     if (modelBadgeName) modelBadgeName.textContent = modelName;
+    if (headerModelName) headerModelName.textContent = modelName;
     modelHelpTitle.textContent = modelName;
     modelHelpBadge.textContent = profile.badge;
     modelHelpBadge.dataset.badge = profile.badge.toLowerCase();
@@ -870,21 +884,18 @@ function updateModelHelp() {
 }
 
 function applyTheme(themeKey, persist = true) {
-    const nextTheme = themes[themeKey] ? themeKey : "fakegpt";
-    const theme = themes[nextTheme];
-    document.body.dataset.theme = nextTheme;
-    document.title = theme.name;
-    themeNameTargets.forEach((target) => { target.textContent = theme.name; });
-    themeLogoTargets.forEach((target) => { target.textContent = theme.short; });
-    if (persist) localStorage.setItem("krishd-theme", nextTheme);
+    applySharedTheme(themeKey, {
+        persist,
+        title: (theme) => theme.name,
+        nameTargets: themeNameTargets,
+        logoTargets: themeLogoTargets
+    });
     updateWorkspaceCopy();
     renderModelSection();
 }
 
 function applyThemeMode(modeKey, persist = true) {
-    const nextMode = modeKey === "dark" ? "dark" : "light";
-    document.body.dataset.themeMode = nextMode;
-    if (persist) localStorage.setItem("krishd-theme-mode", nextMode);
+    applySharedThemeMode(modeKey, {persist});
 }
 
 function updateChatActionState() {
@@ -897,6 +908,7 @@ function updateChatActionState() {
     }
     if (moveChatFolderBtn) moveChatFolderBtn.disabled = !hasChat;
     if (manageChatMemoryBtn) manageChatMemoryBtn.disabled = !hasChat;
+    if (managePersonaStateBtn) managePersonaStateBtn.disabled = !hasChat || !activeChat?.assistant_persona_id;
     if (archiveChatBtn) {
         archiveChatBtn.disabled = !hasChat;
         if (hasChat) archiveChatBtn.textContent = activeChat.archived_at ? "Unarchive" : "Archive";
@@ -912,6 +924,7 @@ function renderPersonaSection() {
     if (chatDrawerPersonaValue) {
         const active = userPersonas.find((persona) => persona.id === activeUserPersonaId);
         chatDrawerPersonaValue.textContent = active ? active.name : "None";
+        if (headerPersonaName) headerPersonaName.textContent = active ? active.name : "None";
     }
     if (clearUserPersonaBtn) clearUserPersonaBtn.disabled = !activeUserPersonaId;
 }
@@ -1280,7 +1293,11 @@ function setLoadingState(loading, overlayOptions = null) {
     sendBtn.classList.toggle("loading", loading);
     if (loading) {
         msgInput.placeholder = "Processing response...";
-        setChatActivity(true, overlayOptions || undefined);
+        if (overlayOptions === false) {
+            setChatActivity(false);
+        } else {
+            setChatActivity(true, overlayOptions || undefined);
+        }
     } else {
         setChatActivity(false);
         updateComposerPlaceholder();
@@ -1590,6 +1607,54 @@ async function manageChatMemory() {
     return setNotice("Memory fact saved.", "success");
 }
 
+const personaStateFields = [
+    ["relationship_notes", "Relationship notes"],
+    ["tone", "Tone"],
+    ["current_location", "Current location"],
+    ["goals", "Goals"],
+    ["unresolved_threads", "Unresolved threads"],
+    ["boundaries", "Boundaries"]
+];
+
+function formatPersonaState(state = {}) {
+    const lines = personaStateFields.map(([key, label], index) => {
+        const value = String(state[key] || "").trim();
+        return `${index + 1}. ${label}: ${value || "Not set"}`;
+    });
+    return lines.join("\n");
+}
+
+async function managePersonaState() {
+    if (!activeChatId) return;
+    const loaded = await get(`/chats/${activeChatId}/persona-state`);
+    if (loaded.error) return setNotice(loaded.error, "error");
+    const state = loaded.state || {};
+    const fieldChoice = await promptPopup({
+        eyebrow: "Roleplay",
+        title: "Roleplay state",
+        description: `${formatPersonaState(state)}\n\nType a field number to edit it.`,
+        label: "Field number",
+        placeholder: "1",
+        confirmLabel: "Next"
+    });
+    const selected = personaStateFields[Number(String(fieldChoice || "").trim()) - 1];
+    if (!selected) return;
+    const [key, label] = selected;
+    const value = await promptPopup({
+        eyebrow: "Roleplay",
+        title: label,
+        description: "Leave blank to clear this field.",
+        label,
+        value: state[key] || "",
+        placeholder: label
+    });
+    if (value === null) return;
+    const nextState = {...state, [key]: String(value || "").trim() || null};
+    const saved = await put(`/chats/${activeChatId}/persona-state`, nextState);
+    if (saved.error) return setNotice(saved.error, "error");
+    return setNotice("Roleplay state saved.", "success");
+}
+
 async function deleteChat(id) {
     setChatLoading(true, "Deleting chat...");
     const chat = getChatById(id);
@@ -1647,7 +1712,7 @@ async function checkSession() {
     const res = await get("/session");
     if (registerInviteField) registerInviteField.classList.toggle("hidden", !res.inviteOnlyRegistration);
     if (!res.user) return false;
-    currentUsername = res.user; authDiv.style.display = "none"; chatDiv.style.display = "block";
+    currentUsername = res.user; authDiv.classList.add("hidden"); chatDiv.classList.remove("hidden");
     await Promise.all([displayModels(), loadSummary(), loadChatSessions(), loadPersonas()]);
     maybeShowOnboarding();
     msgInput.focus(); return true;
@@ -1664,7 +1729,7 @@ async function handleAuth(endpoint, credentials) {
     submitBtn.disabled = false;
     if (res.error) return setAuthMessage(res.error, "error");
     if (endpoint === "login") {
-        currentUsername = username; authDiv.style.display = "none"; chatDiv.style.display = "block";
+        currentUsername = username; authDiv.classList.add("hidden"); chatDiv.classList.remove("hidden");
         await Promise.all([displayModels(), loadSummary(), loadChatSessions(), loadPersonas()]);
         maybeShowOnboarding();
         setNotice("Ready.", "success"); msgInput.focus();
@@ -1687,18 +1752,19 @@ async function sendMessage() {
     currentMessages.push({role: "user", content: message}); addMessage(message, true); updateChatActionState();
     msgInput.value = "";
     resizeComposerInput();
-    setLoadingState(true, {
-        eyebrow: "Assistant replying",
-        title: "Generating response",
-        detail: "The assistant is reading your message and preparing a reply."
-    }); setNotice("Generating reply...");
-    const loadingMsg = addMessage({role: "bot", content: ""}, false, false, {isNewest: true});
+    setLoadingState(true, false); setNotice("Generating reply...");
+    const loadingMsg = addMessage({role: "bot", content: ""}, false, true, {isNewest: true});
     const loadingBody = loadingMsg.querySelector(".msg-content");
+    const loadingShell = loadingMsg.querySelector(".loading-shell");
     try {
         let streamError = null;
         await stream("/chat/stream", {message, model: modelSelect.value, chatId: activeChatId}, {
             onChunk: ({fullReply}) => {
-                if (loadingBody) setMessageContent(loadingBody, fullReply);
+                if (loadingBody) {
+                    loadingShell?.classList.add("hidden");
+                    loadingBody.classList.add("has-content");
+                    setMessageContent(loadingBody, fullReply);
+                }
             },
             onDone: () => {},
             onError: ({error}) => {
@@ -1752,6 +1818,9 @@ const chatActions = {
     memory: async () => {
         await manageChatMemory();
     },
+    personaState: async () => {
+        await managePersonaState();
+    },
     pin: async () => {
         const chat = getChatById(activeChatId);
         if (chat) await updateChatOrganization(chat.id, {isPinned: !chat.is_pinned});
@@ -1776,7 +1845,7 @@ loginForm.addEventListener("submit", (event) => { event.preventDefault(); void h
 registerForm.addEventListener("submit", (event) => { event.preventDefault(); void handleAuth("register", {username: registerUsernameInput.value.trim(), password: registerPasswordInput.value.trim()}); });
 logoutButton.addEventListener("click", async () => {
     closeChatDrawer();
-    await post("/logout", {}); chatDiv.style.display = "none"; authDiv.style.display = "grid";
+    await post("/logout", {}); chatDiv.classList.add("hidden"); authDiv.classList.remove("hidden");
     activeChatId = null; currentUsername = ""; currentSummary = null; chatSessions = []; currentMessages = []; assistantPersonas = []; userPersonas = [];
     messageRetryState = new Map();
     activeUserPersonaId = null; publishedPersonaIds = new Set(); messagesDiv.innerHTML = ""; renderChatList(); updateChatActionState();
@@ -1904,8 +1973,9 @@ document.addEventListener("keydown", (event) => {
     }
 });
 window.addEventListener("load", async () => {
-    applyTheme(localStorage.getItem("krishd-theme") || "fakegpt", false);
-    applyThemeMode(localStorage.getItem("krishd-theme-mode") || "light", false);
+    const appearance = readStoredAppearance();
+    applyTheme(appearance.theme, false);
+    applyThemeMode(appearance.mode, false);
     applyWorkspaceMode(localStorage.getItem("krishd-workspace-mode") || "basic", false);
     setNotice("Ready.");
     updateChatActionState();

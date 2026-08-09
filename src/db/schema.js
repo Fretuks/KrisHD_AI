@@ -69,6 +69,29 @@ export function initializeSchema(db) {
     `).run();
 
     db.prepare(`
+        CREATE TABLE IF NOT EXISTS persona_chat_state
+        (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL,
+            chat_id INTEGER NOT NULL UNIQUE,
+            assistant_persona_id INTEGER,
+            user_persona_id INTEGER,
+            relationship_notes TEXT,
+            tone TEXT,
+            current_location TEXT,
+            goals TEXT,
+            unresolved_threads TEXT,
+            boundaries TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (username) REFERENCES users (username) ON DELETE CASCADE,
+            FOREIGN KEY (chat_id) REFERENCES chat_sessions (id) ON DELETE CASCADE,
+            FOREIGN KEY (assistant_persona_id) REFERENCES personas (id) ON DELETE SET NULL,
+            FOREIGN KEY (user_persona_id) REFERENCES personas (id) ON DELETE SET NULL
+        )
+    `).run();
+
+    db.prepare(`
         CREATE TABLE IF NOT EXISTS personas
         (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -266,6 +289,29 @@ export function runMigrations(db, {dropLegacyChats = true} = {}) {
             assistant_persona_id INTEGER,
             user_persona_id INTEGER,
             fact TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (username) REFERENCES users (username) ON DELETE CASCADE,
+            FOREIGN KEY (chat_id) REFERENCES chat_sessions (id) ON DELETE CASCADE,
+            FOREIGN KEY (assistant_persona_id) REFERENCES personas (id) ON DELETE SET NULL,
+            FOREIGN KEY (user_persona_id) REFERENCES personas (id) ON DELETE SET NULL
+        )
+    `).run();
+
+    db.prepare(`
+        CREATE TABLE IF NOT EXISTS persona_chat_state
+        (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL,
+            chat_id INTEGER NOT NULL UNIQUE,
+            assistant_persona_id INTEGER,
+            user_persona_id INTEGER,
+            relationship_notes TEXT,
+            tone TEXT,
+            current_location TEXT,
+            goals TEXT,
+            unresolved_threads TEXT,
+            boundaries TEXT,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (username) REFERENCES users (username) ON DELETE CASCADE,

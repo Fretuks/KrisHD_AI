@@ -8,6 +8,8 @@ const messagesDiv = $("messages");
 const modelSelect = $("model");
 const modelPanel = $("modelPanel");
 const modelBadgeName = $("modelBadgeName");
+const headerModelName = $("headerModelName");
+const headerPersonaName = $("headerPersonaName");
 const modelCount = $("modelCount");
 const modelHelpTitle = $("modelHelpTitle");
 const modelHelpBadge = $("modelHelpBadge");
@@ -41,6 +43,7 @@ const exportChatBtn = $("exportChat");
 const pinChatBtn = $("pinChat");
 const moveChatFolderBtn = $("moveChatFolder");
 const manageChatMemoryBtn = $("manageChatMemory");
+const managePersonaStateBtn = $("managePersonaState");
 const archiveChatBtn = $("archiveChat");
 const backupWorkspaceBtn = $("backupWorkspace");
 const importWorkspaceBtn = $("importWorkspace");
@@ -139,6 +142,7 @@ export {
     pinChatBtn,
     moveChatFolderBtn,
     manageChatMemoryBtn,
+    managePersonaStateBtn,
     archiveChatBtn,
     backupWorkspaceBtn,
     importWorkspaceBtn,
@@ -150,6 +154,8 @@ export {
     logoutButton,
     messagesDiv,
     modelBadgeName,
+    headerModelName,
+    headerPersonaName,
     modelCount,
     modelHelpBadge,
     modelHelpSummary,

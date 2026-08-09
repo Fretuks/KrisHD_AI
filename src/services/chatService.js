@@ -7,52 +7,17 @@ import {
     buildUserPersonaPrompt,
     containsUserVoiceInRoleplayOpener
 } from "./personaService.js";
+import {
+    buildContextSummaryPrompt,
+    buildMemoryPrompt,
+    buildPersonaStatePrompt,
+    clampRetryActiveIndex,
+    formatChatMessage,
+    formatMessagesForSummary,
+    retryStylePrompts
+} from "./chatMessageHelpers.js";
 
 export function createChatService(repositories, modelService, config) {
-    const retryStylePrompts = {
-        shorter: "Rewrite the assistant reply to be shorter and tighter while preserving its meaning.",
-        direct: "Rewrite the assistant reply to be more direct and less padded.",
-        emotional: "Rewrite the assistant reply to be more emotionally expressive without changing the core meaning.",
-        "stay-in-character": "Rewrite the assistant reply to stay more strongly in character and voice.",
-        dialogue: "Rewrite the assistant reply as dialogue only. Remove narration unless required for clarity."
-    };
-
-    const clampRetryActiveIndex = (index, variants) => {
-        const numeric = Number(index);
-        if (!Number.isInteger(numeric) || numeric < 0) return 0;
-        return Math.min(numeric, Math.max(0, variants.length - 1));
-    };
-
-    const parseRetryVariants = (rawValue, content) => {
-        if (!rawValue) return [content || ""];
-        try {
-            const parsed = JSON.parse(rawValue);
-            if (Array.isArray(parsed)) {
-                const normalized = parsed.map((item) => String(item || "").trim()).filter(Boolean);
-                if (normalized.length) return normalized;
-            }
-        } catch {
-            return [content || ""];
-        }
-        return [content || ""];
-    };
-
-    const formatChatMessage = (row) => {
-        if (!row) return null;
-        const retryVariants = parseRetryVariants(row.retry_variants, row.content);
-        const retryActiveIndex = clampRetryActiveIndex(row.retry_active_index, retryVariants);
-        return {
-            id: row.id,
-            role: row.role,
-            content: row.content,
-            modelName: row.model_name || null,
-            retryVariants,
-            retryActiveIndex,
-            retryRetriesUsed: Number(row.retry_retries_used || 0),
-            retryPromptMessageId: row.retry_prompt_message_id ?? null
-        };
-    };
-
     const insertChatMessage = (chatId, role, content, retryState = null, modelName = null) => {
         const normalizedContent = String(content || "");
         const payload = retryState
@@ -87,40 +52,11 @@ export function createChatService(repositories, modelService, config) {
         return repositories.getChatMessageByIndex(chatId, safeIndex) || null;
     };
 
-    const buildMemoryPrompt = (memories) => {
-        const facts = (memories || [])
-            .map((memory) => String(memory.fact || "").trim())
-            .filter(Boolean)
-            .slice(0, 30);
-        if (!facts.length) return null;
-        return [
-            "LONG-TERM MEMORY:",
-            "These are durable facts the assistant should remember for this chat/persona context.",
-            "Use them for continuity, but do not mention them unless relevant.",
-            ...facts.map((fact, index) => `${index + 1}. ${fact}`)
-        ].join("\n");
-    };
-
     const clampSummary = (value) => {
         const normalized = String(value || "").trim();
         if (normalized.length <= config.chatSummaryMaxChars) return normalized;
         return `${normalized.slice(0, Math.max(0, config.chatSummaryMaxChars - 3)).trimEnd()}...`;
     };
-
-    const buildContextSummaryPrompt = (summary) => {
-        if (!summary) return null;
-        return [
-            "CONVERSATION SUMMARY:",
-            "This is compressed background context from earlier messages in this chat.",
-            "Use it for continuity. Recent raw messages below are more authoritative.",
-            summary
-        ].join("\n");
-    };
-
-    const formatMessagesForSummary = (messages) => messages.map((message) => {
-        const speaker = message.role === "bot" ? "Assistant" : message.role === "user" ? "User" : message.role;
-        return `${speaker}: ${String(message.content || "").trim()}`;
-    }).join("\n\n");
 
     const maybeUpdateContextSummary = async ({user, chatId, selectedModel}) => {
         if (config.chatSummaryUpdateEveryMessages <= 0) return;
@@ -233,6 +169,7 @@ export function createChatService(repositories, modelService, config) {
         const activeUserPersona = repositories.getUserPersonaForChat(chatId, user) || repositories.getActiveUserPersona(user);
         const promptMessage = repositories.getPreviousUserMessage(chatId, targetMessage.id);
         const memoryPrompt = buildMemoryPrompt(repositories.listChatMemories(chatId, user));
+        const personaStatePrompt = buildPersonaStatePrompt(repositories.getPersonaChatState(chatId, user));
 
         if (!promptMessage) {
             if (!activePersona || !session.scenario_summary) {
@@ -269,6 +206,7 @@ export function createChatService(repositories, modelService, config) {
         const contextSummaryPrompt = buildContextSummaryPrompt(session.context_summary);
         if (contextSummaryPrompt) messagesPayload.push({role: "system", content: contextSummaryPrompt});
         if (memoryPrompt) messagesPayload.push({role: "system", content: memoryPrompt});
+        if (personaStatePrompt) messagesPayload.push({role: "system", content: personaStatePrompt});
         messagesPayload.push(...conversation.map((message) => ({
             role: message.role === "bot" ? "assistant" : "user",
             content: message.content
@@ -318,6 +256,8 @@ export function createChatService(repositories, modelService, config) {
             if (contextSummaryPrompt) messagesPayload.push({role: "system", content: contextSummaryPrompt});
             const memoryPrompt = buildMemoryPrompt(repositories.listChatMemories(chatId, user));
             if (memoryPrompt) messagesPayload.push({role: "system", content: memoryPrompt});
+            const personaStatePrompt = buildPersonaStatePrompt(repositories.getPersonaChatState(chatId, user));
+            if (personaStatePrompt) messagesPayload.push({role: "system", content: personaStatePrompt});
             messagesPayload.push(...conversation.map((entry) => ({
                 role: entry.role === "bot" ? "assistant" : "user",
                 content: entry.content

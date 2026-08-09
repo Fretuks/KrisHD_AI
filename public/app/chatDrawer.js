@@ -58,6 +58,20 @@ function toggleChatDrawer() {
     syncChatDrawerState(!isChatDrawerOpen());
 }
 
+function handleDisclosureToggle(event) {
+    const disclosure = event.target;
+    if (!(disclosure instanceof HTMLDetailsElement) || !chatDrawer?.contains(disclosure)) return;
+    if (disclosure.matches(".chat-drawer-more, .chat-drawer-danger")) {
+        const hint = disclosure.querySelector(":scope > summary .chat-drawer-row-hint");
+        if (hint) hint.textContent = disclosure.open ? "Hide" : "Show";
+    }
+    if (disclosure.open) {
+        chatDrawer.querySelectorAll("details[open]").forEach((other) => {
+            if (other !== disclosure) other.open = false;
+        });
+    }
+}
+
 function handleDocumentClick(event) {
     if (!isChatDrawerOpen()) return;
     const target = event.target;
@@ -103,6 +117,7 @@ if (chatDrawerCloseBtn) {
 
 document.addEventListener("click", handleDocumentClick);
 document.addEventListener("keydown", handleDocumentKeydown);
+chatDrawer?.addEventListener("toggle", handleDisclosureToggle, true);
 
 export {
     closeChatDrawer,

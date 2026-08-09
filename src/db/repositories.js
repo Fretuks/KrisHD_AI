@@ -236,6 +236,50 @@ export function createRepositories(db, config) {
               AND username = ?
         `),
         deleteChatMemory: db.prepare("DELETE FROM chat_memories WHERE id = ? AND chat_id = ? AND username = ?"),
+        getPersonaChatState: db.prepare(`
+            SELECT id,
+                   username,
+                   chat_id,
+                   assistant_persona_id,
+                   user_persona_id,
+                   relationship_notes,
+                   tone,
+                   current_location,
+                   goals,
+                   unresolved_threads,
+                   boundaries,
+                   created_at,
+                   updated_at
+            FROM persona_chat_state
+            WHERE chat_id = ?
+              AND username = ?
+        `),
+        upsertPersonaChatState: db.prepare(`
+            INSERT INTO persona_chat_state (
+                username,
+                chat_id,
+                assistant_persona_id,
+                user_persona_id,
+                relationship_notes,
+                tone,
+                current_location,
+                goals,
+                unresolved_threads,
+                boundaries
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(chat_id) DO UPDATE SET
+                username = excluded.username,
+                assistant_persona_id = excluded.assistant_persona_id,
+                user_persona_id = excluded.user_persona_id,
+                relationship_notes = excluded.relationship_notes,
+                tone = excluded.tone,
+                current_location = excluded.current_location,
+                goals = excluded.goals,
+                unresolved_threads = excluded.unresolved_threads,
+                boundaries = excluded.boundaries,
+                updated_at = CURRENT_TIMESTAMP
+        `),
         updateChatMessage: db.prepare("UPDATE chat_messages SET content = ? WHERE id = ? AND chat_id = ?"),
         updateChatMessageWithRetryState: db.prepare("UPDATE chat_messages SET content = ?, retry_variants = ?, retry_active_index = ?, retry_retries_used = ?, retry_prompt_message_id = ? WHERE id = ? AND chat_id = ?"),
         deleteChatMessage: db.prepare("DELETE FROM chat_messages WHERE id = ? AND chat_id = ?"),
@@ -545,6 +589,7 @@ export function createRepositories(db, config) {
         updatePersonaVersionsUsername: db.prepare("UPDATE persona_versions SET username = ? WHERE username = ?"),
         updatePromptTemplatesUsername: db.prepare("UPDATE prompt_templates SET username = ? WHERE username = ?"),
         updateChatMemoriesUsername: db.prepare("UPDATE chat_memories SET username = ? WHERE username = ?"),
+        updatePersonaChatStateUsername: db.prepare("UPDATE persona_chat_state SET username = ? WHERE username = ?"),
         updateMarketFavoritesUsername: db.prepare("UPDATE persona_market_favorites SET username = ? WHERE username = ?"),
         updateMarketRatingsUsername: db.prepare("UPDATE persona_market_ratings SET username = ? WHERE username = ?"),
         updateMarketReportsUsername: db.prepare("UPDATE persona_market_reports SET reporter_username = ? WHERE reporter_username = ?"),
@@ -558,6 +603,7 @@ export function createRepositories(db, config) {
         deleteMarketFavoritesByUser: db.prepare("DELETE FROM persona_market_favorites WHERE username = ?"),
         deleteMarketRatingsByUser: db.prepare("DELETE FROM persona_market_ratings WHERE username = ?"),
         deleteMarketReportsByUser: db.prepare("DELETE FROM persona_market_reports WHERE reporter_username = ?"),
+        deletePersonaChatStateByUser: db.prepare("DELETE FROM persona_chat_state WHERE username = ?"),
         deleteUser: db.prepare("DELETE FROM users WHERE username = ?"),
         deleteMarketPersonaByPersonaId: db.prepare("DELETE FROM persona_market WHERE persona_id = ? AND creator_username = ?"),
         incrementMarketUsageCount: db.prepare("UPDATE persona_market SET usage_count = usage_count + 1 WHERE id = ?")
@@ -573,6 +619,7 @@ export function createRepositories(db, config) {
         statements.updatePersonaVersionsUsername.run(nextUsername, currentUsername);
         statements.updatePromptTemplatesUsername.run(nextUsername, currentUsername);
         statements.updateChatMemoriesUsername.run(nextUsername, currentUsername);
+        statements.updatePersonaChatStateUsername.run(nextUsername, currentUsername);
         statements.updateMarketFavoritesUsername.run(nextUsername, currentUsername);
         statements.updateMarketRatingsUsername.run(nextUsername, currentUsername);
         statements.updateMarketReportsUsername.run(nextUsername, currentUsername);
@@ -586,6 +633,7 @@ export function createRepositories(db, config) {
         statements.deletePromptTemplatesByUser.run(username);
         statements.deletePersonaVersionsByUser.run(username);
         statements.deleteChatMemoriesByUser.run(username);
+        statements.deletePersonaChatStateByUser.run(username);
         statements.deleteChatSessionsByUser.run(username);
         statements.deleteUserSettingsByUser.run(username);
         statements.deletePersonasByUser.run(username);
@@ -686,6 +734,21 @@ export function createRepositories(db, config) {
                 if (!fact) continue;
                 statements.insertChatMemory.run(username, chatId, null, null, fact);
             }
+            const personaState = chat.persona_state || chat.personaChatState;
+            if (personaState) {
+                statements.upsertPersonaChatState.run(
+                    username,
+                    chatId,
+                    null,
+                    null,
+                    personaState.relationship_notes ?? personaState.relationshipNotes ?? null,
+                    personaState.tone ?? null,
+                    personaState.current_location ?? personaState.currentLocation ?? null,
+                    personaState.goals ?? null,
+                    personaState.unresolved_threads ?? personaState.unresolvedThreads ?? null,
+                    personaState.boundaries ?? null
+                );
+            }
             imported.chats += 1;
         }
 
@@ -727,6 +790,22 @@ export function createRepositories(db, config) {
         updateChatTitle: (chatId, username, title) => statements.updateChatSessionTitle.run(title, chatId, username),
         updateChatScene: (chatId, username, scenarioPrompt, scenarioSummary) => statements.updateChatSessionScene.run(scenarioPrompt, scenarioSummary, chatId, username),
         updateChatContextSummary: (chatId, username, summary, messageId) => statements.updateChatContextSummary.run(summary, Number(messageId || 0), chatId, username),
+        getPersonaChatState: (chatId, username) => statements.getPersonaChatState.get(chatId, username) || null,
+        updatePersonaChatState(username, chat, state) {
+            statements.upsertPersonaChatState.run(
+                username,
+                chat.id,
+                chat.assistant_persona_id ?? null,
+                chat.user_persona_id ?? null,
+                state.relationship_notes ?? null,
+                state.tone ?? null,
+                state.current_location ?? null,
+                state.goals ?? null,
+                state.unresolved_threads ?? null,
+                state.boundaries ?? null
+            );
+            return statements.getPersonaChatState.get(chat.id, username);
+        },
         updateChatOrganization(chatId, username, {folderName = null, isPinned = false, archivedAt = null}) {
             return statements.updateChatSessionOrganization.run(folderName, isPinned ? 1 : 0, archivedAt, chatId, username);
         },
@@ -994,6 +1073,7 @@ export function createRepositories(db, config) {
                 chats: this.listChats(username).map((chat) => ({
                     ...chat,
                     memories: this.listChatMemories(chat.id, username),
+                    persona_state: this.getPersonaChatState(chat.id, username),
                     messages: this.listChatMessages(chat.id).map((message) => ({
                         ...message,
                         retryVariants: parseJsonArray(message.retry_variants)

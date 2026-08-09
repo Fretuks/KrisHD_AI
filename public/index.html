@@ -6,10 +6,11 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css"/>
+    <script src="app/theme-bootstrap.js"></script>
+    <link rel="stylesheet" href="style.css?v=20260809-2"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
-<body>
+<body data-theme="fakegpt" data-theme-mode="light">
 <div class="app-shell">
     <section id="auth" class="card auth-card auth-card-compact">
         <div class="auth-hero auth-hero-compact">
@@ -72,7 +73,7 @@
         </div>
     </section>
 
-    <section id="chat" class="card chat-card chat-focus-card" aria-label="AI chat workspace" style="display:none;">
+    <section id="chat" class="card chat-card chat-focus-card hidden" aria-label="AI chat workspace">
         <div class="chat-layout chat-layout-focus">
             <aside id="chatSidebar" class="chat-sidebar" aria-label="Workspace navigation">
                 <div class="sidebar-top">
@@ -111,24 +112,27 @@
                         <div class="chat-title">
                             <h2 id="activeChatTitle">New chat</h2>
                         </div>
+                        <div class="chat-header-context" aria-label="Current chat setup">
+                            <span class="chat-context-item"><span>Model</span><strong id="headerModelName">Loading...</strong></span>
+                            <span class="chat-context-item"><span>Persona</span><strong id="headerPersonaName">None</strong></span>
+                        </div>
                     </div>
                     <div class="chat-header-actions">
                         <div class="chat-actions-menu">
                             <button id="chatDrawerButton" class="secondary-action overflow-trigger" type="button" aria-expanded="false" aria-controls="chatDrawer">
-                                <span class="overflow-trigger-label">Controls</span>
+                                <span class="overflow-trigger-label">Chat settings</span>
                             </button>
                             <div id="chatDrawer" class="chat-drawer hidden" role="dialog" aria-modal="true" aria-labelledby="chatDrawerTitle">
                                 <div class="chat-drawer-panel">
                                     <div class="chat-drawer-header">
                                         <div>
                                             <p class="eyebrow">Conversation</p>
-                                            <h2 id="chatDrawerTitle">Chat controls</h2>
+                                            <h2 id="chatDrawerTitle">Settings</h2>
                                         </div>
-                                        <button id="chatDrawerClose" class="icon-button" type="button" aria-label="Close panel">Close</button>
+                                        <button id="chatDrawerClose" class="icon-button" type="button" aria-label="Close chat settings">×</button>
                                     </div>
                                     <div class="chat-drawer-body">
                                         <div class="chat-drawer-summary">
-                                            <p class="dropdown-section-label">Current mode</p>
                                             <div class="chat-drawer-pills">
                                                 <span id="chatCharacterPill" class="context-pill hidden">Character: none</span>
                                                 <span id="chatUserPersonaPill" class="context-pill hidden">User persona: none</span>
@@ -137,8 +141,8 @@
                                         <details class="chat-drawer-section chat-drawer-disclosure chat-drawer-section--model">
                                             <summary class="chat-drawer-row">
                                                 <span class="chat-drawer-row-label">
-                                                    <span class="eyebrow">Model</span>
-                                                    <strong>Engine</strong>
+                                                    <span class="eyebrow">AI model</span>
+                                                    <strong>Model</strong>
                                                 </span>
                                                 <span class="chat-drawer-row-meta">
                                                     <strong id="modelBadgeName">Loading...</strong>
@@ -170,8 +174,8 @@
                                         <details class="chat-drawer-section chat-drawer-disclosure chat-drawer-section--persona">
                                             <summary class="chat-drawer-row">
                                                 <span class="chat-drawer-row-label">
-                                                    <span class="eyebrow">Persona</span>
-                                                    <strong>Identity</strong>
+                                                    <span class="eyebrow">Your identity</span>
+                                                    <strong>Persona</strong>
                                                 </span>
                                                 <span class="chat-drawer-row-meta">
                                                     <strong id="chatDrawerPersonaValue">None</strong>
@@ -195,7 +199,7 @@
                                             </div>
                                         </details>
                                         <div class="chat-drawer-section">
-                                            <p class="dropdown-section-label">Current chat</p>
+                                            <p class="dropdown-section-label">Chat</p>
                                             <div class="chat-drawer-action-list">
                                                 <button id="renameChat" class="secondary-action chat-drawer-action" type="button" data-chat-action="rename">Rename chat</button>
                                                 <button id="pinChat" class="secondary-action chat-drawer-action" type="button" data-chat-action="pin">Pin</button>
@@ -206,13 +210,14 @@
                                         <details class="chat-drawer-section chat-drawer-more">
                                             <summary class="chat-drawer-row chat-drawer-row--compact">
                                                 <span class="chat-drawer-row-label">
-                                                    <strong>More actions</strong>
+                                                    <strong>Tools &amp; workspace</strong>
                                                 </span>
-                                                <span class="chat-drawer-row-hint">Expand</span>
+                                                <span class="chat-drawer-row-hint">Show</span>
                                             </summary>
                                             <div class="chat-drawer-action-list chat-drawer-disclosure-panel">
                                                 <button id="moveChatFolder" class="secondary-action chat-drawer-action" type="button" data-chat-action="folder">Move to folder</button>
                                                 <button id="manageChatMemory" class="secondary-action chat-drawer-action" type="button" data-chat-action="memory">Memory facts</button>
+                                                <button id="managePersonaState" class="secondary-action chat-drawer-action" type="button" data-chat-action="personaState">Roleplay state</button>
                                                 <button id="backupWorkspace" class="secondary-action chat-drawer-action" type="button">Backup workspace</button>
                                                 <button id="importWorkspace" class="secondary-action chat-drawer-action" type="button">Import workspace</button>
                                                 <input id="importWorkspaceFile" class="hidden" type="file" accept="application/json,.json"/>
@@ -222,9 +227,9 @@
                                         <details class="chat-drawer-section chat-drawer-danger">
                                             <summary class="chat-drawer-row chat-drawer-row--compact">
                                                 <span class="chat-drawer-row-label">
-                                                    <strong>Danger zone</strong>
+                                                    <strong>Clear conversation</strong>
                                                 </span>
-                                                <span class="chat-drawer-row-hint">Expand</span>
+                                                <span class="chat-drawer-row-hint">Show</span>
                                             </summary>
                                             <div class="chat-drawer-action-list chat-drawer-disclosure-panel">
                                                 <button id="clearChat" class="secondary-action chat-drawer-action chat-drawer-action-danger" type="button" data-chat-action="clear">Clear chat</button>

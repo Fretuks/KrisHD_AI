@@ -1,3 +1,12 @@
+import {del, get, post, put} from "./app/api.js";
+import {
+    applyTheme as applySharedTheme,
+    applyThemeMode as applySharedThemeMode,
+    initializeAppearance
+} from "./app/themeController.js";
+import {clearStatus, setStatus} from "./app/statusNotice.js";
+import {populatePersonaForm, readPersonaForm} from "./app/personaForm.js";
+
 const $ = (id) => document.getElementById(id);
 const settingsNotice = $("settingsNotice");
 const settingsThemeSelect = $("settingsThemeSelect");
@@ -56,14 +65,13 @@ const settingsPopupDescription = $("settingsPopupDescription");
 const settingsPopupField = $("settingsPopupField");
 const settingsPopupInputLabel = $("settingsPopupInputLabel");
 const settingsPopupInput = $("settingsPopupInput");
-
-const themes = {
-    "fakegpt": {name: "FakeGPT"},
-    "fraud": {name: "Fraud"},
-    "germini": {name: "Germini"},
-    "slopilot": {name: "Slopilot"},
-    "beta-ai": {name: "Beta AI"},
-    "confusity": {name: "Confusity"}
+const settingsPersonaFields = {
+    name: settingsPersonaName,
+    pronouns: settingsPersonaPronouns,
+    appearance: settingsPersonaAppearance,
+    background: settingsPersonaBackground,
+    details: settingsPersonaDetails,
+    exampleDialogues: settingsPersonaExampleDialogues
 };
 
 let assistantPersonas = [];
@@ -73,38 +81,16 @@ let editingPersonaId = null;
 let settingsPopupResolver = null;
 let isAdminUser = false;
 
-async function request(url, data, method = "POST") {
-    try {
-        const res = await fetch(url, {
-            method,
-            credentials: "same-origin",
-            headers: {"Content-Type": "application/json"},
-            body: data ? JSON.stringify(data) : undefined
-        });
-        return await res.json();
-    } catch {
-        return {error: "Network error - please try again."};
-    }
-}
-
-const get = (url) => request(url, null, "GET");
-const post = (url, data) => request(url, data, "POST");
-const put = (url, data) => request(url, data, "PUT");
-const del = (url) => request(url, null, "DELETE");
-
 function setNotice(message, state = "") {
-    settingsNotice.textContent = message;
-    settingsNotice.className = state ? `status ${state}` : "status";
+    setStatus(settingsNotice, message, state);
 }
 
 function setPersonaNotice(message = "", state = "") {
     if (!message) {
-        settingsPersonaFormNotice.textContent = "";
-        settingsPersonaFormNotice.className = "status hidden";
+        clearStatus(settingsPersonaFormNotice);
         return;
     }
-    settingsPersonaFormNotice.textContent = message;
-    settingsPersonaFormNotice.className = state ? `status ${state}` : "status";
+    setStatus(settingsPersonaFormNotice, message, state);
 }
 
 function closeSettingsPopup(value = null) {
@@ -141,18 +127,11 @@ function promptSettingsPopup({
 }
 
 function applyTheme(themeKey, persist = true) {
-    const nextTheme = themes[themeKey] ? themeKey : "fakegpt";
-    document.body.dataset.theme = nextTheme;
-    document.title = "Settings";
-    settingsThemeSelect.value = nextTheme;
-    if (persist) localStorage.setItem("krishd-theme", nextTheme);
+    return applySharedTheme(themeKey, {persist, title: "Settings", themeSelect: settingsThemeSelect});
 }
 
 function applyThemeMode(modeKey, persist = true) {
-    const nextMode = modeKey === "dark" ? "dark" : "light";
-    document.body.dataset.themeMode = nextMode;
-    if (themeModeSelect) themeModeSelect.value = nextMode;
-    if (persist) localStorage.setItem("krishd-theme-mode", nextMode);
+    return applySharedThemeMode(modeKey, {persist, modeSelect: themeModeSelect});
 }
 
 function setSettingsView(view) {
@@ -247,12 +226,7 @@ function openPersonaModal(persona = null, personaType = "assistant") {
     settingsPersonaFormTitle.textContent = persona
         ? `Edit ${settingsPersonaType.value === "assistant" ? "AI Character" : "persona"}`
         : `Create ${personaType === "assistant" ? "AI Character" : "persona"}`;
-    settingsPersonaName.value = persona?.name || "";
-    settingsPersonaPronouns.value = persona?.pronouns || "";
-    settingsPersonaAppearance.value = persona?.appearance || "";
-    settingsPersonaBackground.value = persona?.background || "";
-    settingsPersonaDetails.value = persona?.details || "";
-    settingsPersonaExampleDialogues.value = persona?.example_dialogues || "";
+    populatePersonaForm(settingsPersonaFields, persona || {});
     syncPersonaExamplesField();
     setPersonaNotice("");
     settingsPersonaModal.classList.remove("hidden");
@@ -359,12 +333,8 @@ async function loadPersonas() {
 async function savePersona() {
     const wasEditing = Boolean(editingPersonaId);
     const payload = {
+        ...readPersonaForm(settingsPersonaFields),
         personaType: settingsPersonaType.value,
-        name: settingsPersonaName.value.trim(),
-        pronouns: settingsPersonaPronouns.value.trim(),
-        appearance: settingsPersonaAppearance.value.trim(),
-        background: settingsPersonaBackground.value.trim(),
-        details: settingsPersonaDetails.value.trim(),
         exampleDialogues: settingsPersonaType.value === "assistant" ? settingsPersonaExampleDialogues.value.trim() : ""
     };
 
@@ -602,8 +572,7 @@ settingsPopupInput.addEventListener("keydown", (event) => {
 });
 
 window.addEventListener("load", async () => {
-    applyTheme(localStorage.getItem("krishd-theme") || "fakegpt", false);
-    applyThemeMode(localStorage.getItem("krishd-theme-mode") || "light", false);
+    initializeAppearance({title: "Settings", themeSelect: settingsThemeSelect, modeSelect: themeModeSelect});
     workspaceModeSelect.value = localStorage.getItem("krishd-workspace-mode") || "basic";
     const params = new URLSearchParams(window.location.search);
     const view = params.get("view") || "personal";

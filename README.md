@@ -69,13 +69,19 @@ Legacy `chats` migration is handled during startup. New code only reads the sess
 
 ## Frontend Structure
 
-The main browser entrypoint is still `public/script.js`, but shared API/bootstrap concerns are now split into `public/app/` modules:
+The browser UI remains framework-free and uses native ES modules. Shared behavior lives under `public/app/`:
 
-- `api.js`: JSON request helpers
-- `constants.js`: theme and onboarding constants
-- `dom.js`: cached DOM references
+- `api.js`: JSON and streaming request helpers
+- `constants.js`: theme and onboarding metadata
+- `themeController.js`: validated theme/mode persistence and application
+- `theme-bootstrap.js`: applies stored appearance before page initialization
+- `personaForm.js`: shared persona form serialization
+- `statusNotice.js`: shared status and error presentation
+- `dom.js`: cached chat-page DOM references
 
-This keeps the next round of UI extraction lower-risk without changing the app's behavior surface.
+`public/style.css` is a self-contained design system rebuilt around semantic tokens, shared components, and deliberate responsive breakpoints. It contains the six visual identities and their dark variants without legacy imports or precedence layers. `public/legal.css` contains only the legal-page layout.
+
+Pure chat message, retry, memory, summary, and persona-state formatting lives in `src/services/chatMessageHelpers.js`; `chatService.js` remains responsible for orchestration and persistence.
 
 ## Legal
 

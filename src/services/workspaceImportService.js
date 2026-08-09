@@ -104,6 +104,22 @@ function validateMemory(memory, chatIndex, memoryIndex, errors) {
     return {fact};
 }
 
+function validatePersonaState(state, chatIndex, errors) {
+    if (state == null) return null;
+    if (!state || typeof state !== "object" || Array.isArray(state)) {
+        errors.push(`Chat ${chatIndex + 1}, persona_state must be an object.`);
+        return null;
+    }
+    return {
+        relationship_notes: optionalText(state.relationship_notes || state.relationshipNotes),
+        tone: optionalText(state.tone),
+        current_location: optionalText(state.current_location || state.currentLocation),
+        goals: optionalText(state.goals),
+        unresolved_threads: optionalText(state.unresolved_threads || state.unresolvedThreads),
+        boundaries: optionalText(state.boundaries)
+    };
+}
+
 function validateChat(chat, index, errors) {
     if (!chat || typeof chat !== "object" || Array.isArray(chat)) {
         errors.push(`Chat ${index + 1} must be an object.`);
@@ -112,6 +128,7 @@ function validateChat(chat, index, errors) {
     const title = normalizeText(chat.stored_title || chat.title || "Imported chat") || "Imported chat";
     const messages = asArray(chat.messages).map((message, messageIndex) => validateMessage(message, index, messageIndex, errors)).filter(Boolean);
     const memories = asArray(chat.memories).map((memory, memoryIndex) => validateMemory(memory, index, memoryIndex, errors)).filter(Boolean);
+    const personaState = validatePersonaState(chat.persona_state || chat.personaChatState, index, errors);
     return {
         title,
         stored_title: title,
@@ -125,7 +142,8 @@ function validateChat(chat, index, errors) {
             ? Number(chat.context_summary_message_id || chat.contextSummaryMessageId)
             : 0,
         messages,
-        memories
+        memories,
+        persona_state: personaState
     };
 }
 

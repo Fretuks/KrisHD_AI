@@ -46,6 +46,7 @@ export function createConfig(overrides = {}) {
         eventLoopLagWarnMs: int(process.env.EVENT_LOOP_LAG_WARN_MS, 50),
         slowRequestLoggingEnabled: bool(process.env.SLOW_REQUEST_LOGGING_ENABLED, !testMode),
         slowRequestWarnMs: int(process.env.SLOW_REQUEST_WARN_MS, 50),
+        structuredRequestLoggingEnabled: bool(process.env.STRUCTURED_REQUEST_LOGGING_ENABLED, !testMode),
         chatLimit: int(process.env.CHAT_LIMIT, 10),
         chatHistoryLimit: int(process.env.CHAT_HISTORY_LIMIT, 20),
         chatSummaryUpdateEveryMessages: int(process.env.CHAT_SUMMARY_UPDATE_EVERY_MESSAGES, 8),

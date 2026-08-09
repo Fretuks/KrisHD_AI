@@ -39,6 +39,29 @@ const memoryValidator = (body) => {
     return {value: {fact}};
 };
 
+const personaStateFields = [
+    "relationship_notes",
+    "tone",
+    "current_location",
+    "goals",
+    "unresolved_threads",
+    "boundaries"
+];
+
+const normalizeStateText = (value) => String(value ?? "").replace(/\r\n/g, "\n").trim();
+
+const personaStateValidator = (body) => {
+    const value = {};
+    for (const field of personaStateFields) {
+        const normalized = normalizeStateText(body?.[field]);
+        if (normalized.length > 1200) {
+            return {error: `${field} must be 1200 characters or fewer`};
+        }
+        value[field] = normalized || null;
+    }
+    return {value};
+};
+
 export function createChatsRouter({repositories, chatService, modelService, config, chatRateLimiters}) {
     const router = express.Router();
     router.use(requireLogin);
@@ -245,6 +268,22 @@ export function createChatsRouter({repositories, chatService, modelService, conf
         const result = repositories.deleteChatMemory(chatId, Number(req.params.memoryId), req.session.user);
         if (result.changes === 0) return res.status(404).json({error: "Memory not found"});
         return res.json({message: "Memory deleted"});
+    });
+
+    router.get("/chats/:id/persona-state", (req, res) => {
+        const chatId = Number(req.params.id);
+        const chat = repositories.getChat(chatId, req.session.user);
+        if (!chat) return res.status(404).json({error: "Chat not found"});
+        return res.json({state: repositories.getPersonaChatState(chatId, req.session.user)});
+    });
+
+    router.put("/chats/:id/persona-state", validateBody(personaStateValidator), (req, res) => {
+        const chatId = Number(req.params.id);
+        const chat = repositories.getChat(chatId, req.session.user);
+        if (!chat) return res.status(404).json({error: "Chat not found"});
+        const state = repositories.updatePersonaChatState(req.session.user, chat, req.validatedBody);
+        repositories.touchChat(chatId, req.session.user);
+        return res.json({state});
     });
 
     router.post("/chat", ...chatRateLimiters, validateBody(sendMessageValidator), async (req, res) => {

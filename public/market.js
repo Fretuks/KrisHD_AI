@@ -1,3 +1,8 @@
+import {get, post, put} from "./app/api.js";
+import {initializeAppearance} from "./app/themeController.js";
+import {clearStatus, setStatus} from "./app/statusNotice.js";
+import {populatePersonaForm, readPersonaForm} from "./app/personaForm.js";
+
 const $ = (id) => document.getElementById(id);
 const marketPersonaList = $("marketPersonaList");
 const marketUserPersonaList = $("marketUserPersonaList");
@@ -55,14 +60,13 @@ const marketPopupField = $("marketPopupField");
 const marketPopupInputLabel = $("marketPopupInputLabel");
 const marketPopupInput = $("marketPopupInput");
 const themeNameTargets = document.querySelectorAll("[data-theme-name]");
-
-const themes = {
-    "fakegpt": {name: "FakeGPT"},
-    "fraud": {name: "Fraud"},
-    "germini": {name: "Germini"},
-    "slopilot": {name: "Slopilot"},
-    "beta-ai": {name: "Beta AI"},
-    "confusity": {name: "Confusity"}
+const marketPersonaFields = {
+    name: marketPersonaName,
+    pronouns: marketPersonaPronouns,
+    appearance: marketPersonaAppearance,
+    background: marketPersonaBackground,
+    details: marketPersonaDetails,
+    exampleDialogues: marketPersonaExampleDialogues
 };
 
 const validMarketSorts = new Set(["best", "newest", "most_favorited", "most_popular", "top_rated", "alphabetical"]);
@@ -78,40 +82,8 @@ let marketActivityDepth = 0;
 let marketPreviewStep = 1;
 let marketPopupResolver = null;
 
-async function request(url, data, method = "POST") {
-    try {
-        const res = await fetch(url, {
-            method,
-            credentials: "same-origin",
-            headers: {"Content-Type": "application/json"},
-            body: data ? JSON.stringify(data) : undefined
-        });
-        return await res.json();
-    } catch {
-        return {error: "Network error - please try again."};
-    }
-}
-
-const get = (url) => request(url, null, "GET");
-const post = (url, data) => request(url, data, "POST");
-const put = (url, data) => request(url, data, "PUT");
-
-function applyTheme(themeKey) {
-    const nextTheme = themes[themeKey] ? themeKey : "fakegpt";
-    document.body.dataset.theme = nextTheme;
-    document.title = `${themes[nextTheme].name} Market`;
-    themeNameTargets.forEach((target) => {
-        target.textContent = themes[nextTheme].name;
-    });
-}
-
-function applyThemeMode(modeKey) {
-    document.body.dataset.themeMode = modeKey === "dark" ? "dark" : "light";
-}
-
 function setMarketStatus(message, state = "") {
-    marketStatus.textContent = message;
-    marketStatus.className = state ? `status persona-status ${state}` : "status persona-status";
+    setStatus(marketStatus, message, state, "status persona-status");
 }
 
 function closeMarketPopup(value = null) {
@@ -150,12 +122,10 @@ function promptMarketPopup({
 
 function setPersonaFormNotice(message = "", state = "") {
     if (!message) {
-        marketPersonaFormNotice.textContent = "";
-        marketPersonaFormNotice.className = "status hidden";
+        clearStatus(marketPersonaFormNotice);
         return;
     }
-    marketPersonaFormNotice.textContent = message;
-    marketPersonaFormNotice.className = state ? `status ${state}` : "status";
+    setStatus(marketPersonaFormNotice, message, state);
 }
 
 function setMarketActivity(active, {
@@ -351,12 +321,7 @@ function openMarketPreview(persona) {
 function openPersonaForm(persona = null) {
     editingPersonaId = persona ? persona.id : null;
     marketPersonaFormTitle.textContent = persona ? "Edit AI Character" : "Create AI Character";
-    marketPersonaName.value = persona?.name || "";
-    marketPersonaPronouns.value = persona?.pronouns || "";
-    marketPersonaAppearance.value = persona?.appearance || "";
-    marketPersonaBackground.value = persona?.background || "";
-    marketPersonaDetails.value = persona?.details || "";
-    marketPersonaExampleDialogues.value = persona?.example_dialogues || "";
+    populatePersonaForm(marketPersonaFields, persona || {});
     setPersonaFormNotice("");
     marketPersonaModal.classList.remove("hidden");
     marketPersonaName.focus();
@@ -600,13 +565,8 @@ async function startMarketPersonaChat(marketId, userPersonaSelection, scenarioPr
 
 async function savePersona() {
     const payload = {
+        ...readPersonaForm(marketPersonaFields),
         personaType: "assistant",
-        name: marketPersonaName.value.trim(),
-        pronouns: marketPersonaPronouns.value.trim(),
-        appearance: marketPersonaAppearance.value.trim(),
-        background: marketPersonaBackground.value.trim(),
-        details: marketPersonaDetails.value.trim(),
-        exampleDialogues: marketPersonaExampleDialogues.value.trim()
     };
 
     if (!payload.name) {
@@ -713,8 +673,7 @@ marketPersonaForm.addEventListener("submit", (event) => {
 });
 
 window.addEventListener("load", async () => {
-    applyTheme(localStorage.getItem("krishd-theme") || "fakegpt");
-    applyThemeMode(localStorage.getItem("krishd-theme-mode") || "light");
+    initializeAppearance({title: (theme) => `${theme.name} Market`, nameTargets: themeNameTargets});
     const params = new URLSearchParams(window.location.search);
     setMarketSort("assistant", params.get("assistantSort") || "best", {reload: false});
     setMarketSort("user", params.get("userSort") || "best", {reload: false});
