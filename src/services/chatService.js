@@ -372,6 +372,70 @@ export function createChatService(repositories, modelService, config) {
         };
     });
 
+    const cloneChatThroughMessage = ({user, sourceChat, messageId = null}) => {
+        if (repositories.countChats(user) >= config.chatLimit) {
+            return {error: `Maximum of ${config.chatLimit} chats reached. Please delete an old chat to create a new one.`, status: 400};
+        }
+
+        const sourceMessages = messageId == null
+            ? []
+            : repositories.listChatBranchThroughMessage(sourceChat.id, messageId);
+        if (messageId != null && !sourceMessages.some((message) => message.id === messageId)) {
+            return {error: "Message not found", status: 404};
+        }
+
+        const sourceTitle = String(sourceChat.stored_title || sourceChat.title || "Chat").trim();
+        const clonedChat = repositories.createChat(
+            user,
+            `${sourceTitle} (branch)`,
+            sourceChat.assistant_persona_id ?? null,
+            sourceChat.user_persona_id ?? null,
+            sourceChat.scenario_prompt ?? null,
+            sourceChat.scenario_summary ?? null,
+            {folderName: sourceChat.folder_name ?? null}
+        );
+
+        try {
+            repositories.updateChatGenerationSettings(clonedChat.id, user, {
+                preferredModel: sourceChat.preferred_model ?? null,
+                temperature: sourceChat.temperature ?? null,
+                contextLength: sourceChat.context_length ?? null,
+                responseLength: sourceChat.response_length ?? null,
+                systemInstruction: sourceChat.system_instruction ?? null
+            });
+
+            let parentMessageId = null;
+            for (const sourceMessage of sourceMessages) {
+                const inserted = repositories.insertBranchChatMessage(
+                    clonedChat.id,
+                    sourceMessage.role,
+                    sourceMessage.content,
+                    {
+                        retryVariants: [sourceMessage.content],
+                        retryActiveIndex: 0,
+                        retryRetriesUsed: 0,
+                        retryPromptMessageId: null
+                    },
+                    sourceMessage.model_name ?? null,
+                    "complete",
+                    null,
+                    parentMessageId
+                );
+                parentMessageId = Number(inserted.lastInsertRowid);
+            }
+        } catch (error) {
+            repositories.deleteChat(clonedChat.id, user);
+            throw error;
+        }
+
+        return {
+            chat: repositories.getChat(clonedChat.id, user),
+            messages: listActiveBranchMessages(clonedChat.id),
+            sourceChatId: sourceChat.id,
+            branchedFromMessageId: messageId
+        };
+    };
+
     return {
         formatChatMessage,
         getChatMessageByIndex,
@@ -427,15 +491,37 @@ export function createChatService(repositories, modelService, config) {
         },
         async editAndResendMessage({user, chatId, targetMessage, content, model, onChunk = null, signal = null}) {
             if (!targetMessage || targetMessage.role !== "user") return {error: "Only user messages can be edited and resent", status: 400};
-            return generateChatTurn({
+            const sourceChat = repositories.getChat(chatId, user);
+            if (!sourceChat) return {error: "Chat not found", status: 404};
+            const cloned = cloneChatThroughMessage({
                 user,
-                chatId,
+                sourceChat,
+                messageId: targetMessage.parent_message_id ?? null
+            });
+            if (cloned.error) return cloned;
+
+            const generated = await generateChatTurn({
+                user,
+                chatId: cloned.chat.id,
                 message: content,
                 model,
                 onChunk,
-                signal,
-                parentMessageId: targetMessage.parent_message_id ?? null
+                signal
             });
+            if (generated.error) return {...generated, chat: cloned.chat};
+            return {
+                ...generated,
+                chat: repositories.getChat(cloned.chat.id, user),
+                messages: listActiveBranchMessages(cloned.chat.id),
+                sourceChatId: chatId,
+                branchedFromMessageId: targetMessage.id
+            };
+        },
+        createBranchedChat({user, chatId, messageId}) {
+            const sourceChat = repositories.getChat(chatId, user);
+            if (!sourceChat) return {error: "Chat not found", status: 404};
+            if (!repositories.getChatMessage(chatId, messageId)) return {error: "Message not found", status: 404};
+            return cloneChatThroughMessage({user, sourceChat, messageId});
         },
         activateBranch({user, chatId, messageId, includeDescendants = false}) {
             const session = repositories.getChat(chatId, user);

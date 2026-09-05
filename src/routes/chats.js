@@ -191,6 +191,17 @@ export function createChatsRouter({repositories, chatService, modelService, conf
         return res.json(result);
     });
 
+    router.post("/chats/:id/messages/:messageId/branch", (req, res) => {
+        if (req.body?.confirmed !== true) return res.status(400).json({error: "Confirmation is required before creating a branch"});
+        const result = chatService.createBranchedChat({
+            user: req.session.user,
+            chatId: Number(req.params.id),
+            messageId: Number(req.params.messageId)
+        });
+        if (result.error) return res.status(result.status).json({error: result.error});
+        return res.json(result);
+    });
+
     router.post("/chats/:id/stop", (req, res) => {
         const result = chatService.stopGeneration({user: req.session.user, chatId: Number(req.params.id)});
         if (result.error) return res.status(result.status).json({error: result.error});
@@ -198,6 +209,7 @@ export function createChatsRouter({repositories, chatService, modelService, conf
     });
 
     router.post("/chats/:id/messages/:messageId/edit-resend", validateBody(sendMessageValidator), async (req, res) => {
+        if (req.body?.confirmed !== true) return res.status(400).json({error: "Confirmation is required before creating an edited branch"});
         const chatId = Number(req.params.id);
         const targetMessage = repositories.getChatMessage(chatId, Number(req.params.messageId));
         if (!repositories.getChat(chatId, req.session.user)) return res.status(404).json({error: "Chat not found"});

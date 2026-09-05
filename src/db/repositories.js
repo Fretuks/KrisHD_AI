@@ -218,6 +218,19 @@ export function createRepositories(db, config) {
             ORDER BY id DESC
             LIMIT ?
         `),
+        getChatBranchThroughMessage: db.prepare(`
+            WITH RECURSIVE branch AS (
+                SELECT * FROM chat_messages WHERE chat_id = ? AND id = ?
+                UNION ALL
+                SELECT parent.* FROM chat_messages parent
+                JOIN branch child ON child.parent_message_id = parent.id
+            )
+            SELECT id, role, content, model_name, retry_variants, retry_active_index, retry_retries_used,
+                   retry_prompt_message_id, delivery_status, error_message, parent_message_id, created_at
+            FROM branch
+            WHERE delivery_status = 'complete'
+            ORDER BY id
+        `),
         getActiveBranchMessages: db.prepare(`
             WITH RECURSIVE branch AS (
                 SELECT cm.* FROM chat_messages cm
@@ -946,6 +959,7 @@ export function createRepositories(db, config) {
         deleteChat: (chatId, username) => statements.deleteChatSession.run(chatId, username),
         listChatMessages: (chatId) => statements.getChatMessages.all(chatId),
         listActiveBranchMessages: (chatId) => statements.getActiveBranchMessages.all(chatId),
+        listChatBranchThroughMessage: (chatId, messageId) => statements.getChatBranchThroughMessage.all(chatId, messageId),
         listSiblingChatMessages: (chatId, role, parentMessageId) => statements.getSiblingChatMessages.all(chatId, role, parentMessageId ?? null),
         getLatestDescendantMessage: (chatId, messageId) => statements.getLatestDescendantMessage.get(chatId, messageId, chatId),
         getRecentChatMessages: (chatId) => statements.getRecentChatMessages.all(chatId, config.chatHistoryLimit),

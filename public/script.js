@@ -475,20 +475,31 @@ async function editChatMessage(messageId, fallbackIndex = -1) {
     const content = (nextContent || "").trim();
     if (!content) return;
     if (message.role === "user") {
+        const confirmed = await confirmPopup({
+            eyebrow: "Create branch",
+            title: "Create an edited chat branch?",
+            description: "This creates a new chat from the messages before this one and sends your edited message there. The original chat stays unchanged.",
+            confirmLabel: "Create branch"
+        });
+        if (!confirmed) return;
+        const sourceChatId = activeChatId;
         setLoadingState(true, {
             eyebrow: "Branching",
             title: "Editing and resending",
-            detail: "Creating a new branch from this point."
+            detail: "Creating and opening a new chat branch."
         });
         try {
-            const res = await post(`/chats/${activeChatId}/messages/${message.id}/edit-resend`, {
-                chatId: activeChatId,
+            const res = await post(`/chats/${sourceChatId}/messages/${message.id}/edit-resend`, {
+                chatId: sourceChatId,
                 message: content,
-                model: modelSelect.value
+                model: modelSelect.value,
+                confirmed: true
             });
             if (res.error) return setNotice(res.error, "error");
-            await setActiveChat(activeChatId);
-            return setNotice("Created a new branch from the edited message.", "success");
+            chatSessions = [res.chat, ...chatSessions.filter((chat) => chat.id !== res.chat.id)];
+            renderChatList();
+            await setActiveChat(res.chat.id);
+            return setNotice("Created and opened the edited chat branch.", "success");
         } finally {
             setLoadingState(false);
         }
@@ -591,12 +602,21 @@ async function switchRetryVariant(messageId, direction, fallbackIndex = -1) {
 
 async function branchFromMessage(messageId) {
     if (!activeChatId || !messageId) return;
-    const res = await post(`/chats/${activeChatId}/branches/${messageId}/activate`, {});
+    const confirmed = await confirmPopup({
+        eyebrow: "Create branch",
+        title: "Create a new chat branch?",
+        description: "The new chat will contain the conversation through this message. The original chat stays unchanged.",
+        confirmLabel: "Create branch"
+    });
+    if (!confirmed) return;
+    const sourceChatId = activeChatId;
+    const res = await post(`/chats/${sourceChatId}/messages/${messageId}/branch`, {confirmed: true});
     if (res.error) return setNotice(res.error, "error");
-    currentMessages = res.messages || [];
-    renderMessages();
+    chatSessions = [res.chat, ...chatSessions.filter((chat) => chat.id !== res.chat.id)];
+    renderChatList();
+    await setActiveChat(res.chat.id);
     msgInput.focus();
-    setNotice("Branch point selected. Your next message continues from here.", "success");
+    setNotice("Created and opened a new chat branch.", "success");
 }
 
 function addMessage(contentOrMessage, isUser = false, isLoading = false, options = {}) {

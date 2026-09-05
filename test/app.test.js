@@ -456,13 +456,30 @@ test("conversation branches, edit-resend, and generation settings work", async (
     active = await request(server.baseUrl, `/chats/${chatId}/messages`, {jar});
     assert.equal(active.json.messages.length, 4);
 
+    const unconfirmedBranch = await request(server.baseUrl, `/chats/${chatId}/messages/${firstAssistant.id}/branch`, {
+        method: "POST", body: {}, jar
+    });
+    assert.equal(unconfirmedBranch.status, 400);
+
+    const branched = await request(server.baseUrl, `/chats/${chatId}/messages/${firstAssistant.id}/branch`, {
+        method: "POST", body: {confirmed: true}, jar
+    });
+    assert.equal(branched.status, 200);
+    assert.notEqual(branched.json.chat.id, chatId);
+    assert.deepEqual(branched.json.messages.map((message) => message.content), ["first", "reply-1"]);
+    assert.equal(branched.json.chat.preferred_model, "preferred:model");
+    assert.equal(branched.json.chat.temperature, 0.4);
+
     const edited = await request(server.baseUrl, `/chats/${chatId}/messages/${active.json.messages[0].id}/edit-resend`, {
-        method: "POST", body: {chatId, message: "edited first", model: "ignored:model"}, jar
+        method: "POST", body: {chatId, message: "edited first", model: "ignored:model", confirmed: true}, jar
     });
     assert.equal(edited.status, 200);
+    assert.notEqual(edited.json.chat.id, chatId);
+    assert.notEqual(edited.json.chat.id, branched.json.chat.id);
+    assert.deepEqual(edited.json.messages.map((message) => message.content), ["edited first", "reply-4"]);
+
     active = await request(server.baseUrl, `/chats/${chatId}/messages`, {jar});
-    assert.deepEqual(active.json.messages.map((message) => message.content), ["edited first", "reply-4"]);
-    assert.equal(active.json.messages[0].siblingCount, 2);
+    assert.deepEqual(active.json.messages.map((message) => message.content), ["first", "reply-1", "second", "reply-2"]);
 
     await server.close();
 });
