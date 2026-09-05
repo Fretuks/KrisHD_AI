@@ -26,6 +26,12 @@ export function initializeSchema(db) {
             scenario_summary TEXT,
             context_summary TEXT,
             context_summary_message_id INTEGER DEFAULT 0,
+            active_leaf_message_id INTEGER,
+            preferred_model TEXT,
+            temperature REAL,
+            context_length INTEGER,
+            response_length INTEGER,
+            system_instruction TEXT,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (assistant_persona_id) REFERENCES personas (id) ON DELETE SET NULL,
@@ -45,8 +51,12 @@ export function initializeSchema(db) {
             retry_active_index INTEGER DEFAULT 0,
             retry_retries_used INTEGER DEFAULT 0,
             retry_prompt_message_id INTEGER,
+            delivery_status TEXT DEFAULT 'complete',
+            error_message TEXT,
+            parent_message_id INTEGER,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (chat_id) REFERENCES chat_sessions (id) ON DELETE CASCADE
+            FOREIGN KEY (chat_id) REFERENCES chat_sessions (id) ON DELETE CASCADE,
+            FOREIGN KEY (parent_message_id) REFERENCES chat_messages (id) ON DELETE SET NULL
         )
     `).run();
 
@@ -259,13 +269,18 @@ export function runMigrations(db, {dropLegacyChats = true} = {}) {
     db.prepare("UPDATE persona_market SET rating_count = 0 WHERE rating_count IS NULL").run();
 
     const chatMessageColumns = db.prepare("PRAGMA table_info(chat_messages)").all();
+    const hadParentMessageId = chatMessageColumns.some((column) => column.name === "parent_message_id");
     ensureColumn("chat_messages", chatMessageColumns, "model_name", "ALTER TABLE chat_messages ADD COLUMN model_name TEXT");
     ensureColumn("chat_messages", chatMessageColumns, "retry_variants", "ALTER TABLE chat_messages ADD COLUMN retry_variants TEXT");
     ensureColumn("chat_messages", chatMessageColumns, "retry_active_index", "ALTER TABLE chat_messages ADD COLUMN retry_active_index INTEGER DEFAULT 0");
     ensureColumn("chat_messages", chatMessageColumns, "retry_retries_used", "ALTER TABLE chat_messages ADD COLUMN retry_retries_used INTEGER DEFAULT 0");
     ensureColumn("chat_messages", chatMessageColumns, "retry_prompt_message_id", "ALTER TABLE chat_messages ADD COLUMN retry_prompt_message_id INTEGER");
+    ensureColumn("chat_messages", chatMessageColumns, "delivery_status", "ALTER TABLE chat_messages ADD COLUMN delivery_status TEXT DEFAULT 'complete'");
+    ensureColumn("chat_messages", chatMessageColumns, "error_message", "ALTER TABLE chat_messages ADD COLUMN error_message TEXT");
+    ensureColumn("chat_messages", chatMessageColumns, "parent_message_id", "ALTER TABLE chat_messages ADD COLUMN parent_message_id INTEGER");
     db.prepare("UPDATE chat_messages SET retry_active_index = 0 WHERE retry_active_index IS NULL").run();
     db.prepare("UPDATE chat_messages SET retry_retries_used = 0 WHERE retry_retries_used IS NULL").run();
+    db.prepare("UPDATE chat_messages SET delivery_status = 'complete' WHERE delivery_status IS NULL").run();
 
     const chatSessionColumns = db.prepare("PRAGMA table_info(chat_sessions)").all();
     ensureColumn("chat_sessions", chatSessionColumns, "assistant_persona_id", "ALTER TABLE chat_sessions ADD COLUMN assistant_persona_id INTEGER");
@@ -277,8 +292,30 @@ export function runMigrations(db, {dropLegacyChats = true} = {}) {
     ensureColumn("chat_sessions", chatSessionColumns, "scenario_summary", "ALTER TABLE chat_sessions ADD COLUMN scenario_summary TEXT");
     ensureColumn("chat_sessions", chatSessionColumns, "context_summary", "ALTER TABLE chat_sessions ADD COLUMN context_summary TEXT");
     ensureColumn("chat_sessions", chatSessionColumns, "context_summary_message_id", "ALTER TABLE chat_sessions ADD COLUMN context_summary_message_id INTEGER DEFAULT 0");
+    ensureColumn("chat_sessions", chatSessionColumns, "active_leaf_message_id", "ALTER TABLE chat_sessions ADD COLUMN active_leaf_message_id INTEGER");
+    ensureColumn("chat_sessions", chatSessionColumns, "preferred_model", "ALTER TABLE chat_sessions ADD COLUMN preferred_model TEXT");
+    ensureColumn("chat_sessions", chatSessionColumns, "temperature", "ALTER TABLE chat_sessions ADD COLUMN temperature REAL");
+    ensureColumn("chat_sessions", chatSessionColumns, "context_length", "ALTER TABLE chat_sessions ADD COLUMN context_length INTEGER");
+    ensureColumn("chat_sessions", chatSessionColumns, "response_length", "ALTER TABLE chat_sessions ADD COLUMN response_length INTEGER");
+    ensureColumn("chat_sessions", chatSessionColumns, "system_instruction", "ALTER TABLE chat_sessions ADD COLUMN system_instruction TEXT");
     db.prepare("UPDATE chat_sessions SET is_pinned = 0 WHERE is_pinned IS NULL").run();
     db.prepare("UPDATE chat_sessions SET context_summary_message_id = 0 WHERE context_summary_message_id IS NULL").run();
+    if (!hadParentMessageId) {
+        db.exec(`
+            WITH ordered AS (
+                SELECT id, LAG(id) OVER (PARTITION BY chat_id ORDER BY id) AS previous_id
+                FROM chat_messages
+            )
+            UPDATE chat_messages
+            SET parent_message_id = (SELECT previous_id FROM ordered WHERE ordered.id = chat_messages.id)
+            WHERE parent_message_id IS NULL
+              AND EXISTS (SELECT 1 FROM ordered WHERE ordered.id = chat_messages.id AND previous_id IS NOT NULL);
+
+            UPDATE chat_sessions
+            SET active_leaf_message_id = (SELECT MAX(id) FROM chat_messages WHERE chat_id = chat_sessions.id)
+            WHERE active_leaf_message_id IS NULL;
+        `);
+    }
 
     db.prepare(`
         CREATE TABLE IF NOT EXISTS chat_memories

@@ -22,6 +22,10 @@ import {
     chatSidebarToggle,
     chatSearchInput,
     chatUserPersonaPill,
+    chatTemperatureInput,
+    chatContextLengthInput,
+    chatResponseLengthInput,
+    chatSystemInstructionInput,
     clearChatBtn,
     archiveChatBtn,
     backupWorkspaceBtn,
@@ -104,6 +108,7 @@ import {
     roleplayStarterTitle,
     roleplayUserPersonaSelect,
     sendBtn,
+    saveGenerationSettingsBtn,
     sessionUser,
     themeLogoTargets,
     themeNameTargets,
@@ -330,7 +335,37 @@ function updateComposerPlaceholder() {
 
 function updateSendState() {
     const hasText = Boolean(msgInput.value.trim());
-    sendBtn.disabled = isProcessing || !hasText;
+    sendBtn.disabled = isProcessing ? false : !hasText;
+    sendBtn.setAttribute("aria-label", isProcessing ? "Stop generation" : "Send message");
+}
+
+function populateGenerationSettings(chat) {
+    if (!chat) return;
+    if (chat.preferred_model && Array.from(modelSelect.options).some((option) => option.value === chat.preferred_model)) {
+        modelSelect.value = chat.preferred_model;
+    }
+    chatTemperatureInput.value = chat.temperature ?? "";
+    chatContextLengthInput.value = chat.context_length ?? "";
+    chatResponseLengthInput.value = chat.response_length ?? "";
+    chatSystemInstructionInput.value = chat.system_instruction || "";
+    renderModelSection();
+}
+
+async function saveGenerationSettings() {
+    if (!activeChatId) return;
+    const payload = {
+        preferredModel: modelSelect.value || null,
+        temperature: chatTemperatureInput.value,
+        contextLength: chatContextLengthInput.value,
+        responseLength: chatResponseLengthInput.value,
+        systemInstruction: chatSystemInstructionInput.value
+    };
+    const res = await put(`/chats/${activeChatId}/generation-settings`, payload);
+    if (res.error || !res.chat) return setNotice(res.error || "Unable to save generation settings.", "error");
+    const chat = getChatById(activeChatId);
+    if (chat) Object.assign(chat, res.chat);
+    populateGenerationSettings(res.chat);
+    setNotice("Generation settings saved.", "success");
 }
 
 function resizeComposerInput() {
@@ -439,6 +474,25 @@ async function editChatMessage(messageId, fallbackIndex = -1) {
     });
     const content = (nextContent || "").trim();
     if (!content) return;
+    if (message.role === "user") {
+        setLoadingState(true, {
+            eyebrow: "Branching",
+            title: "Editing and resending",
+            detail: "Creating a new branch from this point."
+        });
+        try {
+            const res = await post(`/chats/${activeChatId}/messages/${message.id}/edit-resend`, {
+                chatId: activeChatId,
+                message: content,
+                model: modelSelect.value
+            });
+            if (res.error) return setNotice(res.error, "error");
+            await setActiveChat(activeChatId);
+            return setNotice("Created a new branch from the edited message.", "success");
+        } finally {
+            setLoadingState(false);
+        }
+    }
     const endpoint = getMessageEndpoint(target);
     if (!endpoint) return setNotice("Message is not ready yet. Try again.", "error");
     const res = await put(endpoint, {content});
@@ -484,13 +538,9 @@ async function deleteChatMessage(messageId, fallbackIndex = -1) {
 async function retryLatestAssistantMessage(messageId, fallbackIndex = -1) {
     const target = await resolveMessageTarget(messageId, fallbackIndex);
     if (!target) return setNotice("Message is not ready yet. Try again.", "error");
-    const newest = getNewestMessage();
-    const sameNewest = target.index === currentMessages.length - 1;
-    if (!newest || !sameNewest || newest.role !== "bot") {
-        return setNotice("Only the newest assistant message can be retried.", "error");
-    }
-    const state = ensureRetryState(newest) || {variants: [newest.content || ""], activeIndex: 0, retriesUsed: 0, promptMessageId: null};
-    if (!state || state.retriesUsed >= 5) {
+    if (target.message.role !== "bot") return setNotice("Only assistant messages can be regenerated.", "error");
+    const retriesUsed = Math.max(0, Number(target.message.siblingCount || 1) - 1);
+    if (retriesUsed >= 5) {
         return setNotice("Retry limit reached (5).", "error");
     }
     setLoadingState(true, {
@@ -520,8 +570,8 @@ async function retryLatestAssistantMessage(messageId, fallbackIndex = -1) {
             currentMessages[updateIndex] = {...currentMessages[updateIndex], ...res.message};
             syncRetryStateFromMessage(currentMessages[updateIndex]);
         }
-        const nextState = res.message?.id ? messageRetryState.get(res.message.id) : state;
-        setNotice(`Reply regenerated (${nextState?.retriesUsed || state.retriesUsed}/5).`, "success");
+        await setActiveChat(activeChatId);
+        setNotice(`Reply regenerated (${retriesUsed + 1}/5).`, "success");
     } finally {
         setLoadingState(false);
         renderMessages();
@@ -531,28 +581,22 @@ async function retryLatestAssistantMessage(messageId, fallbackIndex = -1) {
 async function switchRetryVariant(messageId, direction, fallbackIndex = -1) {
     const target = await resolveMessageTarget(messageId, fallbackIndex);
     if (!target) return setNotice("Message is not ready yet. Try again.", "error");
-    const newest = getNewestMessage();
-    const sameNewest = target.index === currentMessages.length - 1;
-    if (!newest || !sameNewest || newest.role !== "bot") {
-        return setNotice("Variants can only be switched on the newest assistant message.", "error");
-    }
-    const state = target.message?.id ? messageRetryState.get(target.message.id) : null;
-    if (!state || state.variants.length < 2) return;
-    const nextIndex = state.activeIndex + direction;
-    if (nextIndex < 0 || nextIndex >= state.variants.length) return;
-    const targetContent = state.variants[nextIndex];
-    const endpoint = getMessageEndpoint(target);
-    if (!endpoint) return setNotice("Message is not ready yet. Try again.", "error");
-    const res = await put(endpoint, {content: targetContent, retryActiveIndex: nextIndex});
-    if (res.error || !res.message) {
-        return setNotice(res.error || "Unable to switch variant.", "error");
-    }
-    const updateIndex = target.message?.id ? getMessageIndexById(target.message.id) : target.index;
-    if (updateIndex >= 0) {
-        currentMessages[updateIndex] = {...currentMessages[updateIndex], ...res.message};
-        syncRetryStateFromMessage(currentMessages[updateIndex]);
-    }
+    const siblingId = direction < 0 ? target.message.previousSiblingId : target.message.nextSiblingId;
+    if (!siblingId) return;
+    const res = await post(`/chats/${activeChatId}/branches/${siblingId}/activate`, {includeDescendants: true});
+    if (res.error) return setNotice(res.error, "error");
+    currentMessages = res.messages || [];
     renderMessages();
+}
+
+async function branchFromMessage(messageId) {
+    if (!activeChatId || !messageId) return;
+    const res = await post(`/chats/${activeChatId}/branches/${messageId}/activate`, {});
+    if (res.error) return setNotice(res.error, "error");
+    currentMessages = res.messages || [];
+    renderMessages();
+    msgInput.focus();
+    setNotice("Branch point selected. Your next message continues from here.", "success");
 }
 
 function addMessage(contentOrMessage, isUser = false, isLoading = false, options = {}) {
@@ -594,7 +638,7 @@ function addMessage(contentOrMessage, isUser = false, isLoading = false, options
         const editBtn = document.createElement("button");
         editBtn.type = "button";
         editBtn.className = "msg-action-btn";
-        editBtn.textContent = "Edit";
+        editBtn.textContent = isMessageUser ? "Edit & resend" : "Edit";
         editBtn.setAttribute("aria-label", `Edit ${isMessageUser ? "your" : "assistant"} message`);
         editBtn.addEventListener("click", () => {
             void editChatMessage(message.id, options.messageIndex ?? -1);
@@ -611,26 +655,34 @@ function addMessage(contentOrMessage, isUser = false, isLoading = false, options
         });
         actions.appendChild(deleteBtn);
 
-        if (options.isNewest && message.role === "bot") {
-            const state = message.id ? ensureRetryState(message) : {retriesUsed: 0, variants: [], activeIndex: 0};
+        const branchBtn = document.createElement("button");
+        branchBtn.type = "button";
+        branchBtn.className = "msg-action-btn";
+        branchBtn.textContent = "Branch here";
+        branchBtn.addEventListener("click", () => { void branchFromMessage(message.id); });
+        actions.appendChild(branchBtn);
+
+        if (message.role === "bot") {
+            const retriesUsed = Math.max(0, Number(message.siblingCount || 1) - 1);
             const retryBtn = document.createElement("button");
             retryBtn.type = "button";
             retryBtn.className = "msg-action-btn";
-            retryBtn.textContent = `Retry (${state.retriesUsed}/5)`;
-            retryBtn.setAttribute("aria-label", `Retry assistant message, ${state.retriesUsed} of 5 retries used`);
-            retryBtn.disabled = state.retriesUsed >= 5 || isProcessing;
+            retryBtn.textContent = `Regenerate (${retriesUsed}/5)`;
+            retryBtn.setAttribute("aria-label", `Regenerate assistant message, ${retriesUsed} of 5 retries used`);
+            retryBtn.disabled = retriesUsed >= 5 || isProcessing;
             retryBtn.addEventListener("click", () => {
                 void retryLatestAssistantMessage(message.id, options.messageIndex ?? -1);
             });
             actions.appendChild(retryBtn);
+        }
 
-            if (state.variants.length > 1) {
+        if (Number(message.siblingCount || 1) > 1) {
                 const prevBtn = document.createElement("button");
                 prevBtn.type = "button";
                 prevBtn.className = "msg-action-btn";
                 prevBtn.textContent = "Prev";
                 prevBtn.setAttribute("aria-label", "Show previous retry variant");
-                prevBtn.disabled = state.activeIndex <= 0;
+                prevBtn.disabled = !message.previousSiblingId;
                 prevBtn.addEventListener("click", () => {
                     void switchRetryVariant(message.id, -1, options.messageIndex ?? -1);
                 });
@@ -640,16 +692,15 @@ function addMessage(contentOrMessage, isUser = false, isLoading = false, options
                 nextBtn.className = "msg-action-btn";
                 nextBtn.textContent = "Next";
                 nextBtn.setAttribute("aria-label", "Show next retry variant");
-                nextBtn.disabled = state.activeIndex >= state.variants.length - 1;
+                nextBtn.disabled = !message.nextSiblingId;
                 nextBtn.addEventListener("click", () => {
                     void switchRetryVariant(message.id, 1, options.messageIndex ?? -1);
                 });
 
                 const indexBadge = document.createElement("span");
                 indexBadge.className = "msg-variant-index";
-                indexBadge.textContent = `${state.activeIndex + 1}/${state.variants.length}`;
+                indexBadge.textContent = `${Number(message.siblingIndex || 0) + 1}/${message.siblingCount}`;
                 actions.append(prevBtn, indexBadge, nextBtn);
-            }
         }
 
         msgDiv.append(header, body);
@@ -1305,6 +1356,13 @@ function setLoadingState(loading, overlayOptions = null) {
     updateSendState();
 }
 
+async function stopGeneration() {
+    if (!isProcessing || !activeChatId) return;
+    const res = await post(`/chats/${activeChatId}/stop`, {});
+    if (res.error) return setNotice(res.error, "error");
+    setNotice(res.stopped ? "Stopping generation..." : "Generation already finished.");
+}
+
 function showAuthScreen(target) {
     authScreens.forEach((screen) => screen.classList.toggle("active", screen.id === `${target}Screen`));
     toggleButtons.forEach((btn) => btn.classList.toggle("active", btn.dataset.target === target));
@@ -1330,6 +1388,7 @@ async function setActiveChat(id) {
     }
     const existing = getChatById(id);
     if (res.chat && existing) Object.assign(existing, res.chat);
+    populateGenerationSettings(res.chat || existing);
     currentMessages = res.messages || []; renderMessages();
     updateSendState();
     setChatLoading(false);
@@ -1705,6 +1764,10 @@ async function displayModels() {
         option.selected = preferredIndex >= 0 ? index === preferredIndex : index === 0;
         modelSelect.appendChild(option);
     });
+    const activeChat = getChatById(activeChatId);
+    if (activeChat?.preferred_model && models.some((model) => model.model === activeChat.preferred_model)) {
+        modelSelect.value = activeChat.preferred_model;
+    }
     renderModelSection();
 }
 
@@ -1853,7 +1916,7 @@ logoutButton.addEventListener("click", async () => {
     updateSendState();
     showAuthScreen("login"); setAuthMessage("Logged out.", "success"); setNotice("Ready.");
 });
-sendBtn.addEventListener("click", () => { void sendMessage(); });
+sendBtn.addEventListener("click", () => { void (isProcessing ? stopGeneration() : sendMessage()); });
 msgInput.addEventListener("keydown", (event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void sendMessage(); } });
 msgInput.addEventListener("input", function () {
     resizeComposerInput();
@@ -1881,6 +1944,7 @@ chatSearchInput.addEventListener("input", () => { void loadChatSessions(); });
 modelSelect.addEventListener("change", () => {
     renderModelSection();
 });
+saveGenerationSettingsBtn.addEventListener("click", () => { void saveGenerationSettings(); });
 roleplayNewPersonaBtn.addEventListener("click", () => openPersonaForm(null, "assistant"));
 clearUserPersonaBtn.addEventListener("click", () => {
     closeChatDrawer();

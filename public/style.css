@@ -438,7 +438,9 @@ input:focus, textarea:focus, select:focus { border-color: var(--brand); }
 #msgInput { min-height: 44px; max-height: 160px; padding: 11px 13px; resize: none; background: transparent; border: 0; box-shadow: none; }
 #send { width: 44px; min-width: 44px; height: 44px; min-height: 44px; padding: 0; display: grid; place-items: center; border-radius: 17px; }
 #send::after { content: "\2191"; font-size: 1.1rem; font-weight: 800; }
-#send.loading::after { content: "…"; }
+#send.loading::after { content: "■"; font-size: .85rem; }
+.generation-settings-grid { margin-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+.generation-settings-grid .field-wide, .generation-settings-grid button { grid-column: 1 / -1; }
 
 /* ---------- Chat settings drawer ---------- */
 .chat-drawer {

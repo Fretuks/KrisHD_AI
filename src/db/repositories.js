@@ -66,6 +66,12 @@ export function createRepositories(db, config) {
                    cs.scenario_summary,
                    cs.context_summary,
                    cs.context_summary_message_id,
+                   cs.active_leaf_message_id,
+                   cs.preferred_model,
+                   cs.temperature,
+                   cs.context_length,
+                   cs.response_length,
+                   cs.system_instruction,
                    cs.created_at,
                    cs.updated_at
             FROM chat_sessions cs
@@ -93,6 +99,12 @@ export function createRepositories(db, config) {
                    cs.scenario_summary,
                    cs.context_summary,
                    cs.context_summary_message_id,
+                   cs.active_leaf_message_id,
+                   cs.preferred_model,
+                   cs.temperature,
+                   cs.context_length,
+                   cs.response_length,
+                   cs.system_instruction,
                    cs.created_at,
                    cs.updated_at
             FROM chat_sessions cs
@@ -119,6 +131,12 @@ export function createRepositories(db, config) {
                    cs.scenario_summary,
                    cs.context_summary,
                    cs.context_summary_message_id,
+                   cs.active_leaf_message_id,
+                   cs.preferred_model,
+                   cs.temperature,
+                   cs.context_length,
+                   cs.response_length,
+                   cs.system_instruction,
                    cs.created_at,
                    cs.updated_at
             FROM chat_sessions cs
@@ -133,6 +151,13 @@ export function createRepositories(db, config) {
         updateChatSessionTitle: db.prepare("UPDATE chat_sessions SET title = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND username = ?"),
         updateChatSessionScene: db.prepare("UPDATE chat_sessions SET scenario_prompt = ?, scenario_summary = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND username = ?"),
         updateChatContextSummary: db.prepare("UPDATE chat_sessions SET context_summary = ?, context_summary_message_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND username = ?"),
+        updateChatGenerationSettings: db.prepare(`
+            UPDATE chat_sessions
+            SET preferred_model = ?, temperature = ?, context_length = ?, response_length = ?, system_instruction = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ? AND username = ?
+        `),
+        updateChatActiveLeaf: db.prepare("UPDATE chat_sessions SET active_leaf_message_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND username = ?"),
+        setChatActiveLeafById: db.prepare("UPDATE chat_sessions SET active_leaf_message_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"),
         updateChatSessionOrganization: db.prepare(`
             UPDATE chat_sessions
             SET folder_name = ?,
@@ -158,50 +183,92 @@ export function createRepositories(db, config) {
             WHERE username = ?
               AND user_persona_id = ?
         `),
-        insertChatMessage: db.prepare("INSERT INTO chat_messages (chat_id, role, content, model_name, retry_variants, retry_active_index, retry_retries_used, retry_prompt_message_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"),
+        insertChatMessage: db.prepare("INSERT INTO chat_messages (chat_id, role, content, model_name, retry_variants, retry_active_index, retry_retries_used, retry_prompt_message_id, delivery_status, error_message, parent_message_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"),
+        updateChatMessageDelivery: db.prepare("UPDATE chat_messages SET delivery_status = ?, error_message = ? WHERE id = ? AND chat_id = ?"),
         getChatMessages: db.prepare(`
-            SELECT id, role, content, model_name, retry_variants, retry_active_index, retry_retries_used, retry_prompt_message_id, created_at
+            SELECT id, role, content, model_name, retry_variants, retry_active_index, retry_retries_used, retry_prompt_message_id, delivery_status, error_message, parent_message_id, created_at
             FROM chat_messages
             WHERE chat_id = ?
             ORDER BY id
         `),
         getRecentChatMessages: db.prepare(`
-            SELECT role, content
-            FROM chat_messages
-            WHERE chat_id = ?
+            WITH RECURSIVE branch AS (
+                SELECT cm.* FROM chat_messages cm
+                JOIN chat_sessions cs ON cs.id = cm.chat_id
+                WHERE cm.chat_id = ?
+                  AND cm.id = COALESCE(cs.active_leaf_message_id, (SELECT MAX(id) FROM chat_messages WHERE chat_id = cm.chat_id))
+                UNION ALL
+                SELECT parent.* FROM chat_messages parent
+                JOIN branch child ON child.parent_message_id = parent.id
+            )
+            SELECT id, role, content FROM branch
+            WHERE delivery_status != 'failed'
             ORDER BY id DESC
             LIMIT ?
         `),
         getRecentChatMessagesUpToId: db.prepare(`
-            SELECT role, content
-            FROM chat_messages
-            WHERE chat_id = ?
-              AND id <= ?
+            WITH RECURSIVE branch AS (
+                SELECT * FROM chat_messages WHERE chat_id = ? AND id = ?
+                UNION ALL
+                SELECT parent.* FROM chat_messages parent
+                JOIN branch child ON child.parent_message_id = parent.id
+            )
+            SELECT id, role, content FROM branch
+            WHERE delivery_status != 'failed'
             ORDER BY id DESC
             LIMIT ?
         `),
+        getActiveBranchMessages: db.prepare(`
+            WITH RECURSIVE branch AS (
+                SELECT cm.* FROM chat_messages cm
+                JOIN chat_sessions cs ON cs.id = cm.chat_id
+                WHERE cm.chat_id = ?
+                  AND cm.id = COALESCE(cs.active_leaf_message_id, (SELECT MAX(id) FROM chat_messages WHERE chat_id = cm.chat_id))
+                UNION ALL
+                SELECT parent.* FROM chat_messages parent
+                JOIN branch child ON child.parent_message_id = parent.id
+            )
+            SELECT id, role, content, model_name, retry_variants, retry_active_index, retry_retries_used,
+                   retry_prompt_message_id, delivery_status, error_message, parent_message_id, created_at
+            FROM branch ORDER BY id
+        `),
+        getSiblingChatMessages: db.prepare(`
+            SELECT id, role, content, parent_message_id
+            FROM chat_messages
+            WHERE chat_id = ? AND role = ? AND parent_message_id IS ?
+            ORDER BY id
+        `),
+        getLatestDescendantMessage: db.prepare(`
+            WITH RECURSIVE descendants AS (
+                SELECT id FROM chat_messages WHERE chat_id = ? AND id = ?
+                UNION ALL
+                SELECT child.id FROM chat_messages child JOIN descendants parent ON child.parent_message_id = parent.id
+                WHERE child.chat_id = ? AND child.delivery_status != 'failed'
+            )
+            SELECT cm.* FROM chat_messages cm JOIN descendants d ON d.id = cm.id ORDER BY cm.id DESC LIMIT 1
+        `),
         getChatMessageById: db.prepare(`
-            SELECT id, role, content, model_name, retry_variants, retry_active_index, retry_retries_used, retry_prompt_message_id, created_at
+            SELECT id, role, content, model_name, retry_variants, retry_active_index, retry_retries_used, retry_prompt_message_id, delivery_status, error_message, parent_message_id, created_at
             FROM chat_messages
             WHERE id = ?
               AND chat_id = ?
         `),
         getChatMessageByIndex: db.prepare(`
-            SELECT id, role, content, model_name, retry_variants, retry_active_index, retry_retries_used, retry_prompt_message_id, created_at
+            SELECT id, role, content, model_name, retry_variants, retry_active_index, retry_retries_used, retry_prompt_message_id, delivery_status, error_message, parent_message_id, created_at
             FROM chat_messages
             WHERE chat_id = ?
             ORDER BY id
             LIMIT 1 OFFSET ?
         `),
         getLatestChatMessage: db.prepare(`
-            SELECT id, role, content, model_name, retry_variants, retry_active_index, retry_retries_used, retry_prompt_message_id, created_at
+            SELECT id, role, content, model_name, retry_variants, retry_active_index, retry_retries_used, retry_prompt_message_id, delivery_status, error_message, parent_message_id, created_at
             FROM chat_messages
             WHERE chat_id = ?
             ORDER BY id DESC
             LIMIT 1
         `),
         getPreviousUserMessage: db.prepare(`
-            SELECT id, role, content, model_name, retry_variants, retry_active_index, retry_retries_used, retry_prompt_message_id, created_at
+            SELECT id, role, content, model_name, retry_variants, retry_active_index, retry_retries_used, retry_prompt_message_id, delivery_status, error_message, parent_message_id, created_at
             FROM chat_messages
             WHERE chat_id = ?
               AND role = 'user'
@@ -302,6 +369,12 @@ export function createRepositories(db, config) {
                             cs.scenario_summary,
                             cs.context_summary,
                             cs.context_summary_message_id,
+                            cs.active_leaf_message_id,
+                            cs.preferred_model,
+                            cs.temperature,
+                            cs.context_length,
+                            cs.response_length,
+                            cs.system_instruction,
                             cs.created_at,
                             cs.updated_at,
                             cm.content AS matched_content
@@ -640,6 +713,45 @@ export function createRepositories(db, config) {
         return statements.deleteUser.run(username);
     });
 
+    const completeChatTurnTransaction = db.transaction((chatId, userMessageId, assistantContent, retryState, modelName) => {
+        const assistantResult = statements.insertChatMessage.run(
+            chatId,
+            "bot",
+            String(assistantContent || ""),
+            modelName || null,
+            JSON.stringify(retryState.retryVariants),
+            retryState.retryActiveIndex,
+            retryState.retryRetriesUsed,
+            retryState.retryPromptMessageId ?? null,
+            "complete",
+            null,
+            userMessageId
+        );
+        statements.updateChatMessageDelivery.run("complete", null, userMessageId, chatId);
+        statements.setChatActiveLeafById.run(assistantResult.lastInsertRowid, chatId);
+        return assistantResult;
+    });
+
+    const insertBranchChatMessageTransaction = db.transaction((chatId, role, content, retryState, modelName, deliveryStatus, errorMessage, parentMessageId) => {
+        const result = statements.insertChatMessage.run(
+            chatId, role, String(content || ""), modelName || null,
+            retryState ? JSON.stringify(retryState.retryVariants) : null,
+            retryState?.retryActiveIndex ?? 0,
+            retryState?.retryRetriesUsed ?? 0,
+            retryState?.retryPromptMessageId ?? null,
+            deliveryStatus,
+            errorMessage,
+            parentMessageId ?? null
+        );
+        statements.setChatActiveLeafById.run(result.lastInsertRowid, chatId);
+        return result;
+    });
+
+    const failChatTurnTransaction = db.transaction((chatId, userMessageId, errorMessage, parentMessageId) => {
+        statements.updateChatMessageDelivery.run("failed", errorMessage, userMessageId, chatId);
+        statements.setChatActiveLeafById.run(parentMessageId ?? null, chatId);
+    });
+
     const savePersonaVersion = db.transaction((personaId, username) => {
         const persona = statements.getPersona.get(personaId, username);
         if (!persona) return null;
@@ -712,6 +824,7 @@ export function createRepositories(db, config) {
             const importedMessageIds = new Map();
             for (const message of chat.messages || []) {
                 const mappedRetryPromptId = importedMessageIds.get(message.retryPromptMessageId) ?? null;
+                const mappedParentId = importedMessageIds.get(message.parentMessageId) ?? null;
                 const result = statements.insertChatMessage.run(
                     chatId,
                     message.role,
@@ -720,10 +833,26 @@ export function createRepositories(db, config) {
                     JSON.stringify(message.retryVariants || [message.content || ""]),
                     Number(message.retryActiveIndex || 0),
                     Number(message.retryRetriesUsed || 0),
-                    mappedRetryPromptId
+                    mappedRetryPromptId,
+                    message.deliveryStatus || "complete",
+                    message.errorMessage || null,
+                    mappedParentId
                 );
                 if (message.sourceId != null) importedMessageIds.set(message.sourceId, Number(result.lastInsertRowid));
             }
+            statements.updateChatGenerationSettings.run(
+                chat.preferred_model ?? null,
+                chat.temperature ?? null,
+                chat.context_length ?? null,
+                chat.response_length ?? null,
+                chat.system_instruction ?? null,
+                chatId,
+                username
+            );
+            const importedActiveLeaf = importedMessageIds.get(chat.active_leaf_message_id)
+                ?? Array.from(importedMessageIds.values()).at(-1)
+                ?? null;
+            statements.setChatActiveLeafById.run(importedActiveLeaf, chatId);
             if (chat.context_summary) {
                 const mappedSummaryMessageId = importedMessageIds.get(Number(chat.context_summary_message_id || 0)) || 0;
                 statements.updateChatContextSummary.run(
@@ -816,6 +945,9 @@ export function createRepositories(db, config) {
         touchChat: (chatId, username) => statements.touchChatSession.run(chatId, username),
         deleteChat: (chatId, username) => statements.deleteChatSession.run(chatId, username),
         listChatMessages: (chatId) => statements.getChatMessages.all(chatId),
+        listActiveBranchMessages: (chatId) => statements.getActiveBranchMessages.all(chatId),
+        listSiblingChatMessages: (chatId, role, parentMessageId) => statements.getSiblingChatMessages.all(chatId, role, parentMessageId ?? null),
+        getLatestDescendantMessage: (chatId, messageId) => statements.getLatestDescendantMessage.get(chatId, messageId, chatId),
         getRecentChatMessages: (chatId) => statements.getRecentChatMessages.all(chatId, config.chatHistoryLimit),
         getRecentChatMessagesUpToId: (chatId, messageId) => statements.getRecentChatMessagesUpToId.all(chatId, messageId, config.chatHistoryLimit),
         getChatMessage: (chatId, messageId) => statements.getChatMessageById.get(messageId, chatId),
@@ -836,7 +968,7 @@ export function createRepositories(db, config) {
         },
         updateChatMemory: (chatId, memoryId, username, fact) => statements.updateChatMemory.run(String(fact || "").trim(), memoryId, chatId, username),
         deleteChatMemory: (chatId, memoryId, username) => statements.deleteChatMemory.run(memoryId, chatId, username),
-        insertChatMessage(chatId, role, content, retryState = null, modelName = null) {
+        insertChatMessage(chatId, role, content, retryState = null, modelName = null, deliveryStatus = "complete", errorMessage = null, parentMessageId = null) {
             return statements.insertChatMessage.run(
                 chatId,
                 role,
@@ -845,9 +977,30 @@ export function createRepositories(db, config) {
                 retryState ? JSON.stringify(retryState.retryVariants) : null,
                 retryState?.retryActiveIndex ?? 0,
                 retryState?.retryRetriesUsed ?? 0,
-                retryState?.retryPromptMessageId ?? null
+                retryState?.retryPromptMessageId ?? null,
+                deliveryStatus,
+                errorMessage,
+                parentMessageId
             );
         },
+        insertBranchChatMessage: (chatId, role, content, retryState = null, modelName = null, deliveryStatus = "complete", errorMessage = null, parentMessageId = null) =>
+            insertBranchChatMessageTransaction(chatId, role, content, retryState, modelName, deliveryStatus, errorMessage, parentMessageId),
+        updateChatMessageDelivery: (chatId, messageId, deliveryStatus, errorMessage = null) =>
+            statements.updateChatMessageDelivery.run(deliveryStatus, errorMessage, messageId, chatId),
+        completeChatTurn: (chatId, userMessageId, assistantContent, retryState, modelName = null) =>
+            completeChatTurnTransaction(chatId, userMessageId, assistantContent, retryState, modelName),
+        failChatTurn: (chatId, userMessageId, errorMessage, parentMessageId = null) =>
+            failChatTurnTransaction(chatId, userMessageId, errorMessage, parentMessageId),
+        updateChatActiveLeaf: (chatId, username, messageId) => statements.updateChatActiveLeaf.run(messageId, chatId, username),
+        updateChatGenerationSettings: (chatId, username, settings) => statements.updateChatGenerationSettings.run(
+            settings.preferredModel ?? null,
+            settings.temperature ?? null,
+            settings.contextLength ?? null,
+            settings.responseLength ?? null,
+            settings.systemInstruction ?? null,
+            chatId,
+            username
+        ),
         updateChatMessage: (chatId, messageId, content) => statements.updateChatMessage.run(content, messageId, chatId),
         updateChatMessageRetryState: (chatId, messageId, payload) => statements.updateChatMessageWithRetryState.run(
             payload.content,

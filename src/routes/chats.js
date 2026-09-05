@@ -62,6 +62,35 @@ const personaStateValidator = (body) => {
     return {value};
 };
 
+const optionalInteger = (value, min, max, label) => {
+    if (value == null || value === "") return {value: null};
+    const parsed = Number(value);
+    if (!Number.isInteger(parsed) || parsed < min || parsed > max) return {error: `${label} must be between ${min} and ${max}`};
+    return {value: parsed};
+};
+
+const generationSettingsValidator = (body) => {
+    const temperature = body?.temperature == null || body.temperature === "" ? null : Number(body.temperature);
+    if (temperature != null && (!Number.isFinite(temperature) || temperature < 0 || temperature > 2)) {
+        return {error: "Temperature must be between 0 and 2"};
+    }
+    const contextLength = optionalInteger(body?.contextLength, 256, 131072, "Context length");
+    if (contextLength.error) return contextLength;
+    const responseLength = optionalInteger(body?.responseLength, 1, 32768, "Response length");
+    if (responseLength.error) return responseLength;
+    const systemInstruction = String(body?.systemInstruction || "").trim();
+    if (systemInstruction.length > 8000) return {error: "System instruction must be 8000 characters or fewer"};
+    const preferredModel = String(body?.preferredModel || "").trim();
+    if (preferredModel.length > 200) return {error: "Preferred model must be 200 characters or fewer"};
+    return {value: {
+        preferredModel: preferredModel || null,
+        temperature,
+        contextLength: contextLength.value,
+        responseLength: responseLength.value,
+        systemInstruction: systemInstruction || null
+    }};
+};
+
 export function createChatsRouter({repositories, chatService, modelService, config, chatRateLimiters}) {
     const router = express.Router();
     router.use(requireLogin);
@@ -139,9 +168,54 @@ export function createChatsRouter({repositories, chatService, modelService, conf
         const chat = repositories.getChat(chatId, req.session.user);
         if (!chat) return res.status(404).json({error: "Chat not found"});
         return res.json({
-            messages: repositories.listChatMessages(chatId).map(chatService.formatChatMessage),
+            messages: chatService.listActiveBranchMessages(chatId),
             chat
         });
+    });
+
+    router.put("/chats/:id/generation-settings", validateBody(generationSettingsValidator), (req, res) => {
+        const chatId = Number(req.params.id);
+        if (!repositories.getChat(chatId, req.session.user)) return res.status(404).json({error: "Chat not found"});
+        repositories.updateChatGenerationSettings(chatId, req.session.user, req.validatedBody);
+        return res.json({chat: repositories.getChat(chatId, req.session.user)});
+    });
+
+    router.post("/chats/:id/branches/:messageId/activate", (req, res) => {
+        const result = chatService.activateBranch({
+            user: req.session.user,
+            chatId: Number(req.params.id),
+            messageId: Number(req.params.messageId),
+            includeDescendants: Boolean(req.body?.includeDescendants)
+        });
+        if (result.error) return res.status(result.status).json({error: result.error});
+        return res.json(result);
+    });
+
+    router.post("/chats/:id/stop", (req, res) => {
+        const result = chatService.stopGeneration({user: req.session.user, chatId: Number(req.params.id)});
+        if (result.error) return res.status(result.status).json({error: result.error});
+        return res.json(result);
+    });
+
+    router.post("/chats/:id/messages/:messageId/edit-resend", validateBody(sendMessageValidator), async (req, res) => {
+        const chatId = Number(req.params.id);
+        const targetMessage = repositories.getChatMessage(chatId, Number(req.params.messageId));
+        if (!repositories.getChat(chatId, req.session.user)) return res.status(404).json({error: "Chat not found"});
+        if (!targetMessage) return res.status(404).json({error: "Message not found"});
+        try {
+            const result = await chatService.editAndResendMessage({
+                user: req.session.user,
+                chatId,
+                targetMessage,
+                content: req.validatedBody.message,
+                model: req.validatedBody.model
+            });
+            if (result.error) return res.status(result.status).json({error: result.error});
+            return res.json(result);
+        } catch (error) {
+            const mapped = modelService.mapError(error);
+            return res.status(mapped.status).json(mapped.body);
+        }
     });
 
     router.put("/chats/:id/messages/:messageId", validateBody(messageValidator), (req, res) => {
@@ -176,6 +250,7 @@ export function createChatsRouter({repositories, chatService, modelService, conf
         }
 
         repositories.touchChat(chatId, req.session.user);
+        repositories.updateChatContextSummary(chatId, req.session.user, null, 0);
         return res.json({message: chatService.formatChatMessage(repositories.getChatMessage(chatId, messageId))});
     });
 
@@ -212,6 +287,7 @@ export function createChatsRouter({repositories, chatService, modelService, conf
         }
 
         repositories.touchChat(chatId, req.session.user);
+        repositories.updateChatContextSummary(chatId, req.session.user, null, 0);
         return res.json({message: chatService.formatChatMessage(repositories.getChatMessage(chatId, target.id))});
     });
 
@@ -219,9 +295,13 @@ export function createChatsRouter({repositories, chatService, modelService, conf
         const chatId = Number(req.params.id);
         const chat = repositories.getChat(chatId, req.session.user);
         if (!chat) return res.status(404).json({error: "Chat not found"});
-        const result = repositories.deleteChatMessage(chatId, Number(req.params.messageId));
+        const target = repositories.getChatMessage(chatId, Number(req.params.messageId));
+        if (!target) return res.status(404).json({error: "Message not found"});
+        if (chat.active_leaf_message_id === target.id) repositories.updateChatActiveLeaf(chatId, req.session.user, target.parent_message_id);
+        const result = repositories.deleteChatMessage(chatId, target.id);
         if (result.changes === 0) return res.status(404).json({error: "Message not found"});
         repositories.touchChat(chatId, req.session.user);
+        repositories.updateChatContextSummary(chatId, req.session.user, null, 0);
         return res.json({message: "Message deleted"});
     });
 
@@ -231,8 +311,10 @@ export function createChatsRouter({repositories, chatService, modelService, conf
         if (!chat) return res.status(404).json({error: "Chat not found"});
         const target = chatService.getChatMessageByIndex(chatId, req.params.index);
         if (!target) return res.status(404).json({error: "Message not found"});
+        if (chat.active_leaf_message_id === target.id) repositories.updateChatActiveLeaf(chatId, req.session.user, target.parent_message_id);
         repositories.deleteChatMessage(chatId, target.id);
         repositories.touchChat(chatId, req.session.user);
+        repositories.updateChatContextSummary(chatId, req.session.user, null, 0);
         return res.json({message: "Message deleted"});
     });
 
@@ -241,6 +323,7 @@ export function createChatsRouter({repositories, chatService, modelService, conf
         const chat = repositories.getChat(chatId, req.session.user);
         if (!chat) return res.status(404).json({error: "Chat not found"});
         repositories.clearChatMessages(chatId);
+        repositories.updateChatActiveLeaf(chatId, req.session.user, null);
         repositories.updateChatContextSummary(chatId, req.session.user, null, 0);
         repositories.touchChat(chatId, req.session.user);
         return res.json({message: "Chat cleared"});
@@ -311,6 +394,11 @@ export function createChatsRouter({repositories, chatService, modelService, conf
     });
 
     router.post("/chat/stream", ...chatRateLimiters, validateBody(sendMessageValidator), async (req, res) => {
+        const generationController = new AbortController();
+        let generationFinished = false;
+        res.once("close", () => {
+            if (!generationFinished) generationController.abort();
+        });
         res.writeHead(200, {
             "Content-Type": "text/event-stream",
             "Cache-Control": "no-cache, no-transform",
@@ -318,6 +406,7 @@ export function createChatsRouter({repositories, chatService, modelService, conf
         });
 
         const sendEvent = (event, data) => {
+            if (res.destroyed) return;
             res.write(`event: ${event}\n`);
             res.write(`data: ${JSON.stringify(data)}\n\n`);
         };
@@ -328,7 +417,8 @@ export function createChatsRouter({repositories, chatService, modelService, conf
                 chatId: req.validatedBody.chatId,
                 message: req.validatedBody.message,
                 model: req.validatedBody.model,
-                onChunk: (chunk, fullReply) => sendEvent("chunk", {chunk, fullReply})
+                onChunk: (chunk, fullReply) => sendEvent("chunk", {chunk, fullReply}),
+                signal: generationController.signal
             });
             if (result.error) {
                 sendEvent("error", {error: result.error});
@@ -339,6 +429,7 @@ export function createChatsRouter({repositories, chatService, modelService, conf
             const mapped = modelService.mapError(error);
             sendEvent("error", mapped.body);
         } finally {
+            generationFinished = true;
             res.end();
         }
     });
@@ -350,10 +441,7 @@ export function createChatsRouter({repositories, chatService, modelService, conf
         if (!chat) return res.status(404).json({error: "Chat not found"});
         const targetMessage = repositories.getChatMessage(chatId, messageId);
         if (!targetMessage) return res.status(404).json({error: "Message not found"});
-        const latestMessage = repositories.getLatestChatMessage(chatId);
-        if (!latestMessage || latestMessage.id !== messageId || latestMessage.role !== "bot") {
-            return res.status(400).json({error: "Only the newest assistant message can be retried"});
-        }
+        if (targetMessage.role !== "bot") return res.status(400).json({error: "Only assistant messages can be regenerated"});
 
         try {
             const result = await chatService.retryMessage({
@@ -377,10 +465,7 @@ export function createChatsRouter({repositories, chatService, modelService, conf
         if (!chat) return res.status(404).json({error: "Chat not found"});
         const targetMessage = chatService.getChatMessageByIndex(chatId, req.params.index);
         if (!targetMessage) return res.status(404).json({error: "Message not found"});
-        const latestMessage = repositories.getLatestChatMessage(chatId);
-        if (!latestMessage || latestMessage.id !== targetMessage.id || latestMessage.role !== "bot") {
-            return res.status(400).json({error: "Only the newest assistant message can be retried"});
-        }
+        if (targetMessage.role !== "bot") return res.status(400).json({error: "Only assistant messages can be regenerated"});
 
         try {
             const result = await chatService.retryMessage({

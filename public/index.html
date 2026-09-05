@@ -169,6 +169,13 @@
                                                     </div>
                                                     <p id="modelHelpSummary" class="model-help-summary">Pick a model to see what it is best suited for.</p>
                                                 </div>
+                                                <div class="generation-settings-grid">
+                                                    <label class="field"><span>Temperature</span><input id="chatTemperature" type="number" min="0" max="2" step="0.1" placeholder="Default"/></label>
+                                                    <label class="field"><span>Context length</span><input id="chatContextLength" type="number" min="256" max="131072" placeholder="Default"/></label>
+                                                    <label class="field"><span>Response length</span><input id="chatResponseLength" type="number" min="1" max="32768" placeholder="Default"/></label>
+                                                    <label class="field field-wide"><span>System instruction</span><textarea id="chatSystemInstruction" rows="4" maxlength="8000" placeholder="Optional instructions for this chat"></textarea></label>
+                                                    <button id="saveGenerationSettings" type="button">Save generation settings</button>
+                                                </div>
                                             </div>
                                         </details>
                                         <details class="chat-drawer-section chat-drawer-disclosure chat-drawer-section--persona">

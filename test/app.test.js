@@ -411,6 +411,62 @@ test("chat creation, send, and retry endpoints work with stubbed model service",
     await server.close();
 });
 
+test("conversation branches, edit-resend, and generation settings work", async () => {
+    const calls = [];
+    const modelService = {
+        async generateReply(model, messages, options) {
+            calls.push({model, messages, options});
+            return `reply-${calls.length}`;
+        },
+        async streamReply() {},
+        async listModels() { return {models: [{name: "preferred:model", model: "preferred:model"}]}; },
+        mapError(error) { return {status: 500, body: {error: error.message}}; }
+    };
+    const server = await startTestServer({modelService});
+    const jar = new CookieJar();
+    await request(server.baseUrl, "/register", {method: "POST", body: {username: "brancher", password: "password123"}});
+    await request(server.baseUrl, "/login", {method: "POST", body: {username: "brancher", password: "password123"}, jar});
+    const created = await request(server.baseUrl, "/chats", {method: "POST", body: {title: "Branches"}, jar});
+    const chatId = created.json.chat.id;
+
+    await request(server.baseUrl, `/chats/${chatId}/generation-settings`, {
+        method: "PUT",
+        body: {preferredModel: "preferred:model", temperature: 0.4, contextLength: 4096, responseLength: 300, systemInstruction: "Be exact."},
+        jar
+    });
+    await request(server.baseUrl, "/chat", {method: "POST", body: {chatId, message: "first", model: "ignored:model"}, jar});
+    assert.equal(calls[0].model, "preferred:model");
+    assert.deepEqual(calls[0].options.generation, {temperature: 0.4, contextLength: 4096, responseLength: 300});
+    assert.match(calls[0].messages[0].content, /Be exact/);
+
+    await request(server.baseUrl, "/chat", {method: "POST", body: {chatId, message: "second", model: "ignored:model"}, jar});
+    const original = await request(server.baseUrl, `/chats/${chatId}/messages`, {jar});
+    const firstAssistant = original.json.messages[1];
+    const originalLeaf = original.json.messages.at(-1);
+
+    const regenerated = await request(server.baseUrl, `/chats/${chatId}/messages/${firstAssistant.id}/retry`, {
+        method: "POST", body: {model: "ignored:model"}, jar
+    });
+    assert.equal(regenerated.status, 200);
+    let active = await request(server.baseUrl, `/chats/${chatId}/messages`, {jar});
+    assert.equal(active.json.messages.length, 2);
+    assert.equal(active.json.messages[1].siblingCount, 2);
+
+    await request(server.baseUrl, `/chats/${chatId}/branches/${originalLeaf.id}/activate`, {method: "POST", body: {}, jar});
+    active = await request(server.baseUrl, `/chats/${chatId}/messages`, {jar});
+    assert.equal(active.json.messages.length, 4);
+
+    const edited = await request(server.baseUrl, `/chats/${chatId}/messages/${active.json.messages[0].id}/edit-resend`, {
+        method: "POST", body: {chatId, message: "edited first", model: "ignored:model"}, jar
+    });
+    assert.equal(edited.status, 200);
+    active = await request(server.baseUrl, `/chats/${chatId}/messages`, {jar});
+    assert.deepEqual(active.json.messages.map((message) => message.content), ["edited first", "reply-4"]);
+    assert.equal(active.json.messages[0].siblingCount, 2);
+
+    await server.close();
+});
+
 test("chat memories are durable facts included in model payload", async () => {
     let capturedMessages = [];
     const modelService = {

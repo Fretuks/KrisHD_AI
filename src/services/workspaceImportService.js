@@ -92,7 +92,14 @@ function validateMessage(message, chatIndex, messageIndex, errors) {
             : 0,
         retryPromptMessageId: Number.isInteger(Number(message.retryPromptMessageId ?? message.retry_prompt_message_id))
             ? Number(message.retryPromptMessageId ?? message.retry_prompt_message_id)
-            : null
+            : null,
+        parentMessageId: Number.isInteger(Number(message.parentMessageId ?? message.parent_message_id))
+            ? Number(message.parentMessageId ?? message.parent_message_id)
+            : null,
+        deliveryStatus: ["pending", "complete", "failed"].includes(message.deliveryStatus ?? message.delivery_status)
+            ? (message.deliveryStatus ?? message.delivery_status)
+            : "complete",
+        errorMessage: optionalText(message.errorMessage || message.error_message)
     };
 }
 
@@ -148,6 +155,14 @@ function validateChat(chat, index, errors) {
         context_summary_message_id: Number.isInteger(Number(chat.context_summary_message_id || chat.contextSummaryMessageId))
             ? Number(chat.context_summary_message_id || chat.contextSummaryMessageId)
             : 0,
+        preferred_model: optionalText(chat.preferred_model || chat.preferredModel),
+        temperature: Number.isFinite(Number(chat.temperature)) ? Number(chat.temperature) : null,
+        context_length: Number.isInteger(Number(chat.context_length ?? chat.contextLength)) ? Number(chat.context_length ?? chat.contextLength) : null,
+        response_length: Number.isInteger(Number(chat.response_length ?? chat.responseLength)) ? Number(chat.response_length ?? chat.responseLength) : null,
+        system_instruction: optionalText(chat.system_instruction || chat.systemInstruction),
+        active_leaf_message_id: Number.isInteger(Number(chat.active_leaf_message_id ?? chat.activeLeafMessageId))
+            ? Number(chat.active_leaf_message_id ?? chat.activeLeafMessageId)
+            : null,
         messages,
         memories,
         persona_state: personaState

@@ -35,18 +35,29 @@ export function createModelService(config, overrides = {}) {
         }, config.modelUnloadAfterMs);
     };
 
-    const withTimeout = async (timeoutMs, callback) => {
+    const withTimeout = async (timeoutMs, callback, externalSignal = null) => {
         const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        let timedOut = false;
+        const abortFromCaller = () => controller.abort(externalSignal?.reason);
+        if (externalSignal?.aborted) abortFromCaller();
+        else externalSignal?.addEventListener("abort", abortFromCaller, {once: true});
+        const timer = setTimeout(() => {
+            timedOut = true;
+            controller.abort();
+        }, timeoutMs);
         try {
             return await callback(controller.signal);
         } catch (error) {
             if (error?.name === "AbortError") {
+                if (!timedOut && externalSignal?.aborted) {
+                    throw new ModelServiceError("MODEL_CANCELLED", "Model request was cancelled.", 499);
+                }
                 throw new ModelServiceError("MODEL_TIMEOUT", "Model backend timed out.", 504);
             }
             throw error;
         } finally {
             clearTimeout(timer);
+            externalSignal?.removeEventListener("abort", abortFromCaller);
         }
     };
 
@@ -88,8 +99,21 @@ export function createModelService(config, overrides = {}) {
         return fullReply.trim();
     };
 
+    const buildRequestBody = (model, messagesPayload, generation = {}) => {
+        const options = {};
+        if (generation.temperature != null) options.temperature = generation.temperature;
+        if (generation.contextLength != null) options.num_ctx = generation.contextLength;
+        if (generation.responseLength != null) options.num_predict = generation.responseLength;
+        return {
+            model,
+            messages: messagesPayload,
+            stream: true,
+            ...(Object.keys(options).length ? {options} : {})
+        };
+    };
+
     return {
-        async generateReply(model, messagesPayload) {
+        async generateReply(model, messagesPayload, options = {}) {
             const state = ensureModelState(model);
             state.activeRequests += 1;
 
@@ -99,7 +123,7 @@ export function createModelService(config, overrides = {}) {
                     const response = await fetchImpl(`${config.modelApiBaseUrl}/chat`, {
                         method: "POST",
                         headers: {"Content-Type": "application/json"},
-                        body: JSON.stringify({model, messages: messagesPayload, stream: true}),
+                        body: JSON.stringify(buildRequestBody(model, messagesPayload, options.generation)),
                         signal
                     });
 
@@ -108,7 +132,7 @@ export function createModelService(config, overrides = {}) {
                     }
 
                     return readStreamingReply(response);
-                });
+                }, options.signal);
                 lastHealth = {ok: true, checkedAt: new Date().toISOString(), error: null, latencyMs: Date.now() - startedAt};
                 return fullReply;
             } catch (error) {
@@ -127,7 +151,7 @@ export function createModelService(config, overrides = {}) {
                 scheduleModelUnload(model);
             }
         },
-        async streamReply(model, messagesPayload, onChunk) {
+        async streamReply(model, messagesPayload, onChunk, options = {}) {
             const state = ensureModelState(model);
             state.activeRequests += 1;
 
@@ -137,7 +161,7 @@ export function createModelService(config, overrides = {}) {
                     const response = await fetchImpl(`${config.modelApiBaseUrl}/chat`, {
                         method: "POST",
                         headers: {"Content-Type": "application/json"},
-                        body: JSON.stringify({model, messages: messagesPayload, stream: true}),
+                        body: JSON.stringify(buildRequestBody(model, messagesPayload, options.generation)),
                         signal
                     });
 
@@ -146,7 +170,7 @@ export function createModelService(config, overrides = {}) {
                     }
 
                     return readStreamingReply(response, onChunk);
-                });
+                }, options.signal);
                 lastHealth = {ok: true, checkedAt: new Date().toISOString(), error: null, latencyMs: Date.now() - startedAt};
                 return fullReply;
             } catch (error) {

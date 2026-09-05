@@ -14,6 +14,11 @@ const modelCount = $("modelCount");
 const modelHelpTitle = $("modelHelpTitle");
 const modelHelpBadge = $("modelHelpBadge");
 const modelHelpSummary = $("modelHelpSummary");
+const chatTemperatureInput = $("chatTemperature");
+const chatContextLengthInput = $("chatContextLength");
+const chatResponseLengthInput = $("chatResponseLength");
+const chatSystemInstructionInput = $("chatSystemInstruction");
+const saveGenerationSettingsBtn = $("saveGenerationSettings");
 const chatDrawerPersonaValue = $("chatDrawerPersonaValue");
 const loginForm = $("loginForm");
 const registerForm = $("registerForm");
@@ -136,6 +141,10 @@ export {
     chatDrawerCloseBtn,
     chatSearchInput,
     chatUserPersonaPill,
+    chatTemperatureInput,
+    chatContextLengthInput,
+    chatResponseLengthInput,
+    chatSystemInstructionInput,
     clearChatBtn,
     clearUserPersonaBtn,
     exportChatBtn,
@@ -220,6 +229,7 @@ export {
     roleplayStarterTitle,
     roleplayUserPersonaSelect,
     sendBtn,
+    saveGenerationSettingsBtn,
     sessionUser,
     themeLogoTargets,
     themeNameTargets,
