@@ -1,4 +1,4 @@
-import {exec} from "child_process";
+import {execFile} from "child_process";
 
 class ModelServiceError extends Error {
     constructor(code, message, status = 500) {
@@ -29,7 +29,7 @@ export function createModelService(config, overrides = {}) {
         if (state.timer) clearTimeout(state.timer);
         state.timer = setTimeout(() => {
             if (state.activeRequests > 0) return;
-            exec(`ollama stop ${model}`, () => {
+            execFile("ollama", ["stop", model], () => {
                 modelState.delete(model);
             });
         }, config.modelUnloadAfterMs);

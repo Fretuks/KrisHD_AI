@@ -709,16 +709,10 @@ export function createRepositories(db, config) {
                 chat.scenario_prompt ?? null,
                 chat.scenario_summary ?? null
             ).lastInsertRowid;
-            if (chat.context_summary) {
-                statements.updateChatContextSummary.run(
-                    chat.context_summary,
-                    Number(chat.context_summary_message_id || 0),
-                    chatId,
-                    username
-                );
-            }
+            const importedMessageIds = new Map();
             for (const message of chat.messages || []) {
-                statements.insertChatMessage.run(
+                const mappedRetryPromptId = importedMessageIds.get(message.retryPromptMessageId) ?? null;
+                const result = statements.insertChatMessage.run(
                     chatId,
                     message.role,
                     message.content,
@@ -726,7 +720,17 @@ export function createRepositories(db, config) {
                     JSON.stringify(message.retryVariants || [message.content || ""]),
                     Number(message.retryActiveIndex || 0),
                     Number(message.retryRetriesUsed || 0),
-                    message.retryPromptMessageId ?? null
+                    mappedRetryPromptId
+                );
+                if (message.sourceId != null) importedMessageIds.set(message.sourceId, Number(result.lastInsertRowid));
+            }
+            if (chat.context_summary) {
+                const mappedSummaryMessageId = importedMessageIds.get(Number(chat.context_summary_message_id || 0)) || 0;
+                statements.updateChatContextSummary.run(
+                    chat.context_summary,
+                    mappedSummaryMessageId,
+                    chatId,
+                    username
                 );
             }
             for (const memory of chat.memories || []) {

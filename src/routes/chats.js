@@ -154,9 +154,13 @@ export function createChatsRouter({repositories, chatService, modelService, conf
 
         if (existingMessage.role === "bot") {
             const retryVariants = [...existingMessage.retryVariants];
-            const activeIndex = Number.isInteger(Number(req.validatedBody.retryActiveIndex))
+            const requestedIndex = Number(req.validatedBody.retryActiveIndex);
+            const activeIndex = Number.isInteger(requestedIndex)
                 ? Number(req.validatedBody.retryActiveIndex)
                 : existingMessage.retryActiveIndex;
+            if (activeIndex < 0 || activeIndex >= retryVariants.length) {
+                return res.status(400).json({error: "retryActiveIndex is out of range"});
+            }
             retryVariants[activeIndex] = req.validatedBody.content;
             chatService.persistChatMessageRetryState({
                 chatId,
@@ -186,9 +190,13 @@ export function createChatsRouter({repositories, chatService, modelService, conf
 
         if (existingMessage.role === "bot") {
             const retryVariants = [...existingMessage.retryVariants];
-            const activeIndex = Number.isInteger(Number(req.validatedBody.retryActiveIndex))
+            const requestedIndex = Number(req.validatedBody.retryActiveIndex);
+            const activeIndex = Number.isInteger(requestedIndex)
                 ? Number(req.validatedBody.retryActiveIndex)
                 : existingMessage.retryActiveIndex;
+            if (activeIndex < 0 || activeIndex >= retryVariants.length) {
+                return res.status(400).json({error: "retryActiveIndex is out of range"});
+            }
             retryVariants[activeIndex] = req.validatedBody.content;
             chatService.persistChatMessageRetryState({
                 chatId,
@@ -338,6 +346,8 @@ export function createChatsRouter({repositories, chatService, modelService, conf
     router.post("/chats/:id/messages/:messageId/retry", ...chatRateLimiters, async (req, res) => {
         const chatId = Number(req.params.id);
         const messageId = Number(req.params.messageId);
+        const chat = repositories.getChat(chatId, req.session.user);
+        if (!chat) return res.status(404).json({error: "Chat not found"});
         const targetMessage = repositories.getChatMessage(chatId, messageId);
         if (!targetMessage) return res.status(404).json({error: "Message not found"});
         const latestMessage = repositories.getLatestChatMessage(chatId);
@@ -363,6 +373,8 @@ export function createChatsRouter({repositories, chatService, modelService, conf
 
     router.post("/chats/:id/messages/by-index/:index/retry", ...chatRateLimiters, async (req, res) => {
         const chatId = Number(req.params.id);
+        const chat = repositories.getChat(chatId, req.session.user);
+        if (!chat) return res.status(404).json({error: "Chat not found"});
         const targetMessage = chatService.getChatMessageByIndex(chatId, req.params.index);
         if (!targetMessage) return res.status(404).json({error: "Message not found"});
         const latestMessage = repositories.getLatestChatMessage(chatId);

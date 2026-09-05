@@ -271,8 +271,6 @@ export function createChatService(repositories, modelService, config) {
 
             const payload = this.buildMessagesPayload({user, chatId, message});
 
-            insertChatMessage(chatId, "user", message);
-            repositories.touchChat(chatId, user);
             const activePersona = payload.activePersona;
             const activeUserPersona = payload.activeUserPersona;
             const messagesPayload = payload.messagesPayload;
@@ -283,6 +281,7 @@ export function createChatService(repositories, modelService, config) {
 
             if (!fullReply) return {error: "Failed to generate a valid character reply", status: 500};
 
+            insertChatMessage(chatId, "user", message);
             insertChatMessage(chatId, "bot", fullReply, {
                 retryVariants: [fullReply],
                 retryActiveIndex: 0,
@@ -299,20 +298,19 @@ export function createChatService(repositories, modelService, config) {
 
             const payload = this.buildMessagesPayload({user, chatId, message});
 
-            insertChatMessage(chatId, "user", message);
-            repositories.touchChat(chatId, user);
             const activePersona = payload.activePersona;
             const activeUserPersona = payload.activeUserPersona;
             const messagesPayload = payload.messagesPayload;
 
+            // Persona replies must be validated before any text is exposed to the client.
+            // Normal chats can retain true incremental streaming.
             const fullReply = activePersona
-                ? await modelService.streamReply(model, messagesPayload, onChunk)
+                ? await generateValidatedRoleplayReply({selectedModel: model, messagesPayload, userPersona: activeUserPersona})
                 : await modelService.streamReply(model, messagesPayload, onChunk);
 
             if (!fullReply) return {error: "Failed to generate a valid character reply", status: 500};
-            if (activePersona && containsUserVoiceInRoleplayOpener(fullReply, activeUserPersona)) {
-                return {error: "Failed to generate a valid character reply", status: 500};
-            }
+            if (activePersona && onChunk) onChunk(fullReply, fullReply);
+            insertChatMessage(chatId, "user", message);
             insertChatMessage(chatId, "bot", fullReply, {
                 retryVariants: [fullReply],
                 retryActiveIndex: 0,
@@ -327,10 +325,14 @@ export function createChatService(repositories, modelService, config) {
             const session = repositories.getChat(chatId, user);
             if (!session) return {error: "Chat not found", status: 404};
 
+            const existingMessage = formatChatMessage(targetMessage);
+            if (existingMessage.retryRetriesUsed >= 5) {
+                return {error: "Maximum of 5 retries reached", status: 400};
+            }
+
             const retryResult = await buildRetryPayload({chatId, user, session, selectedModel, targetMessage, retryStyle});
             if (retryResult.error) return {error: retryResult.error, status: 400};
 
-            const existingMessage = formatChatMessage(targetMessage);
             const retryVariants = [...existingMessage.retryVariants, retryResult.fullReply];
             persistChatMessageRetryState({
                 chatId,

@@ -79,13 +79,20 @@ function validateMessage(message, chatIndex, messageIndex, errors) {
             ? message.retry_variants.map((item) => String(item ?? "")).filter(Boolean)
             : [content].filter(Boolean);
     return {
+        sourceId: Number.isInteger(Number(message.id)) ? Number(message.id) : null,
         role: role === "assistant" ? "bot" : role,
         content,
         model_name: optionalText(message.model_name || message.modelName),
         retryVariants,
-        retryActiveIndex: Number.isInteger(Number(message.retryActiveIndex)) ? Number(message.retryActiveIndex) : 0,
-        retryRetriesUsed: Number.isInteger(Number(message.retryRetriesUsed)) ? Number(message.retryRetriesUsed) : 0,
-        retryPromptMessageId: Number.isInteger(Number(message.retryPromptMessageId)) ? Number(message.retryPromptMessageId) : null
+        retryActiveIndex: Number.isInteger(Number(message.retryActiveIndex ?? message.retry_active_index))
+            ? Number(message.retryActiveIndex ?? message.retry_active_index)
+            : 0,
+        retryRetriesUsed: Number.isInteger(Number(message.retryRetriesUsed ?? message.retry_retries_used))
+            ? Number(message.retryRetriesUsed ?? message.retry_retries_used)
+            : 0,
+        retryPromptMessageId: Number.isInteger(Number(message.retryPromptMessageId ?? message.retry_prompt_message_id))
+            ? Number(message.retryPromptMessageId ?? message.retry_prompt_message_id)
+            : null
     };
 }
 
