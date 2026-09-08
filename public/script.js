@@ -460,6 +460,19 @@ function ensureRetryState(message) {
     return state;
 }
 
+async function openCreatedChat(chat) {
+    if (!chat?.id) throw new Error("The server did not return the newly created chat");
+    if (chatSearchInput) chatSearchInput.value = "";
+    const chatsResponse = await get("/chats");
+    if (chatsResponse.error) throw new Error(chatsResponse.error);
+    chatSessions = chatsResponse.chats || [];
+    if (!chatSessions.some((item) => item.id === chat.id)) {
+        throw new Error("The newly created chat was not persisted");
+    }
+    renderChatList();
+    await setActiveChat(chat.id);
+}
+
 async function editChatMessage(messageId, fallbackIndex = -1) {
     const target = await resolveMessageTarget(messageId, fallbackIndex);
     if (!target) return setNotice("Message is not ready yet. Try again.", "error");
@@ -496,9 +509,7 @@ async function editChatMessage(messageId, fallbackIndex = -1) {
                 confirmed: true
             });
             if (res.error) return setNotice(res.error, "error");
-            chatSessions = [res.chat, ...chatSessions.filter((chat) => chat.id !== res.chat.id)];
-            renderChatList();
-            await setActiveChat(res.chat.id);
+            await openCreatedChat(res.chat);
             return setNotice("Created and opened the edited chat branch.", "success");
         } finally {
             setLoadingState(false);
@@ -612,9 +623,7 @@ async function branchFromMessage(messageId) {
     const sourceChatId = activeChatId;
     const res = await post(`/chats/${sourceChatId}/messages/${messageId}/branch`, {confirmed: true});
     if (res.error) return setNotice(res.error, "error");
-    chatSessions = [res.chat, ...chatSessions.filter((chat) => chat.id !== res.chat.id)];
-    renderChatList();
-    await setActiveChat(res.chat.id);
+    await openCreatedChat(res.chat);
     msgInput.focus();
     setNotice("Created and opened a new chat branch.", "success");
 }
@@ -1056,9 +1065,10 @@ function renderChatList() {
             content.className = "chat-item-copy";
             title.textContent = chat.title;
             meta.className = "chat-item-meta";
-            meta.textContent = chat.assistant_persona_id
+            const chatType = chat.assistant_persona_id
                 ? `Roleplay${chat.user_persona_name ? ` · ${chat.user_persona_name}` : ""}`
                 : "Assistant chat";
+            meta.textContent = chat.source_chat_id ? `Branch · ${chatType}` : chatType;
             remove.type = "button";
             remove.className = "chat-item-delete";
             remove.textContent = "Delete";

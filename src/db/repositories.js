@@ -51,7 +51,7 @@ export function createRepositories(db, config) {
         listChatSessions: db.prepare(`
             SELECT cs.id,
                    CASE
-                       WHEN cs.assistant_persona_id IS NOT NULL THEN COALESCE(p.name, cs.title)
+                       WHEN cs.assistant_persona_id IS NOT NULL AND cs.source_chat_id IS NULL THEN COALESCE(p.name, cs.title)
                        ELSE cs.title
                        END AS title,
                    cs.title AS stored_title,
@@ -67,6 +67,8 @@ export function createRepositories(db, config) {
                    cs.context_summary,
                    cs.context_summary_message_id,
                    cs.active_leaf_message_id,
+                   cs.source_chat_id,
+                   cs.branched_from_message_id,
                    cs.preferred_model,
                    cs.temperature,
                    cs.context_length,
@@ -84,7 +86,7 @@ export function createRepositories(db, config) {
         getChatSession: db.prepare(`
             SELECT cs.id,
                    CASE
-                       WHEN cs.assistant_persona_id IS NOT NULL THEN COALESCE(p.name, cs.title)
+                       WHEN cs.assistant_persona_id IS NOT NULL AND cs.source_chat_id IS NULL THEN COALESCE(p.name, cs.title)
                        ELSE cs.title
                        END AS title,
                    cs.title AS stored_title,
@@ -100,6 +102,8 @@ export function createRepositories(db, config) {
                    cs.context_summary,
                    cs.context_summary_message_id,
                    cs.active_leaf_message_id,
+                   cs.source_chat_id,
+                   cs.branched_from_message_id,
                    cs.preferred_model,
                    cs.temperature,
                    cs.context_length,
@@ -116,7 +120,7 @@ export function createRepositories(db, config) {
         getChatSessionByParticipants: db.prepare(`
             SELECT cs.id,
                    CASE
-                       WHEN cs.assistant_persona_id IS NOT NULL THEN COALESCE(p.name, cs.title)
+                       WHEN cs.assistant_persona_id IS NOT NULL AND cs.source_chat_id IS NULL THEN COALESCE(p.name, cs.title)
                        ELSE cs.title
                        END AS title,
                    cs.title AS stored_title,
@@ -132,6 +136,8 @@ export function createRepositories(db, config) {
                    cs.context_summary,
                    cs.context_summary_message_id,
                    cs.active_leaf_message_id,
+                   cs.source_chat_id,
+                   cs.branched_from_message_id,
                    cs.preferred_model,
                    cs.temperature,
                    cs.context_length,
@@ -145,6 +151,7 @@ export function createRepositories(db, config) {
             WHERE cs.username = ?
               AND cs.assistant_persona_id = ?
               AND ((cs.user_persona_id IS NULL AND ? IS NULL) OR cs.user_persona_id = ?)
+              AND cs.source_chat_id IS NULL
             ORDER BY cs.is_pinned DESC, datetime(cs.updated_at) DESC
             LIMIT 1
         `),
@@ -157,6 +164,7 @@ export function createRepositories(db, config) {
             WHERE id = ? AND username = ?
         `),
         updateChatActiveLeaf: db.prepare("UPDATE chat_sessions SET active_leaf_message_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND username = ?"),
+        updateChatBranchSource: db.prepare("UPDATE chat_sessions SET source_chat_id = ?, branched_from_message_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND username = ?"),
         setChatActiveLeafById: db.prepare("UPDATE chat_sessions SET active_leaf_message_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"),
         updateChatSessionOrganization: db.prepare(`
             UPDATE chat_sessions
@@ -367,7 +375,7 @@ export function createRepositories(db, config) {
         searchChats: db.prepare(`
             SELECT DISTINCT cs.id,
                             CASE
-                                WHEN cs.assistant_persona_id IS NOT NULL THEN COALESCE(p.name, cs.title)
+                                WHEN cs.assistant_persona_id IS NOT NULL AND cs.source_chat_id IS NULL THEN COALESCE(p.name, cs.title)
                                 ELSE cs.title
                                 END AS title,
                             cs.title AS stored_title,
@@ -383,6 +391,8 @@ export function createRepositories(db, config) {
                             cs.context_summary,
                             cs.context_summary_message_id,
                             cs.active_leaf_message_id,
+                            cs.source_chat_id,
+                            cs.branched_from_message_id,
                             cs.preferred_model,
                             cs.temperature,
                             cs.context_length,
@@ -398,7 +408,7 @@ export function createRepositories(db, config) {
             WHERE cs.username = ?
               AND (
                 LOWER(CASE
-                          WHEN cs.assistant_persona_id IS NOT NULL THEN COALESCE(p.name, cs.title)
+                          WHEN cs.assistant_persona_id IS NOT NULL AND cs.source_chat_id IS NULL THEN COALESCE(p.name, cs.title)
                           ELSE cs.title
                     END) LIKE ?
                     OR LOWER(COALESCE(cm.content, '')) LIKE ?
@@ -1006,6 +1016,8 @@ export function createRepositories(db, config) {
         failChatTurn: (chatId, userMessageId, errorMessage, parentMessageId = null) =>
             failChatTurnTransaction(chatId, userMessageId, errorMessage, parentMessageId),
         updateChatActiveLeaf: (chatId, username, messageId) => statements.updateChatActiveLeaf.run(messageId, chatId, username),
+        updateChatBranchSource: (chatId, username, sourceChatId, messageId) =>
+            statements.updateChatBranchSource.run(sourceChatId, messageId ?? null, chatId, username),
         updateChatGenerationSettings: (chatId, username, settings) => statements.updateChatGenerationSettings.run(
             settings.preferredModel ?? null,
             settings.temperature ?? null,

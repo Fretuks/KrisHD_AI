@@ -27,6 +27,8 @@ export function initializeSchema(db) {
             context_summary TEXT,
             context_summary_message_id INTEGER DEFAULT 0,
             active_leaf_message_id INTEGER,
+            source_chat_id INTEGER,
+            branched_from_message_id INTEGER,
             preferred_model TEXT,
             temperature REAL,
             context_length INTEGER,
@@ -35,7 +37,9 @@ export function initializeSchema(db) {
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (assistant_persona_id) REFERENCES personas (id) ON DELETE SET NULL,
-            FOREIGN KEY (user_persona_id) REFERENCES personas (id) ON DELETE SET NULL
+            FOREIGN KEY (user_persona_id) REFERENCES personas (id) ON DELETE SET NULL,
+            FOREIGN KEY (source_chat_id) REFERENCES chat_sessions (id) ON DELETE SET NULL,
+            FOREIGN KEY (branched_from_message_id) REFERENCES chat_messages (id) ON DELETE SET NULL
         )
     `).run();
 
@@ -293,6 +297,8 @@ export function runMigrations(db, {dropLegacyChats = true} = {}) {
     ensureColumn("chat_sessions", chatSessionColumns, "context_summary", "ALTER TABLE chat_sessions ADD COLUMN context_summary TEXT");
     ensureColumn("chat_sessions", chatSessionColumns, "context_summary_message_id", "ALTER TABLE chat_sessions ADD COLUMN context_summary_message_id INTEGER DEFAULT 0");
     ensureColumn("chat_sessions", chatSessionColumns, "active_leaf_message_id", "ALTER TABLE chat_sessions ADD COLUMN active_leaf_message_id INTEGER");
+    ensureColumn("chat_sessions", chatSessionColumns, "source_chat_id", "ALTER TABLE chat_sessions ADD COLUMN source_chat_id INTEGER");
+    ensureColumn("chat_sessions", chatSessionColumns, "branched_from_message_id", "ALTER TABLE chat_sessions ADD COLUMN branched_from_message_id INTEGER");
     ensureColumn("chat_sessions", chatSessionColumns, "preferred_model", "ALTER TABLE chat_sessions ADD COLUMN preferred_model TEXT");
     ensureColumn("chat_sessions", chatSessionColumns, "temperature", "ALTER TABLE chat_sessions ADD COLUMN temperature REAL");
     ensureColumn("chat_sessions", chatSessionColumns, "context_length", "ALTER TABLE chat_sessions ADD COLUMN context_length INTEGER");

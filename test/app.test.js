@@ -466,6 +466,9 @@ test("conversation branches, edit-resend, and generation settings work", async (
     });
     assert.equal(branched.status, 200);
     assert.notEqual(branched.json.chat.id, chatId);
+    assert.equal(branched.json.chat.source_chat_id, chatId);
+    assert.equal(branched.json.chat.branched_from_message_id, firstAssistant.id);
+    assert.match(branched.json.chat.title, /\(branch\)$/);
     assert.deepEqual(branched.json.messages.map((message) => message.content), ["first", "reply-1"]);
     assert.equal(branched.json.chat.preferred_model, "preferred:model");
     assert.equal(branched.json.chat.temperature, 0.4);

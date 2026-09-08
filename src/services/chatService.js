@@ -396,6 +396,7 @@ export function createChatService(repositories, modelService, config) {
         );
 
         try {
+            repositories.updateChatBranchSource(clonedChat.id, user, sourceChat.id, messageId);
             repositories.updateChatGenerationSettings(clonedChat.id, user, {
                 preferredModel: sourceChat.preferred_model ?? null,
                 temperature: sourceChat.temperature ?? null,
