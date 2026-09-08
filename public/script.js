@@ -1,5 +1,5 @@
 import {del, get, post, put, stream} from "./app/api.js";
-import {closeChatDrawer} from "./app/chatDrawer.js";
+import {closeChatDrawer, openChatDrawer} from "./app/chatDrawer.js";
 import {defaultModelProfile, onboardingPrompts, requestedChatId} from "./app/constants.js";
 import {applyTheme as applySharedTheme, applyThemeMode as applySharedThemeMode, readStoredAppearance} from "./app/themeController.js";
 import {
@@ -35,6 +35,7 @@ import {
     manageChatMemoryBtn,
     managePersonaStateBtn,
     importWorkspaceFileInput,
+    headerModelButton,
     headerModelName,
     headerPersonaName,
     moveChatFolderBtn,
@@ -182,7 +183,7 @@ function applyWorkspaceMode(nextMode, persist = true) {
     workspaceMode = nextMode === "advanced" ? "advanced" : "basic";
     document.body.dataset.workspaceMode = workspaceMode;
     if (persist) localStorage.setItem("krishd-workspace-mode", workspaceMode);
-    if (modelSection) modelSection.classList.toggle("hidden", workspaceMode === "basic");
+    if (modelSection) modelSection.classList.remove("hidden");
     if (personaSection) personaSection.classList.toggle("hidden", workspaceMode === "basic");
     updateComposerPlaceholder();
 }
@@ -1013,6 +1014,15 @@ function updateChatActionState() {
     exportChatBtn.disabled = !hasChat || currentMessages.length === 0;
     if (backupWorkspaceBtn) backupWorkspaceBtn.disabled = !currentUsername;
     if (importWorkspaceBtn) importWorkspaceBtn.disabled = !currentUsername;
+    if (headerModelButton) headerModelButton.disabled = !hasChat;
+}
+
+function openModelSettings() {
+    if (!activeChatId || !modelSection) return;
+    modelSection.classList.remove("hidden");
+    modelSection.open = true;
+    openChatDrawer();
+    requestAnimationFrame(() => modelSelect?.focus());
 }
 
 function renderPersonaSection() {
@@ -1993,6 +2003,10 @@ chatSearchInput.addEventListener("input", () => { void loadChatSessions(); });
 modelSelect.addEventListener("change", () => {
     renderModelSection();
     void saveSelectedModel();
+});
+if (headerModelButton) headerModelButton.addEventListener("click", (event) => {
+    event.stopPropagation();
+    openModelSettings();
 });
 saveGenerationSettingsBtn.addEventListener("click", () => { void saveGenerationSettings(); });
 roleplayNewPersonaBtn.addEventListener("click", () => openPersonaForm(null, "assistant"));

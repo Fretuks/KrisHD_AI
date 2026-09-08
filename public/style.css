@@ -369,6 +369,8 @@ input:focus, textarea:focus, select:focus { border-color: var(--brand); }
 }
 .chat-context-item > span { color: var(--text-muted); font-size: .58rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
 .chat-context-item > strong { max-width: 140px; overflow: hidden; color: var(--text-soft); font-size: .72rem; text-overflow: ellipsis; white-space: nowrap; }
+.chat-context-button { min-height: 0; border: 0; color: inherit; text-align: left; justify-content: start; }
+.chat-context-button:hover:not(:disabled) { background: var(--surface-hover); }
 .chat-header-actions { display: flex; align-items: center; }
 .overflow-trigger { min-height: 38px; padding: 8px 12px; border-radius: 999px; font-size: .8rem; }
 
