@@ -91,6 +91,13 @@ const generationSettingsValidator = (body) => {
     }};
 };
 
+const preferredModelValidator = (body) => {
+    const model = String(body?.model || "").trim();
+    if (!model) return {error: "Model is required"};
+    if (model.length > 200) return {error: "Model must be 200 characters or fewer"};
+    return {value: {model}};
+};
+
 export function createChatsRouter({repositories, chatService, modelService, config, chatRateLimiters}) {
     const router = express.Router();
     router.use(requireLogin);
@@ -177,6 +184,13 @@ export function createChatsRouter({repositories, chatService, modelService, conf
         const chatId = Number(req.params.id);
         if (!repositories.getChat(chatId, req.session.user)) return res.status(404).json({error: "Chat not found"});
         repositories.updateChatGenerationSettings(chatId, req.session.user, req.validatedBody);
+        return res.json({chat: repositories.getChat(chatId, req.session.user)});
+    });
+
+    router.put("/chats/:id/model", validateBody(preferredModelValidator), (req, res) => {
+        const chatId = Number(req.params.id);
+        if (!repositories.getChat(chatId, req.session.user)) return res.status(404).json({error: "Chat not found"});
+        repositories.updateChatPreferredModel(chatId, req.session.user, req.validatedBody.model);
         return res.json({chat: repositories.getChat(chatId, req.session.user)});
     });
 

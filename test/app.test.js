@@ -434,10 +434,16 @@ test("conversation branches, edit-resend, and generation settings work", async (
         body: {preferredModel: "preferred:model", temperature: 0.4, contextLength: 4096, responseLength: 300, systemInstruction: "Be exact."},
         jar
     });
-    await request(server.baseUrl, "/chat", {method: "POST", body: {chatId, message: "first", model: "ignored:model"}, jar});
-    assert.equal(calls[0].model, "preferred:model");
+    await request(server.baseUrl, "/chat", {method: "POST", body: {chatId, message: "first", model: "selected:model"}, jar});
+    assert.equal(calls[0].model, "selected:model");
     assert.deepEqual(calls[0].options.generation, {temperature: 0.4, contextLength: 4096, responseLength: 300});
     assert.match(calls[0].messages[0].content, /Be exact/);
+
+    const switchedModel = await request(server.baseUrl, `/chats/${chatId}/model`, {
+        method: "PUT", body: {model: "selected:model"}, jar
+    });
+    assert.equal(switchedModel.status, 200);
+    assert.equal(switchedModel.json.chat.preferred_model, "selected:model");
 
     await request(server.baseUrl, "/chat", {method: "POST", body: {chatId, message: "second", model: "ignored:model"}, jar});
     const original = await request(server.baseUrl, `/chats/${chatId}/messages`, {jar});
@@ -470,7 +476,7 @@ test("conversation branches, edit-resend, and generation settings work", async (
     assert.equal(branched.json.chat.branched_from_message_id, firstAssistant.id);
     assert.match(branched.json.chat.title, /\(branch\)$/);
     assert.deepEqual(branched.json.messages.map((message) => message.content), ["first", "reply-1"]);
-    assert.equal(branched.json.chat.preferred_model, "preferred:model");
+    assert.equal(branched.json.chat.preferred_model, "selected:model");
     assert.equal(branched.json.chat.temperature, 0.4);
 
     const edited = await request(server.baseUrl, `/chats/${chatId}/messages/${active.json.messages[0].id}/edit-resend`, {

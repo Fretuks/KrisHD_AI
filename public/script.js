@@ -368,6 +368,20 @@ async function saveGenerationSettings() {
     setNotice("Generation settings saved.", "success");
 }
 
+async function saveSelectedModel() {
+    if (!activeChatId || !modelSelect.value) return;
+    const chatId = activeChatId;
+    const selectedModel = modelSelect.value;
+    const res = await put(`/chats/${chatId}/model`, {model: selectedModel});
+    if (res.error || !res.chat) return setNotice(res.error || "Unable to switch models.", "error");
+    const chat = getChatById(chatId);
+    if (chat) Object.assign(chat, res.chat);
+    if (chatId === activeChatId && modelSelect.value === selectedModel) {
+        renderModelSection();
+        setNotice(`Model switched to ${modelSelect.selectedOptions[0]?.textContent || selectedModel}.`, "success");
+    }
+}
+
 function resizeComposerInput() {
     msgInput.style.height = "auto";
     const nextHeight = Math.min(Math.max(msgInput.scrollHeight, 46), 96);
@@ -1978,6 +1992,7 @@ if (importWorkspaceFileInput) importWorkspaceFileInput.addEventListener("change"
 chatSearchInput.addEventListener("input", () => { void loadChatSessions(); });
 modelSelect.addEventListener("change", () => {
     renderModelSection();
+    void saveSelectedModel();
 });
 saveGenerationSettingsBtn.addEventListener("click", () => { void saveGenerationSettings(); });
 roleplayNewPersonaBtn.addEventListener("click", () => openPersonaForm(null, "assistant"));

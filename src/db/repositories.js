@@ -163,6 +163,7 @@ export function createRepositories(db, config) {
             SET preferred_model = ?, temperature = ?, context_length = ?, response_length = ?, system_instruction = ?, updated_at = CURRENT_TIMESTAMP
             WHERE id = ? AND username = ?
         `),
+        updateChatPreferredModel: db.prepare("UPDATE chat_sessions SET preferred_model = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND username = ?"),
         updateChatActiveLeaf: db.prepare("UPDATE chat_sessions SET active_leaf_message_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND username = ?"),
         updateChatBranchSource: db.prepare("UPDATE chat_sessions SET source_chat_id = ?, branched_from_message_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND username = ?"),
         setChatActiveLeafById: db.prepare("UPDATE chat_sessions SET active_leaf_message_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"),
@@ -1027,6 +1028,7 @@ export function createRepositories(db, config) {
             chatId,
             username
         ),
+        updateChatPreferredModel: (chatId, username, model) => statements.updateChatPreferredModel.run(model || null, chatId, username),
         updateChatMessage: (chatId, messageId, content) => statements.updateChatMessage.run(content, messageId, chatId),
         updateChatMessageRetryState: (chatId, messageId, payload) => statements.updateChatMessageWithRetryState.run(
             payload.content,

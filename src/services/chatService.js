@@ -65,7 +65,7 @@ export function createChatService(repositories, modelService, config) {
     };
 
     const getGenerationSettings = (session, requestedModel) => ({
-        model: session.preferred_model || requestedModel || "mistral:latest",
+        model: requestedModel || session.preferred_model || "mistral:latest",
         generation: {
             temperature: session.temperature ?? undefined,
             contextLength: session.context_length ?? undefined,
