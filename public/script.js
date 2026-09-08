@@ -696,6 +696,8 @@ function addMessage(contentOrMessage, isUser = false, isLoading = false, options
             const retryBtn = document.createElement("button");
             retryBtn.type = "button";
             retryBtn.className = "msg-action-btn";
+            retryBtn.dataset.messageAction = "regenerate";
+            retryBtn.dataset.retryLimitReached = String(retriesUsed >= 5);
             retryBtn.textContent = `Regenerate (${retriesUsed}/5)`;
             retryBtn.setAttribute("aria-label", `Regenerate assistant message, ${retriesUsed} of 5 retries used`);
             retryBtn.disabled = retriesUsed >= 5 || isProcessing;
@@ -1372,6 +1374,9 @@ function setLoadingState(loading, overlayOptions = null) {
     isProcessing = loading;
     msgInput.disabled = loading;
     sendBtn.classList.toggle("loading", loading);
+    messagesDiv.querySelectorAll('[data-message-action="regenerate"]').forEach((button) => {
+        button.disabled = loading || button.dataset.retryLimitReached === "true";
+    });
     if (loading) {
         msgInput.placeholder = "Processing response...";
         if (overlayOptions === false) {
