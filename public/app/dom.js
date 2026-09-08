@@ -8,7 +8,6 @@ const messagesDiv = $("messages");
 const modelSelect = $("model");
 const modelPanel = $("modelPanel");
 const modelBadgeName = $("modelBadgeName");
-const headerModelButton = $("headerModelButton");
 const headerModelName = $("headerModelName");
 const headerPersonaName = $("headerPersonaName");
 const modelCount = $("modelCount");
@@ -164,7 +163,6 @@ export {
     logoutButton,
     messagesDiv,
     modelBadgeName,
-    headerModelButton,
     headerModelName,
     headerPersonaName,
     modelCount,

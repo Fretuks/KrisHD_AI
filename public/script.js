@@ -35,7 +35,6 @@ import {
     manageChatMemoryBtn,
     managePersonaStateBtn,
     importWorkspaceFileInput,
-    headerModelButton,
     headerModelName,
     headerPersonaName,
     moveChatFolderBtn,
@@ -116,6 +115,8 @@ import {
     toggleButtons,
     userPersonaList
 } from "./app/dom.js";
+
+const headerModelButton = document.getElementById("headerModelButton");
 
 let isProcessing = false, activeChatId = null, editingPersonaId = null, editingPersonaType = "assistant", currentUsername = "";
 let chatSessions = [], currentMessages = [], assistantPersonas = [], userPersonas = [];
