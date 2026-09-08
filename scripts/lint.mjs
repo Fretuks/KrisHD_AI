@@ -24,7 +24,8 @@ const files = [
     "public/app/api.js",
     "public/app/chatDrawer.js",
     "public/app/constants.js",
-    "public/app/dom.js"
+    "public/app/dom.js",
+    "public/app/modelProfiles.js"
 ];
 
 for (const file of files) {

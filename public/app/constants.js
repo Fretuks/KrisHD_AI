@@ -14,8 +14,3 @@ export const themes = {
     "beta-ai": {name: "Beta AI", short: "BA"},
     "confusity": {name: "Confusity", short: "CF"}
 };
-
-export const defaultModelProfile = {
-    badge: "General",
-    summary: "General-purpose chat model. Start here if you are unsure which model to use."
-};

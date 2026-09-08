@@ -1,6 +1,7 @@
 import {del, get, post, put, stream} from "./app/api.js";
 import {closeChatDrawer, openChatDrawer} from "./app/chatDrawer.js";
-import {defaultModelProfile, onboardingPrompts, requestedChatId} from "./app/constants.js";
+import {onboardingPrompts, requestedChatId} from "./app/constants.js";
+import {getModelProfile} from "./app/modelProfiles.js";
 import {applyTheme as applySharedTheme, applyThemeMode as applySharedThemeMode, readStoredAppearance} from "./app/themeController.js";
 import {
     activeChatTitle,
@@ -129,6 +130,7 @@ let onboardingStep = 1, onboardingIntent = "ask";
 let chatLoadingDepth = 0;
 let chatActivityDepth = 0;
 let messageRetryState = new Map();
+let availableModelsById = new Map();
 
 
 function setAuthMessage(message, state = "") { authMsg.textContent = message; authMsg.className = state ? `status ${state}` : "status"; }
@@ -918,41 +920,6 @@ function renderModelSection() {
     return modelSelect?.selectedOptions[0]?.textContent || "";
 }
 
-function getModelProfile(modelId, modelName) {
-    const haystack = `${modelId || ""} ${modelName || ""}`.toLowerCase();
-    if (haystack.includes("codellama") || haystack.includes("code")) {
-        return {
-            badge: "Coding",
-            summary: "Best for code generation, debugging, and technical explanations. Usually stronger on programming tasks than on creative chat."
-        };
-    }
-    if (haystack.includes("gemma")) {
-        return {
-            badge: "Fast",
-            summary: "A lighter general chat model. Good for quick answers and lower-latency replies, with less depth than larger models."
-        };
-    }
-    if (haystack.includes("dolphin")) {
-        return {
-            badge: "Chatty",
-            summary: "Instruction-following conversational model. Good for open-ended chat, brainstorming, and longer natural responses."
-        };
-    }
-    if (haystack.includes("mistral")) {
-        return {
-            badge: "Balanced",
-            summary: "Strong default for everyday use. Usually a good balance between speed, clarity, and response quality."
-        };
-    }
-    if (haystack.includes("catgirl") || haystack.includes("femboy") || haystack.includes("buenzli")) {
-        return {
-            badge: "Persona",
-            summary: "Specialized character-style model. Best for roleplay or stylized voice, and less reliable for factual or neutral answers."
-        };
-    }
-    return defaultModelProfile;
-}
-
 function updateModelHelp() {
     if (!modelSelect || !modelHelpTitle || !modelHelpBadge || !modelHelpSummary) return;
     const selectedOption = modelSelect.selectedOptions[0];
@@ -972,7 +939,7 @@ function updateModelHelp() {
     }
     const modelId = selectedOption.value;
     const modelName = selectedOption.textContent || modelId;
-    const profile = getModelProfile(modelId, modelName);
+    const profile = getModelProfile(availableModelsById.get(modelId) || {model: modelId, name: modelName});
     if (modelBadgeName) modelBadgeName.textContent = modelName;
     if (headerModelName) headerModelName.textContent = modelName;
     modelHelpTitle.textContent = modelName;
@@ -1810,22 +1777,26 @@ async function displayModels() {
     const res = await get("/models");
     const models = Array.isArray(res.models) ? res.models : null;
     if (res.error || !models) {
+        availableModelsById = new Map();
         modelSelect.innerHTML = "<option>Error loading models</option>";
         renderModelSection();
         return setNotice("Models could not be loaded.", "error");
     }
     modelSelect.innerHTML = "";
+    availableModelsById = new Map(models.map((model) => [String(model.model || model.name || ""), model]));
     const preferredModelId = "mistral:latest";
-    const preferredIndex = models.findIndex((model) => model.model === preferredModelId);
+    const preferredIndex = models.findIndex((model) => (model.model || model.name) === preferredModelId);
     models.forEach((model, index) => {
+        const modelId = String(model.model || model.name || "");
         const option = document.createElement("option");
-        option.value = model.model;
-        option.textContent = model.name;
+        option.value = modelId;
+        option.textContent = model.name || modelId;
+        option.title = getModelProfile(model).summary;
         option.selected = preferredIndex >= 0 ? index === preferredIndex : index === 0;
         modelSelect.appendChild(option);
     });
     const activeChat = getChatById(activeChatId);
-    if (activeChat?.preferred_model && models.some((model) => model.model === activeChat.preferred_model)) {
+    if (activeChat?.preferred_model && models.some((model) => (model.model || model.name) === activeChat.preferred_model)) {
         modelSelect.value = activeChat.preferred_model;
     }
     renderModelSection();
