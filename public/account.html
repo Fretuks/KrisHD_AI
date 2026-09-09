@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in &middot; Elsewhere</title>
+<link rel="icon" href="/favicon.svg">
+<script src="/app/theme-bootstrap.js">
+</script>
+<link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/pages.css">
+<link rel="stylesheet" href="/shell.css">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body class="site-page account-page">
+<!-- site-header -->
+<main id="main" class="account-layout page-content">
+<section class="account-intro">
+<p class="eyebrow">Welcome to elsewhere</p>
+<h1 id="accountHeadline">Pick up where<br>curiosity left off.</h1>
+<p>A space for your ideas, your characters, and the conversations worth coming back to.</p>
+<a href="/">&larr; Back to Elsewhere</a>
+</section>
+<section class="account-box">
+<h2 id="accountTitle">Sign in</h2>
+<p id="accountDescription" class="muted">Welcome back. Your conversations are waiting.</p>
+<form id="accountForm">
+<label class="field">
+<span>Username</span>
+<input name="username" autocomplete="username" required minlength="3">
+</label>
+<label class="field">
+<span>Password</span>
+<input name="password" type="password" autocomplete="current-password" required minlength="6">
+</label>
+<button type="button" id="showPassword" class="text-button" aria-pressed="false">Show password</button>
+<label id="inviteField" class="field hidden">
+<span>Invite code</span>
+<input name="inviteCode" autocomplete="off">
+</label>
+<label id="consentField" class="consent-container hidden">
+<input name="consent" type="checkbox">
+<span>I agree to the <a href="/tos.html" target="_blank" rel="noopener">Terms</a> and <a href="/privacy.html" target="_blank" rel="noopener">Privacy Policy</a>.</span>
+</label>
+<button id="accountSubmit" class="primary-action" type="submit">Sign in</button>
+<p id="accountStatus" role="status" aria-live="polite">
+</p>
+</form>
+<p id="accountSwitch">
+</p>
+</section>
+</main>
+<footer class="site-footer">
+<a class="site-brand" href="/">elsewhere</a>
+<span>A space for every conversation.</span>
+<a href="/privacy.html">Privacy</a>
+<a href="/tos.html">Terms</a>
+</footer>
+<script type="module" src="/pages.js">
+</script>
+<script type="module" src="/app/workspaceNavigation.js"></script>
+</body>
+</html>

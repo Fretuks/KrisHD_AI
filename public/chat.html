@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <title>Elsewhere</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="/app/theme-bootstrap.js"></script>
+    <link rel="stylesheet" href="/style.css?v=20260909-elsewhere"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="/pages.css"><link rel="stylesheet" href="/shell.css">
+</head>
+<body class="site-page chat-page" data-theme="fakegpt" data-theme-mode="light">
+<!-- site-header -->
+<div class="app-shell">
+    <section id="chat" class="card chat-card chat-focus-card hidden" aria-label="AI chat workspace">
+        <div class="chat-layout chat-layout-focus">
+            <aside id="chatSidebar" class="chat-sidebar" aria-label="Conversation history">
+                <div class="sidebar-top">
+                    <div class="sidebar-workspace-card"><h2>Conversations</h2><button id="newChat" class="primary-action" type="button">New chat</button></div>
+                    <label class="field compact-field">
+                        <span>Search</span>
+                        <input id="chatSearch" type="search" placeholder="Search chats"/>
+                    </label>
+                </div>
+                <div class="sidebar-middle">
+                    <div id="chatList" class="chat-list chat-list-grouped"></div>
+                    <div id="chatListLoading" class="chat-loading hidden" role="status" aria-live="polite">
+                        <span class="chat-loading-dot" aria-hidden="true"></span>
+                        <span id="chatListLoadingText">Loading chats...</span>
+                    </div>
+                </div>
+            </aside>
+
+            <section id="main" class="chat-main chat-main-focus" aria-label="Active conversation">
+                <div class="chat-heading"><p id="workspaceNotice" class="status error hidden" role="status" aria-live="polite"></p><header class="chat-header chat-header-focus">
+                    <button id="chatSidebarToggle" class="icon-button sidebar-toggle" type="button" aria-controls="chatSidebar" aria-expanded="false" aria-label="Open conversation history">History</button>
+                    <div class="chat-title-block">
+                        <div class="chat-title">
+                            <h2 id="activeChatTitle">New chat</h2>
+                        </div>
+                        <div class="chat-header-context" aria-label="Current chat setup">
+                            <button id="headerModelButton" class="chat-context-item chat-context-button secondary-action" type="button" aria-controls="chatDrawer" aria-label="Change AI model"><span>Model</span><strong id="headerModelName">Loading...</strong></button>
+                            <span class="chat-context-item"><span>Persona</span><strong id="headerPersonaName">None</strong></span>
+                        </div>
+                    </div>
+                    <div class="chat-header-actions">
+                        <div class="chat-actions-menu">
+                            <button id="chatDrawerButton" class="secondary-action overflow-trigger" type="button" aria-expanded="false" aria-controls="chatDrawer">
+                                <span class="overflow-trigger-label">Chat settings</span>
+                            </button>
+                            <div id="chatDrawer" class="chat-drawer hidden" role="dialog" aria-modal="true" aria-labelledby="chatDrawerTitle">
+                                <div class="chat-drawer-panel">
+                                    <div class="chat-drawer-header">
+                                        <div>
+                                            <p class="eyebrow">Conversation</p>
+                                            <h2 id="chatDrawerTitle">Settings</h2>
+                                        </div>
+                                        <button id="chatDrawerClose" class="icon-button" type="button" aria-label="Close chat settings">×</button>
+                                    </div>
+                                    <div class="chat-drawer-body">
+                                        <div class="chat-drawer-summary">
+                                            <div class="chat-drawer-pills">
+                                                <span id="chatCharacterPill" class="context-pill hidden">Character: none</span>
+                                                <span id="chatUserPersonaPill" class="context-pill hidden">User persona: none</span>
+                                            </div>
+                                        </div>
+                                        <details class="chat-drawer-section chat-drawer-disclosure chat-drawer-section--model" open>
+                                            <summary class="chat-drawer-row">
+                                                <span class="chat-drawer-row-label">
+                                                    <span class="eyebrow">AI model</span>
+                                                    <strong>Model</strong>
+                                                </span>
+                                                <span class="chat-drawer-row-meta">
+                                                    <strong id="modelBadgeName">Loading...</strong>
+                                                    <span class="chat-drawer-row-hint">Change</span>
+                                                </span>
+                                            </summary>
+                                            <div id="modelPanel" class="model-panel chat-drawer-disclosure-panel" data-static-panel="true">
+                                                <div class="model-select">
+                                                    <div class="model-select-header">
+                                                        <label for="model">Model</label>
+                                                        <span id="modelCount" class="model-count">Loading</span>
+                                                    </div>
+                                                    <div class="model-select-control">
+                                                        <select id="model">
+                                                            <option disabled selected>Loading models...</option>
+                                                        </select>
+                                                        <span class="model-select-chevron" aria-hidden="true"></span>
+                                                    </div>
+                                                </div>
+                                                <div id="modelHelp" class="model-help" aria-live="polite">
+                                                    <div class="model-help-header">
+                                                        <strong id="modelHelpTitle">Choose a model</strong>
+                                                        <span id="modelHelpBadge" class="model-help-badge">Waiting</span>
+                                                    </div>
+                                                    <p id="modelHelpSummary" class="model-help-summary">Pick a model to see what it is best suited for.</p>
+                                                </div>
+                                                <div class="generation-settings-grid">
+                                                    <label class="field"><span>Temperature</span><input id="chatTemperature" type="number" min="0" max="2" step="0.1" placeholder="Default"/></label>
+                                                    <label class="field"><span>Context length</span><input id="chatContextLength" type="number" min="256" max="131072" placeholder="Default"/></label>
+                                                    <label class="field"><span>Response length</span><input id="chatResponseLength" type="number" min="1" max="32768" placeholder="Default"/></label>
+                                                    <label class="field field-wide"><span>System instruction</span><textarea id="chatSystemInstruction" rows="4" maxlength="8000" placeholder="Optional instructions for this chat"></textarea></label>
+                                                    <button id="saveGenerationSettings" type="button">Save generation settings</button>
+                                                </div>
+                                            </div>
+                                        </details>
+                                        <details class="chat-drawer-section chat-drawer-disclosure chat-drawer-section--persona">
+                                            <summary class="chat-drawer-row">
+                                                <span class="chat-drawer-row-label">
+                                                    <span class="eyebrow">Your identity</span>
+                                                    <strong>Persona</strong>
+                                                </span>
+                                                <span class="chat-drawer-row-meta">
+                                                    <strong id="chatDrawerPersonaValue">None</strong>
+                                                    <span class="chat-drawer-row-hint">Change</span>
+                                                </span>
+                                            </summary>
+                                            <div id="personaPanel" class="persona-panel chat-drawer-disclosure-panel" data-static-panel="true">
+                                                <div class="persona-section">
+                                                    <div class="persona-section-header">
+                                                        <div>
+                                                            <h2>Your persona</h2>
+                                                        </div>
+                                                        <div class="persona-section-actions">
+                                                            <button id="clearUserPersona" class="secondary-action" type="button">Clear</button>
+                                                            <a href="/app/personas" class="secondary-action">Manage</a>
+                                                        </div>
+                                                    </div>
+                                                    <p id="activeUserPersonaStatus" class="status persona-status">No default user persona set.</p>
+                                                    <div id="userPersonaList" class="persona-list"></div>
+                                                </div>
+                                            </div>
+                                        </details>
+                                        <div class="chat-drawer-section">
+                                            <p class="dropdown-section-label">Chat</p>
+                                            <div class="chat-drawer-action-list">
+                                                <button id="renameChat" class="secondary-action chat-drawer-action" type="button" data-chat-action="rename">Rename chat</button>
+                                                <button id="pinChat" class="secondary-action chat-drawer-action" type="button" data-chat-action="pin">Pin</button>
+                                                <button id="archiveChat" class="secondary-action chat-drawer-action" type="button" data-chat-action="archive">Archive</button>
+                                                <button id="exportChat" class="secondary-action chat-drawer-action" type="button" data-chat-action="export">Export</button>
+                                            </div>
+                                        </div>
+                                        <details class="chat-drawer-section chat-drawer-more">
+                                            <summary class="chat-drawer-row chat-drawer-row--compact">
+                                                <span class="chat-drawer-row-label">
+                                                    <strong>Tools &amp; workspace</strong>
+                                                </span>
+                                                <span class="chat-drawer-row-hint">Show</span>
+                                            </summary>
+                                            <div class="chat-drawer-action-list chat-drawer-disclosure-panel">
+                                                <button id="moveChatFolder" class="secondary-action chat-drawer-action" type="button" data-chat-action="folder">Move to folder</button>
+                                                <button id="manageChatMemory" class="secondary-action chat-drawer-action" type="button" data-chat-action="memory">Memory facts</button>
+                                                <button id="managePersonaState" class="secondary-action chat-drawer-action" type="button" data-chat-action="personaState">Roleplay state</button>
+                                                <button id="backupWorkspace" class="secondary-action chat-drawer-action" type="button">Backup workspace</button>
+                                                <button id="importWorkspace" class="secondary-action chat-drawer-action" type="button">Import workspace</button>
+                                                <input id="importWorkspaceFile" class="hidden" type="file" accept="application/json,.json"/>
+                                            </div>
+                                        </details>
+                                        <details class="chat-drawer-section chat-drawer-danger">
+                                            <summary class="chat-drawer-row chat-drawer-row--compact">
+                                                <span class="chat-drawer-row-label">
+                                                    <strong>Clear conversation</strong>
+                                                </span>
+                                                <span class="chat-drawer-row-hint">Show</span>
+                                            </summary>
+                                            <div class="chat-drawer-action-list chat-drawer-disclosure-panel">
+                                                <button id="clearChat" class="secondary-action chat-drawer-action chat-drawer-action-danger" type="button" data-chat-action="clear">Clear chat</button>
+                                            </div>
+                                        </details>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </header></div>
+
+                <div id="chatActivityOverlay" class="chat-activity-overlay hidden" role="status" aria-live="polite" aria-atomic="true">
+                    <div class="chat-activity-card">
+                        <div class="chat-activity-mark" aria-hidden="true">
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                        </div>
+                        <p id="chatActivityEyebrow" class="eyebrow">Please wait</p>
+                        <h3 id="chatActivityTitle">Preparing chat</h3>
+                        <p id="chatActivityDetail" class="subtitle">The assistant is still working.</p>
+                    </div>
+                </div>
+
+                <div id="messages" class="messages-panel messages-panel-focus" role="log" aria-live="polite" aria-relevant="additions text"></div>
+
+                <div class="input-shell input-shell-focus">
+                    <div class="input-meta">
+                        <p class="composer-hint">Enter to send · Shift+Enter for new line</p>
+                    </div>
+                    <div class="input-container">
+                        <label class="visually-hidden" for="msgInput">Message</label>
+                        <textarea id="msgInput" rows="1" placeholder="Type your message..."></textarea>
+                        <button id="send" type="button" aria-label="Send message"></button>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </section>
+</div>
+
+<div id="personaModal" class="modal-overlay side-panel-overlay hidden">
+    <div class="modal-card persona-modal-card side-panel-card">
+        <div class="modal-header">
+            <div class="persona-modal-heading">
+                <p class="eyebrow">Persona editor</p>
+                <h3 id="personaFormTitle">Create persona</h3>
+            </div>
+            <button id="personaClose" type="button" class="icon-button">Close</button>
+        </div>
+        <form id="personaForm" class="persona-form">
+            <div class="persona-form-intro">
+                <p class="persona-helper">AI Characters shape who you talk to. User personas add context for who you are in the scene.</p>
+            </div>
+            <p id="personaFormNotice" class="status hidden"></p>
+            <div class="persona-form-grid">
+                <label class="field field-wide">
+                    <span>Persona for</span>
+                    <select id="personaType">
+                        <option value="assistant">AI Character</option>
+                        <option value="user">Your persona</option>
+                    </select>
+                </label>
+                <label class="field">
+                    <span>Persona name</span>
+                    <input id="personaName" placeholder="Persona name" required/>
+                </label>
+                <label class="field">
+                    <span>Persona pronouns</span>
+                    <input id="personaPronouns" placeholder="e.g. she/her, they/them"/>
+                </label>
+                <label class="field field-wide">
+                    <span>Appearance</span>
+                    <textarea id="personaAppearance" rows="3" placeholder="Describe their look"></textarea>
+                </label>
+                <label class="field field-wide">
+                    <span>Background</span>
+                    <textarea id="personaBackground" rows="3" placeholder="Backstory, history, role, or origins"></textarea>
+                </label>
+                <label class="field field-wide">
+                    <span>Details</span>
+                    <textarea id="personaDetails" rows="4" placeholder="Personality traits, voice, goals, quirks, boundaries, style"></textarea>
+                </label>
+                <label id="personaExamplesField" class="field field-wide hidden">
+                    <span>Example dialogues</span>
+                    <div class="dialogue-format-card" aria-hidden="true">
+                        <p class="dialogue-format-label">Format</p>
+                        <pre class="dialogue-format-example">{{character}}: Hello, my name is marc
+{{user}}: Hi, Marc!
+{{character}}: Nice to meet you</pre>
+                    </div>
+                    <textarea id="personaExampleDialogues" rows="5" placeholder="Write example exchanges that define the AI's tone, phrasing, pacing, and personality."></textarea>
+                </label>
+            </div>
+            <div class="persona-actions">
+                <button id="personaSave" type="submit" class="primary-action">Save persona</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="roleplayStarterModal" class="modal-overlay side-panel-overlay hidden">
+    <div class="modal-card roleplay-starter-card side-panel-card">
+        <div class="modal-header">
+            <div class="persona-modal-heading">
+                <p class="eyebrow">Start roleplay</p>
+                <h3 id="roleplayStarterTitle">Choose your roleplay</h3>
+            </div>
+            <button id="roleplayStarterClose" type="button" class="icon-button">Close</button>
+        </div>
+        <div class="roleplay-starter-intro">
+            <p id="roleplayStarterIntroCopy" class="persona-helper">Pick a character and choose who you are before moving on to the opening scene.</p>
+        </div>
+        <p id="roleplayStarterNotice" class="status hidden"></p>
+        <div class="roleplay-starter-actions">
+            <button id="roleplayNewPersona" class="secondary-action" type="button">Create AI Character</button>
+        </div>
+        <div id="roleplayStarterStepOne" class="persona-form-grid">
+            <label class="field field-wide">
+                <span>1. Character</span>
+                <select id="roleplayCharacterSelect"></select>
+            </label>
+            <label class="field field-wide">
+                <span>2. You in the scene</span>
+                <select id="roleplayUserPersonaSelect"></select>
+            </label>
+        </div>
+        <div id="roleplayStarterStepTwo" class="roleplay-starter-page hidden">
+            <label class="field field-wide">
+                <span>Optional opening direction</span>
+                <textarea id="roleplayScenarioInput" rows="4" placeholder="Describe the kind of opening scene you want, such as a setting, conflict, relationship dynamic, or mood. Leave it empty and the AI will invent its own scenario."></textarea>
+            </label>
+            <p class="subtitle">Leave this empty if you want the AI Character to invent the scenario on its own. No character limit.</p>
+            <div id="roleplayStarterSuggestions" class="quick-prompts" aria-label="Scenario suggestions"></div>
+        </div>
+        <div class="popup-actions">
+            <button id="roleplayStarterCancel" type="button" class="secondary-action">Cancel</button>
+            <button id="roleplayStarterBack" type="button" class="secondary-action hidden">Back</button>
+            <button id="roleplayStarterConfirm" type="button">Continue</button>
+        </div>
+    </div>
+</div>
+
+<div id="popupModal" class="modal-overlay hidden">
+    <div class="modal-card popup-card" role="dialog" aria-modal="true" aria-labelledby="popupTitle" aria-describedby="popupDescription">
+        <div class="modal-header">
+            <div class="persona-modal-heading">
+                <p id="popupEyebrow" class="eyebrow">Action</p>
+                <h3 id="popupTitle">Confirm action</h3>
+            </div>
+            <button id="popupClose" type="button" class="icon-button">Close</button>
+        </div>
+        <div class="popup-content">
+            <p id="popupDescription" class="subtitle">Please confirm this action.</p>
+            <label id="popupField" class="field hidden">
+                <span id="popupInputLabel">Value</span>
+                <input id="popupInput" type="text" autocomplete="off"/>
+            </label>
+        </div>
+        <div class="popup-actions">
+            <button id="popupCancel" type="button" class="secondary-action">Cancel</button>
+            <button id="popupConfirm" type="button">Confirm</button>
+        </div>
+    </div>
+</div>
+
+<div id="onboardingModal" class="modal-overlay hidden">
+    <div class="modal-card onboarding-card">
+        <div class="modal-header">
+            <div class="persona-modal-heading">
+                <p class="eyebrow">Get started</p>
+                <h3 id="onboardingTitle">Where shall we start?</h3>
+            </div>
+            <button id="onboardingSkip" type="button" class="icon-button">Skip</button>
+        </div>
+        <p id="onboardingSubtitle" class="subtitle">Ask a question, explore an idea, or step into a story.</p>
+        <div id="onboardingChoices" class="onboarding-choices"></div>
+        <div class="popup-actions">
+            <button id="onboardingBack" type="button" class="secondary-action hidden">Back</button>
+            <button id="onboardingContinue" type="button">Continue</button>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js" defer></script>
+<script type="module" src="/script.js?v=20260908-model-descriptions"></script>
+<script type="module" src="/app/workspaceNavigation.js"></script>
+</body>
+</html>

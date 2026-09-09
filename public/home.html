@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Home &middot; Elsewhere</title>
+<link rel="icon" href="/favicon.svg">
+<script src="/app/theme-bootstrap.js">
+</script>
+<link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/pages.css">
+<link rel="stylesheet" href="/shell.css">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body class="site-page home-page">
+<!-- site-header -->
+
+<main id="main" class="home-main page-content">
+<p id="welcomeName" class="eyebrow">Welcome home</p>
+<h1>What would you like to do?</h1>
+<p class="hero-copy">Start somewhere new, or pick up a conversation.</p>
+<div class="feature-grid">
+<a class="feature-card action-card" href="/app/chats/new">
+<span class="feature-number">01 / ASK</span>
+<h2>New conversation</h2>
+<p>Make space for a question or an idea.</p>
+<span>Start chatting &rarr;</span>
+</a>
+<a class="feature-card action-card" href="/market">
+<span class="feature-number">02 / EXPLORE</span>
+<h2>Chat with a character</h2>
+<p>Find someone with a different perspective.</p>
+<span>Discover personas &rarr;</span>
+</a>
+<a class="feature-card action-card" href="/app/personas?create=assistant">
+<span class="feature-number">03 / CREATE</span>
+<h2>Create a persona</h2>
+<p>Give a new character a voice of their own.</p>
+<span>Create persona &rarr;</span>
+</a>
+</div>
+<section class="site-section">
+<div class="section-heading">
+<h2>Recent conversations</h2>
+<a href="/app/chats">View all &rarr;</a>
+</div>
+<div id="recentChats" aria-live="polite">Loading conversations&hellip;</div>
+</section>
+<p id="homeStatus" role="status">
+</p>
+</main>
+
+<script type="module" src="/pages.js">
+</script>
+<script type="module" src="/app/workspaceNavigation.js"></script>
+</body>
+</html>
