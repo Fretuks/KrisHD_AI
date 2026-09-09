@@ -283,6 +283,10 @@ export function createApp(options = {}) {
     app.use(express.static(config.publicDir, {
         maxAge: config.staticMaxAge,
         etag: config.staticEtag,
+        setHeaders(res, filePath) {
+            // HTML and its modules must not drift apart after a deployment.
+            if (/\.(?:js|css)$/.test(filePath)) res.setHeader("Cache-Control", "no-cache");
+        },
         fallthrough: config.staticFallthrough
     }));
     app.use(createAuthRouter({repositories, authRateLimiters, config}));

@@ -5,11 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Sign in &middot; Elsewhere</title>
 <link rel="icon" href="/favicon.svg">
-<script src="/app/theme-bootstrap.js">
+<script src="/app/theme-bootstrap.js?v=20260909-account-controls">
 </script>
-<link rel="stylesheet" href="/style.css">
-<link rel="stylesheet" href="/pages.css">
-<link rel="stylesheet" href="/shell.css">
+<link rel="stylesheet" href="/style.css?v=20260909-account-controls">
+<link rel="stylesheet" href="/pages.css?v=20260909-account-controls">
+<link rel="stylesheet" href="/shell.css?v=20260909-account-controls">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
 <body class="site-page account-page">
@@ -29,11 +29,15 @@
 <span>Username</span>
 <input name="username" autocomplete="username" required minlength="3">
 </label>
-<label class="field">
-<span>Password</span>
-<input name="password" type="password" autocomplete="current-password" required minlength="6">
-</label>
-<button type="button" id="showPassword" class="text-button" aria-pressed="false">Show password</button>
+<div class="field">
+<label for="accountPassword">Password</label>
+<div class="password-input">
+<input id="accountPassword" name="password" type="password" autocomplete="current-password" required minlength="6">
+<button type="button" id="showPassword" class="icon-button password-toggle" aria-label="Show password" title="Show password" aria-controls="accountPassword" aria-pressed="false">
+<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/><path class="eye-slash" d="m3 3 18 18"/></svg>
+</button>
+</div>
+</div>
 <label id="inviteField" class="field hidden">
 <span>Invite code</span>
 <input name="inviteCode" autocomplete="off">
@@ -42,9 +46,11 @@
 <input name="consent" type="checkbox">
 <span>I agree to the <a href="/tos.html" target="_blank" rel="noopener">Terms</a> and <a href="/privacy.html" target="_blank" rel="noopener">Privacy Policy</a>.</span>
 </label>
+<div id="accountStatus" class="account-status hidden" role="status" aria-live="polite" aria-atomic="true" tabindex="-1">
+<svg class="account-error-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v6m0 3v1"/></svg>
+<span id="accountStatusText"></span>
+</div>
 <button id="accountSubmit" class="primary-action" type="submit">Sign in</button>
-<p id="accountStatus" role="status" aria-live="polite">
-</p>
 </form>
 <p id="accountSwitch">
 </p>
@@ -56,8 +62,8 @@
 <a href="/privacy.html">Privacy</a>
 <a href="/tos.html">Terms</a>
 </footer>
-<script type="module" src="/pages.js">
+<script type="module" src="/pages.js?v=20260909-account-controls">
 </script>
-<script type="module" src="/app/workspaceNavigation.js"></script>
+<script type="module" src="/app/workspaceNavigation.js?v=20260909-account-controls"></script>
 </body>
 </html>

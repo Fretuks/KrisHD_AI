@@ -1,8 +1,8 @@
-import {del, get, post, put, stream} from "./app/api.js";
-import {closeChatDrawer, openChatDrawer} from "./app/chatDrawer.js";
-import {onboardingPrompts, requestedChatId} from "./app/constants.js";
-import {getModelProfile} from "./app/modelProfiles.js";
-import {applyTheme as applySharedTheme, applyThemeMode as applySharedThemeMode, readStoredAppearance} from "./app/themeController.js";
+import {del, get, post, put, stream} from "./app/api.js?v=20260909-account-controls";
+import {closeChatDrawer, openChatDrawer} from "./app/chatDrawer.js?v=20260909-account-controls";
+import {onboardingPrompts, requestedChatId} from "./app/constants.js?v=20260909-account-controls";
+import {getModelProfile} from "./app/modelProfiles.js?v=20260909-account-controls";
+import {applyTheme as applySharedTheme, applyThemeMode as applySharedThemeMode, readStoredAppearance} from "./app/themeController.js?v=20260909-account-controls";
 import {
     activeChatTitle,
     activeUserPersonaStatus,
@@ -99,7 +99,7 @@ import {
     brandLogoTargets,
     brandNameTargets,
     userPersonaList
-} from "./app/dom.js";
+} from "./app/dom.js?v=20260909-account-controls";
 
 const headerModelButton = document.getElementById("headerModelButton");
 

@@ -1,7 +1,7 @@
-import {get, post, put} from "./app/api.js";
-import {initializeAppearance} from "./app/themeController.js";
-import {clearStatus, setStatus} from "./app/statusNotice.js";
-import {populatePersonaForm, readPersonaForm} from "./app/personaForm.js";
+import {get, post, put} from "./app/api.js?v=20260909-account-controls";
+import {initializeAppearance} from "./app/themeController.js?v=20260909-account-controls";
+import {clearStatus, setStatus} from "./app/statusNotice.js?v=20260909-account-controls";
+import {populatePersonaForm, readPersonaForm} from "./app/personaForm.js?v=20260909-account-controls";
 
 const $ = (id) => document.getElementById(id);
 const marketPersonaList = $("marketPersonaList");

@@ -1,4 +1,4 @@
-import {chatDrawer, chatDrawerButton, chatDrawerCloseBtn} from "./dom.js";
+import {chatDrawer, chatDrawerButton, chatDrawerCloseBtn} from "./dom.js?v=20260909-account-controls";
 
 let lastFocusedElement = null;
 

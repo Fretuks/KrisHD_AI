@@ -49,3 +49,22 @@
     .entry-door { width:65px; height:92px; border-width:1px; }.entry-door::before { inset:4px; }.entry-door span { inset:4px 4px 0 14px; border-width:1px; }.entry-door span::after { width:3px; height:3px; left:5px; }.entry-door::after { bottom:-8px; left:-10px; right:-10px; }
     .entry-copy h1 { font-size:2.8rem; }.entry-copy > p:not(.eyebrow) { margin:18px 0 24px; }
 }
+
+/* Account controls stay quiet; errors must be unmistakable. */
+.password-input { position:relative; }
+#accountForm .password-input input { padding-right:50px; }
+#accountForm .password-toggle { position:absolute; right:6px; top:50%; transform:translateY(-50%); width:36px; height:36px; min-height:36px; padding:0; border:0; border-radius:8px; background:transparent; color:var(--text-soft); box-shadow:none; }
+#accountForm .password-toggle:hover { transform:translateY(-50%); background:var(--surface-hover); color:var(--text); }
+.password-toggle svg { display:block; flex-shrink:0; }
+.password-toggle .eye-slash { display:none; }
+.password-toggle[aria-pressed="true"] .eye-slash { display:block; }
+.account-status { display:flex; align-items:flex-start; gap:10px; margin:0; font-size:.9rem; line-height:1.6; color:var(--text-soft); }
+.account-error-icon { display:none; flex:0 0 20px; margin-top:2px; }
+.account-status[data-state="error"] { padding:13px 15px; border:1px solid #dfaaa5; border-left:4px solid #b3261e; border-radius:10px; background:#fff1f0; color:#92221b; font-weight:600; }
+.account-status[data-state="error"] .account-error-icon { display:block; }
+#accountForm input[aria-invalid="true"] { border-color:#b3261e; }
+body[data-theme-mode="dark"] .account-status[data-state="error"] { background:#351f22; color:#ffb4ad; border-color:#925350; border-left-color:#ffb4ad; }
+body[data-theme-mode="dark"] #accountForm input[aria-invalid="true"] { border-color:#ffb4ad; }
+#accountForm .field > label { font-size:.82rem; font-weight:600; color:var(--text-soft); }
+.account-status:focus { outline:none; }
+#accountSwitch { margin-top:20px; }

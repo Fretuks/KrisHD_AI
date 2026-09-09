@@ -1064,3 +1064,17 @@ test("page headers share navigation and keep session markup private", async () =
         assert.ok(html.includes('href="/login"'));
     } finally { await server.close(); }
 });
+
+test("frontend scripts and styles revalidate across deployments", async () => {
+    const server = await startTestServer({config: {staticMaxAge: "1h"}});
+    try {
+        for (const asset of ["/script.js?v=20260909-account-controls", "/app/dom.js?v=20260909-account-controls", "/pages.css?v=20260909-account-controls"]) {
+            const response = await fetch(server.baseUrl + asset);
+            assert.equal(response.status, 200);
+            assert.equal(response.headers.get("cache-control"), "no-cache");
+            const etag = response.headers.get("etag");
+            assert.ok(etag);
+            await response.text();
+        }
+    } finally { await server.close(); }
+});

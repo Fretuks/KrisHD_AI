@@ -1,4 +1,4 @@
-import {themes} from "./constants.js";
+import {themes} from "./constants.js?v=20260909-account-controls";
 
 export const THEME_STORAGE_KEY = "krishd-theme";
 export const THEME_MODE_STORAGE_KEY = "krishd-theme-mode";

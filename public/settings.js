@@ -1,11 +1,11 @@
-import {del, get, post, put} from "./app/api.js";
+import {del, get, post, put} from "./app/api.js?v=20260909-account-controls";
 import {
     applyTheme as applySharedTheme,
     applyThemeMode as applySharedThemeMode,
     initializeAppearance
-} from "./app/themeController.js";
-import {clearStatus, setStatus} from "./app/statusNotice.js";
-import {populatePersonaForm, readPersonaForm} from "./app/personaForm.js";
+} from "./app/themeController.js?v=20260909-account-controls";
+import {clearStatus, setStatus} from "./app/statusNotice.js?v=20260909-account-controls";
+import {populatePersonaForm, readPersonaForm} from "./app/personaForm.js?v=20260909-account-controls";
 
 const $ = (id) => document.getElementById(id);
 const settingsNotice = $("settingsNotice");
