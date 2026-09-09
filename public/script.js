@@ -111,8 +111,8 @@ import {
     sendBtn,
     saveGenerationSettingsBtn,
     sessionUser,
-    themeLogoTargets,
-    themeNameTargets,
+    brandLogoTargets,
+    brandNameTargets,
     toggleButtons,
     userPersonaList
 } from "./app/dom.js";
@@ -227,8 +227,8 @@ function renderOnboardingStep() {
     onboardingBack.classList.toggle("hidden", onboardingStep === 1);
     onboardingContinue.classList.toggle("hidden", onboardingStep === 2);
     if (onboardingStep === 1) {
-        onboardingTitle.textContent = "What do you want to do?";
-        onboardingSubtitle.textContent = "Choose one path. You can switch anytime.";
+        onboardingTitle.textContent = "Where shall we start?";
+        onboardingSubtitle.textContent = "Ask a question, explore an idea, or step into a story.";
         [["ask", "Ask questions"], ["brainstorm", "Brainstorm ideas"], ["roleplay", "Roleplay with a character"]].forEach(([key, label]) => {
             const button = document.createElement("button");
             button.type = "button";
@@ -812,7 +812,7 @@ function renderMessageEmptyState() {
     actions.className = "messages-empty-actions";
 
     if (!chat) {
-        title.textContent = "Start a chat";
+        title.textContent = "Where shall we start?";
         description.textContent = "Choose a starting point.";
         actions.append(
             createStarterAction("New chat", "primary-action", () => { void createNewChat(); }),
@@ -951,9 +951,9 @@ function updateModelHelp() {
 function applyTheme(themeKey, persist = true) {
     applySharedTheme(themeKey, {
         persist,
-        title: (theme) => theme.name,
-        nameTargets: themeNameTargets,
-        logoTargets: themeLogoTargets
+        title: "Elsewhere",
+        nameTargets: brandNameTargets,
+        logoTargets: brandLogoTargets
     });
     updateWorkspaceCopy();
     renderModelSection();

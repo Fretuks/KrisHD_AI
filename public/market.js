@@ -59,7 +59,7 @@ const marketPopupDescription = $("marketPopupDescription");
 const marketPopupField = $("marketPopupField");
 const marketPopupInputLabel = $("marketPopupInputLabel");
 const marketPopupInput = $("marketPopupInput");
-const themeNameTargets = document.querySelectorAll("[data-theme-name]");
+const brandNameTargets = document.querySelectorAll("[data-brand-name]");
 const marketPersonaFields = {
     name: marketPersonaName,
     pronouns: marketPersonaPronouns,
@@ -673,7 +673,7 @@ marketPersonaForm.addEventListener("submit", (event) => {
 });
 
 window.addEventListener("load", async () => {
-    initializeAppearance({title: (theme) => `${theme.name} Market`, nameTargets: themeNameTargets});
+    initializeAppearance({title: "Elsewhere Market", nameTargets: brandNameTargets});
     const params = new URLSearchParams(window.location.search);
     setMarketSort("assistant", params.get("assistantSort") || "best", {reload: false});
     setMarketSort("user", params.get("userSort") || "best", {reload: false});

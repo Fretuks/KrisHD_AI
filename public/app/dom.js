@@ -112,8 +112,8 @@ const onboardingContinue = $("onboardingContinue");
 const onboardingSkip = $("onboardingSkip");
 const authScreens = document.querySelectorAll(".auth-screen");
 const toggleButtons = document.querySelectorAll(".auth-toggle .toggle");
-const themeNameTargets = document.querySelectorAll("[data-theme-name]");
-const themeLogoTargets = document.querySelectorAll("[data-theme-logo]");
+const brandNameTargets = document.querySelectorAll("[data-brand-name]");
+const brandLogoTargets = document.querySelectorAll("[data-brand-logo]");
 const modelSection = document.querySelector(".chat-drawer-section--model");
 const personaSection = document.querySelector(".chat-drawer-section--persona");
 
@@ -231,8 +231,8 @@ export {
     sendBtn,
     saveGenerationSettingsBtn,
     sessionUser,
-    themeLogoTargets,
-    themeNameTargets,
+    brandLogoTargets,
+    brandNameTargets,
     toggleButtons,
     userPersonaList
 };

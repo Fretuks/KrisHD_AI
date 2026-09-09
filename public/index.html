@@ -2,12 +2,13 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8"/>
-    <title>FakeGPT</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <title>Elsewhere</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="app/theme-bootstrap.js"></script>
-    <link rel="stylesheet" href="style.css?v=20260809-2"/>
+    <link rel="stylesheet" href="style.css?v=20260909-elsewhere"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
 <body data-theme="fakegpt" data-theme-mode="light">
@@ -15,10 +16,11 @@
     <section id="auth" class="card auth-card auth-card-compact">
         <div class="auth-hero auth-hero-compact">
             <div class="brand">
-                <div class="logo logo-placeholder" aria-hidden="true"></div>
+                <div class="logo doorway-mark" aria-hidden="true"></div>
                 <div>
-                    <p class="eyebrow">Private workspace</p>
-                    <h1 data-theme-name>FakeGPT</h1>
+                    <p class="eyebrow">Your conversation space</p>
+                    <h1 class="brand-wordmark" data-brand-name>elsewhere</h1>
+                    <p class="brand-tagline">A space for every conversation.</p>
                 </div>
             </div>
         </div>
@@ -80,7 +82,7 @@
                     <div class="sidebar-workspace-card">
                         <div>
                             <p class="eyebrow">Workspace</p>
-                            <h2 data-theme-name>FakeGPT</h2>
+                            <h2 class="brand-wordmark" data-brand-name>elsewhere</h2>
                             <p id="sessionUser" class="sidebar-account-name">Signed out</p>
                         </div>
                         <div class="sidebar-header-actions sidebar-workspace-actions">
@@ -409,11 +411,11 @@
         <div class="modal-header">
             <div class="persona-modal-heading">
                 <p class="eyebrow">Get started</p>
-                <h3 id="onboardingTitle">What do you want to do?</h3>
+                <h3 id="onboardingTitle">Where shall we start?</h3>
             </div>
             <button id="onboardingSkip" type="button" class="icon-button">Skip</button>
         </div>
-        <p id="onboardingSubtitle" class="subtitle">Pick one path to set up your first successful chat.</p>
+        <p id="onboardingSubtitle" class="subtitle">Ask a question, explore an idea, or step into a story.</p>
         <div id="onboardingChoices" class="onboarding-choices"></div>
         <div class="popup-actions">
             <button id="onboardingBack" type="button" class="secondary-action hidden">Back</button>

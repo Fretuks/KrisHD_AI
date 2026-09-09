@@ -1,8 +1,12 @@
-# KrisHD_AI
+# Elsewhere
 
-KrisHD_AI is an Express + SQLite app for account-based chat, persona management, roleplay chat sessions, and a simple persona market backed by a remote model API.
+Elsewhere is an Express + SQLite app for account-based chat, persona management, roleplay chat sessions, and a simple persona market backed by a remote model API.
+
+A space for every conversation. Six appearance styles (Grove, Parchment, Aurora, Current, Iris, and Graphite) each support light and dark modes. The Elsewhere identity stays consistent across styles. Internal theme and storage keys remain stable to preserve saved preferences.
 
 ## Setup
+
+Node.js 22 or newer is required.
 
 1. Install dependencies with `npm install`.
 2. Copy `.env.example` to `.env` and set at least `SESSION_SECRET`.

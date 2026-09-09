@@ -127,7 +127,7 @@ function promptSettingsPopup({
 }
 
 function applyTheme(themeKey, persist = true) {
-    return applySharedTheme(themeKey, {persist, title: "Settings", themeSelect: settingsThemeSelect});
+    return applySharedTheme(themeKey, {persist, title: "Elsewhere Settings", themeSelect: settingsThemeSelect});
 }
 
 function applyThemeMode(modeKey, persist = true) {
@@ -526,11 +526,11 @@ passwordForm.addEventListener("submit", async (event) => {
 
 settingsThemeSelect.addEventListener("change", (event) => {
     applyTheme(event.target.value);
-    setNotice("Theme updated.", "success");
+    setNotice("Style updated.", "success");
 });
 themeModeSelect.addEventListener("change", (event) => {
     applyThemeMode(event.target.value);
-    setNotice(`Theme mode set to ${document.body.dataset.themeMode}.`, "success");
+    setNotice(`Appearance set to ${document.body.dataset.themeMode}.`, "success");
 });
 workspaceModeSelect.addEventListener("change", (event) => {
     const mode = event.target.value === "advanced" ? "advanced" : "basic";
@@ -572,7 +572,7 @@ settingsPopupInput.addEventListener("keydown", (event) => {
 });
 
 window.addEventListener("load", async () => {
-    initializeAppearance({title: "Settings", themeSelect: settingsThemeSelect, modeSelect: themeModeSelect});
+    initializeAppearance({title: "Elsewhere Settings", themeSelect: settingsThemeSelect, modeSelect: themeModeSelect});
     workspaceModeSelect.value = localStorage.getItem("krishd-workspace-mode") || "basic";
     const params = new URLSearchParams(window.location.search);
     const view = params.get("view") || "personal";

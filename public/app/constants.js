@@ -6,11 +6,12 @@ export const onboardingPrompts = {
     roleplay: ["Start a roleplay scene with immediate tension.", "Give me a dramatic opening with clear stakes."]
 };
 
+// Stable keys preserve existing saved appearance preferences.
 export const themes = {
-    "fakegpt": {name: "FakeGPT", short: "FG"},
-    "fraud": {name: "Fraud", short: "FR"},
-    "germini": {name: "Germini", short: "GE"},
-    "slopilot": {name: "Slopilot", short: "SP"},
-    "beta-ai": {name: "Beta AI", short: "BA"},
-    "confusity": {name: "Confusity", short: "CF"}
+    "fakegpt": {name: "Grove", short: "GR"},
+    "fraud": {name: "Parchment", short: "PA"},
+    "germini": {name: "Aurora", short: "AU"},
+    "slopilot": {name: "Current", short: "CU"},
+    "beta-ai": {name: "Iris", short: "IR"},
+    "confusity": {name: "Graphite", short: "GP"}
 };

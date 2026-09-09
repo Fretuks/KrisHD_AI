@@ -1,4 +1,4 @@
-/* KrisHD AI design system — rebuilt from scratch. */
+/* Elsewhere design system. */
 
 /* ---------- Foundation ---------- */
 :root {
@@ -611,3 +611,10 @@ input:focus, textarea:focus, select:focus { border-color: var(--brand); }
 @keyframes loading-bar { 0%, 100% { height: 7px; opacity: .45; } 50% { height: 18px; opacity: 1; } }
 @keyframes pulse { 50% { opacity: .35; } }
 @keyframes wave { 50% { height: 28px; } }
+
+/* Permanent Elsewhere identity, shared by every appearance style. */
+.brand-wordmark { font-family: "Manrope", "Segoe UI", sans-serif; font-weight: 700; letter-spacing: -.055em; }
+.brand-tagline { margin: 12px 0 0; color: var(--text-soft); font-size: .95rem; }
+.doorway-mark { position: relative; flex-shrink: 0; }
+.doorway-mark::before { content: ""; width: 22px; height: 30px; border: 2px solid currentColor; border-bottom: 0; border-radius: 10px 10px 0 0; }
+.doorway-mark::after { content: ""; position: absolute; width: 13px; height: 25px; left: calc(50% - 10px); top: calc(50% - 8px); border: 2px solid currentColor; background: var(--brand); transform: skewY(-18deg); transform-origin: left top; }

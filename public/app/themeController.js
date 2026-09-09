@@ -24,16 +24,17 @@ export function applyTheme(themeKey, {
     persist = true,
     title = null,
     themeSelect = null,
-    nameTargets = document.querySelectorAll("[data-theme-name]"),
-    logoTargets = document.querySelectorAll("[data-theme-logo]")
+    nameTargets = document.querySelectorAll("[data-brand-name]"),
+    logoTargets = document.querySelectorAll("[data-brand-logo]")
 } = {}) {
     const nextTheme = normalizeTheme(themeKey);
     const theme = themes[nextTheme];
+    document.documentElement.dataset.theme = nextTheme;
     document.body.dataset.theme = nextTheme;
     if (typeof title === "function") document.title = title(theme);
     if (typeof title === "string") document.title = title;
-    nameTargets.forEach((target) => { target.textContent = theme.name; });
-    logoTargets.forEach((target) => { target.textContent = theme.short; });
+    nameTargets.forEach((target) => { target.textContent = "elsewhere"; });
+    logoTargets.forEach((target) => { target.textContent = ""; target.classList.add("doorway-mark"); });
     if (themeSelect) themeSelect.value = nextTheme;
     if (persist) localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
     document.dispatchEvent(new CustomEvent("appearancechange", {detail: {theme: nextTheme}}));
@@ -42,6 +43,7 @@ export function applyTheme(themeKey, {
 
 export function applyThemeMode(modeKey, {persist = true, modeSelect = null} = {}) {
     const nextMode = normalizeThemeMode(modeKey);
+    document.documentElement.dataset.themeMode = nextMode;
     document.body.dataset.themeMode = nextMode;
     if (modeSelect) modeSelect.value = nextMode;
     if (persist) localStorage.setItem(THEME_MODE_STORAGE_KEY, nextMode);

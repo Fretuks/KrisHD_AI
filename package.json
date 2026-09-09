@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "type": "module",
   "main": "server.js",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
@@ -10,8 +13,8 @@
     "test": "node --test"
   },
   "dependencies": {
-    "bcrypt": "^5.1.1",
-    "better-sqlite3": "^9.5.0",
+    "bcrypt": "^6.0.0",
+    "better-sqlite3": "^13.0.3",
     "body-parser": "^1.20.2",
     "express": "^4.19.2",
     "express-session": "^1.17.3",
