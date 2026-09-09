@@ -6,9 +6,6 @@ import {applyTheme as applySharedTheme, applyThemeMode as applySharedThemeMode, 
 import {
     activeChatTitle,
     activeUserPersonaStatus,
-    authDiv,
-    authMsg,
-    authScreens,
     chatActivityDetail,
     chatActivityEyebrow,
     chatActivityOverlay,
@@ -39,11 +36,6 @@ import {
     headerModelName,
     headerPersonaName,
     moveChatFolderBtn,
-    loginForm,
-    loginPasswordInput,
-    loginSubmit,
-    loginUsernameInput,
-    logoutButton,
     messagesDiv,
     modelBadgeName,
     modelCount,
@@ -86,12 +78,6 @@ import {
     popupInputLabel,
     popupModal,
     popupTitle,
-    registerForm,
-    registerInviteCodeInput,
-    registerInviteField,
-    registerPasswordInput,
-    registerSubmit,
-    registerUsernameInput,
     renameChatBtn,
     roleplayCharacterSelect,
     roleplayNewPersonaBtn,
@@ -110,10 +96,8 @@ import {
     roleplayUserPersonaSelect,
     sendBtn,
     saveGenerationSettingsBtn,
-    sessionUser,
     brandLogoTargets,
     brandNameTargets,
-    toggleButtons,
     userPersonaList
 } from "./app/dom.js";
 
@@ -133,8 +117,9 @@ let messageRetryState = new Map();
 let availableModelsById = new Map();
 
 
-function setAuthMessage(message, state = "") { authMsg.textContent = message; authMsg.className = state ? `status ${state}` : "status"; }
 function setNotice(message = "", state = "") {
+    const notice = document.getElementById("workspaceNotice");
+    if (notice) { notice.textContent = state === "error" ? message : ""; notice.classList.toggle("hidden", state !== "error"); }
     return {message, state};
 }
 function setPersonaFormNotice(message = "", state = "") {
@@ -192,7 +177,7 @@ function applyWorkspaceMode(nextMode, persist = true) {
 }
 
 function isMobileLayout() {
-    return window.matchMedia("(max-width: 820px)").matches;
+    return window.matchMedia("(max-width: 980px)").matches;
 }
 
 function closeMobileSidebar() {
@@ -852,9 +837,7 @@ function updateWorkspaceCopy() {
     if (activeChatTitle) {
         activeChatTitle.textContent = activeChat ? activeChat.title : "New chat";
     }
-    if (sessionUser) {
-        sessionUser.textContent = currentUsername || "-";
-    }
+
     renderDrawerSummary();
     updateComposerPlaceholder();
 }
@@ -1390,12 +1373,6 @@ async function stopGeneration() {
     setNotice(res.stopped ? "Stopping generation..." : "Generation already finished.");
 }
 
-function showAuthScreen(target) {
-    authScreens.forEach((screen) => screen.classList.toggle("active", screen.id === `${target}Screen`));
-    toggleButtons.forEach((btn) => btn.classList.toggle("active", btn.dataset.target === target));
-    setAuthMessage("");
-}
-
 async function setActiveChat(id) {
     if (isMobileLayout()) closeMobileSidebar();
     setChatLoading(true, "Opening chat...");
@@ -1405,6 +1382,7 @@ async function setActiveChat(id) {
         detail: "Fetching messages and restoring the current scene."
     });
     activeChatId = id;
+    history.replaceState(null, "", `/app/chats/${id}`);
     messageRetryState = new Map();
     updateWorkspaceCopy(); renderChatList(); updateChatActionState();
     const res = await get(`/chats/${id}/messages`);
@@ -1431,8 +1409,10 @@ async function loadChatSessions() {
         return setNotice(res.error, "error");
     }
     chatSessions = res.chats || []; renderChatList();
+    if (location.pathname.endsWith("/new") && !activeChatId) { currentMessages = []; renderMessages(); updateWorkspaceCopy(); updateSendState(); setChatLoading(false); return; }
+    if (requestedChatId && !getChatById(requestedChatId) && !activeChatId) { setChatLoading(false); return setNotice("Conversation not found. Choose a chat from the sidebar or start a new one.", "error"); }
     if (chatSessions.length) {
-        const preferredChatId = (requestedChatId && getChatById(requestedChatId)) ? requestedChatId : activeChatId && getChatById(activeChatId) ? activeChatId : chatSessions[0].id;
+        const preferredChatId = activeChatId && getChatById(activeChatId) ? activeChatId : (requestedChatId && getChatById(requestedChatId)) ? requestedChatId : chatSessions[0].id;
         setChatLoading(false);
         return setActiveChat(preferredChatId);
     }
@@ -1804,33 +1784,13 @@ async function displayModels() {
 
 async function checkSession() {
     const res = await get("/session");
-    if (registerInviteField) registerInviteField.classList.toggle("hidden", !res.inviteOnlyRegistration);
-    if (!res.user) return false;
-    currentUsername = res.user; authDiv.classList.add("hidden"); chatDiv.classList.remove("hidden");
+    if (!res.user) { window.location.replace(`/login?next=${encodeURIComponent(location.pathname + location.search)}`); return false; }
+    currentUsername = res.user; chatDiv.classList.remove("hidden");
     await Promise.all([displayModels(), loadSummary(), loadChatSessions(), loadPersonas()]);
-    maybeShowOnboarding();
+    // Starters are offered on workspace home.
+    const starter = new URLSearchParams(location.search).get("prompt");
+    if (starter) { msgInput.value = starter; resizeComposerInput(); updateSendState(); }
     msgInput.focus(); return true;
-}
-
-async function handleAuth(endpoint, credentials) {
-    const {username, password} = credentials, submitBtn = endpoint === "login" ? loginSubmit : registerSubmit;
-    if (!username || !password) return setAuthMessage("Please enter both username and password.", "error");
-    submitBtn.disabled = true; setAuthMessage("Processing...");
-    const payload = endpoint === "register"
-        ? {username, password, inviteCode: registerInviteCodeInput?.value.trim() || ""}
-        : {username, password};
-    const res = await post(`/${endpoint}`, payload);
-    submitBtn.disabled = false;
-    if (res.error) return setAuthMessage(res.error, "error");
-    if (endpoint === "login") {
-        currentUsername = username; authDiv.classList.add("hidden"); chatDiv.classList.remove("hidden");
-        await Promise.all([displayModels(), loadSummary(), loadChatSessions(), loadPersonas()]);
-        maybeShowOnboarding();
-        setNotice("Ready.", "success"); msgInput.focus();
-    } else {
-        setAuthMessage("Registration successful. You can now log in.", "success");
-        showAuthScreen("login"); loginUsernameInput.value = username; loginPasswordInput.focus();
-    }
 }
 
 async function sendMessage() {
@@ -1934,19 +1894,6 @@ function bindChatDrawerActions() {
     });
 }
 
-toggleButtons.forEach((btn) => btn.addEventListener("click", () => showAuthScreen(btn.dataset.target)));
-loginForm.addEventListener("submit", (event) => { event.preventDefault(); void handleAuth("login", {username: loginUsernameInput.value.trim(), password: loginPasswordInput.value.trim()}); });
-registerForm.addEventListener("submit", (event) => { event.preventDefault(); void handleAuth("register", {username: registerUsernameInput.value.trim(), password: registerPasswordInput.value.trim()}); });
-logoutButton.addEventListener("click", async () => {
-    closeChatDrawer();
-    await post("/logout", {}); chatDiv.classList.add("hidden"); authDiv.classList.remove("hidden");
-    activeChatId = null; currentUsername = ""; currentSummary = null; chatSessions = []; currentMessages = []; assistantPersonas = []; userPersonas = [];
-    messageRetryState = new Map();
-    activeUserPersonaId = null; publishedPersonaIds = new Set(); messagesDiv.innerHTML = ""; renderChatList(); updateChatActionState();
-    updateComposerPlaceholder();
-    updateSendState();
-    showAuthScreen("login"); setAuthMessage("Logged out.", "success"); setNotice("Ready.");
-});
 sendBtn.addEventListener("click", () => { void (isProcessing ? stopGeneration() : sendMessage()); });
 msgInput.addEventListener("keydown", (event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void sendMessage(); } });
 msgInput.addEventListener("input", function () {

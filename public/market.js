@@ -540,7 +540,7 @@ async function startMarketPersonaChat(marketId, userPersonaSelection, scenarioPr
         return;
     }
     if (userPersonaSelection === "create_new") {
-        window.location.href = "/settings?view=my-roleplay-companions&create=user";
+        window.location.href = "/app/personas?view=my-roleplay-companions&create=user";
         return;
     }
 
@@ -560,7 +560,7 @@ async function startMarketPersonaChat(marketId, userPersonaSelection, scenarioPr
         setMarketStatus(res.error || "Unable to start chat.", "error");
         return;
     }
-    window.location.href = `/?chat=${res.chat.id}`;
+    window.location.href = `/app/chats/${res.chat.id}`;
 }
 
 async function savePersona() {
@@ -623,7 +623,7 @@ if (marketCreateAiCharacterBtn) {
 }
 if (marketCreateUserPersonaBtn) {
     marketCreateUserPersonaBtn.addEventListener("click", () => {
-        window.location.href = "/settings?view=my-roleplay-companions&create=user";
+        window.location.href = "/app/personas?view=my-roleplay-companions&create=user";
     });
 }
 marketPreviewClose.addEventListener("click", closeMarketPreview);
@@ -633,7 +633,7 @@ marketPreviewModal.addEventListener("click", (event) => {
 marketPreviewUserPersonaSelect.addEventListener("change", () => {
     if (!pendingMarketPersona || pendingMarketPersona.persona_type !== "assistant") return;
     if (marketPreviewUserPersonaSelect.value === "create_new") {
-        window.location.href = "/settings?view=my-roleplay-companions&create=user";
+        window.location.href = "/app/personas?view=my-roleplay-companions&create=user";
         return;
     }
     marketPreviewConfirm.classList.toggle("hidden", !marketPreviewUserPersonaSelect.value);
@@ -679,6 +679,8 @@ window.addEventListener("load", async () => {
     setMarketSort("user", params.get("userSort") || "best", {reload: false});
     setMarketView(params.get("view") || "ai-characters");
     await loadMarketPersonas();
+    const selectedPersona = [...marketPersonasByType.assistant, ...marketPersonasByType.user].find(persona => persona.id === Number(params.get("persona")));
+    if (selectedPersona) openMarketPreview(selectedPersona);
     if (params.get("create") === "assistant") {
         setMarketView("ai-characters");
         openPersonaForm();

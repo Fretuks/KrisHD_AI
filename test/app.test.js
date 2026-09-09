@@ -988,3 +988,79 @@ test("market listing supports persona type filters, sorting, and favorite state"
 
     await server.close();
 });
+
+test("public pages, workspace guards, and legacy chat links have distinct destinations", async () => {
+    const server = await startTestServer();
+    try {
+        for (const [url, marker] of [["/", "A space for every conversation."], ["/login", 'id="accountForm"'], ["/register", 'id="accountForm"'], ["/market", 'id="publicSearch"']]) {
+            const response = await fetch(server.baseUrl + url);
+            assert.equal(response.status, 200);
+            const html = await response.text();
+            assert.ok(html.includes(marker));
+            assert.ok(!html.includes('id="chat"'));
+        }
+        for (const url of ["/app", "/app/personas", "/app/settings", "/app/chats/42", "/app/chats/new?prompt=hello"]) {
+            const response = await fetch(server.baseUrl + url, {redirect: "manual"});
+            assert.equal(response.status, 302);
+            assert.equal(response.headers.get("location"), `/login?next=${encodeURIComponent(url)}`);
+        }
+        const legacy = await fetch(server.baseUrl + "/?chat=42", {redirect: "manual"});
+        assert.equal(legacy.headers.get("location"), "/app/chats/42");
+        const jar = new CookieJar();
+        await request(server.baseUrl, "/register", {method: "POST", body: {username: "newvisitor", password: "password123"}, jar});
+        const session = await request(server.baseUrl, "/session", {jar});
+        assert.equal(session.json.user, "newvisitor", "registration signs in immediately");
+        const home = await fetch(server.baseUrl + "/app", {headers: jar.headers()});
+        assert.match(await home.text(), /What would you like to do/);
+        const chat = await fetch(server.baseUrl + "/app/chats/new", {headers: jar.headers()});
+        const html = await chat.text();
+        assert.ok(html.includes('src="/script.js'));
+        assert.ok(!html.includes('id="loginForm"'));
+        assert.deepEqual((await request(server.baseUrl, "/chats", {jar})).json.chats, [], "home and chat pages do not create chats on GET");
+        await request(server.baseUrl, "/logout", {method: "POST", body: {}, jar});
+        assert.equal((await fetch(server.baseUrl + "/app", {headers: jar.headers(), redirect: "manual"})).status, 302);
+    } finally { await server.close(); }
+});
+
+test("public discovery only exposes published persona summaries", async () => {
+    const server = await startTestServer();
+    try {
+        const jar = new CookieJar();
+        await request(server.baseUrl, "/register", {method: "POST", body: {username: "publicmaker", password: "password123"}, jar});
+        const created = await request(server.baseUrl, "/personas", {method: "POST", body: {name: "Rainkeeper", background: "A guide to a rainy city", details: "Private implementation detail", personaType: "assistant"}, jar});
+        const id = created.json.persona.id;
+        assert.equal((await request(server.baseUrl, "/api/discover")).json.personas.length, 0);
+        await request(server.baseUrl, `/personas/${id}/publish`, {method: "POST", body: {}, jar});
+        const result = await request(server.baseUrl, "/api/discover");
+        assert.equal(result.status, 200);
+        assert.equal(result.json.personas[0].name, "Rainkeeper");
+        assert.equal(result.json.personas[0].description, "A guide to a rainy city");
+        assert.deepEqual(Object.keys(result.json.personas[0]).sort(), ["creator_username", "description", "id", "name", "persona_type"]);
+    } finally { await server.close(); }
+});
+
+test("page headers share navigation and keep session markup private", async () => {
+    const server = await startTestServer();
+    try {
+        const jar = new CookieJar();
+        const username = '<maker&friend>';
+        await request(server.baseUrl, "/register", {method: "POST", body: {username, password: "password123"}, jar});
+        let sharedNavigation;
+        for (const route of ["/", "/app", "/app/chats/new", "/app/personas", "/market", "/app/settings", "/privacy.html", "/tos.html"]) {
+            const response = await fetch(server.baseUrl + route, {headers: jar.headers()});
+            assert.equal(response.status, 200);
+            assert.equal(response.headers.get("cache-control"), "private, no-store");
+            const html = await response.text();
+            assert.equal((html.match(/class="shell-header"/g) || []).length, 1);
+            assert.ok(html.includes('&lt;maker&amp;friend&gt;'));
+            assert.ok(!html.includes(username), "account names must be escaped in header markup");
+            const navigation = html.match(/<nav class="shell-nav"[^>]*>(.*?)<\/nav>/s)[1].replace(/ aria-current="page"/g, "");
+            if (sharedNavigation) assert.equal(navigation, sharedNavigation);
+            sharedNavigation = navigation;
+        }
+        const guest = await fetch(server.baseUrl + "/");
+        const html = await guest.text();
+        assert.ok(!html.includes('&lt;maker&amp;friend&gt;'));
+        assert.ok(html.includes('href="/login"'));
+    } finally { await server.close(); }
+});

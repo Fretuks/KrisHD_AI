@@ -136,6 +136,7 @@ function applyThemeMode(modeKey, persist = true) {
 
 function setSettingsView(view) {
     const normalizedView = ["my-ai-characters", "my-personas"].includes(view) ? "my-roleplay-companions" : view;
+    if (normalizedView === "my-roleplay-companions" && location.pathname !== "/app/personas") { location.assign("/app/personas" + location.search); return; }
     if (normalizedView === "diagnostics" && !isAdminUser) {
         setNotice("Diagnostics are available to admin users only.", "error");
         return;
@@ -309,6 +310,8 @@ async function loadProfile() {
         setNotice(res.error, "error");
         return false;
     }
+    const accountName = document.querySelector(".shell-username");
+    if (accountName) { accountName.textContent = res.username || ""; accountName.title = res.username || ""; }
     currentUsernameInput.value = res.username || "";
     newUsernameInput.value = res.username || "";
     isAdminUser = res.username === "admin";
@@ -575,11 +578,13 @@ window.addEventListener("load", async () => {
     initializeAppearance({title: "Elsewhere Settings", themeSelect: settingsThemeSelect, modeSelect: themeModeSelect});
     workspaceModeSelect.value = localStorage.getItem("krishd-workspace-mode") || "basic";
     const params = new URLSearchParams(window.location.search);
-    const view = params.get("view") || "personal";
+    const personaPage = location.pathname === "/app/personas";
+    const view = personaPage ? "my-roleplay-companions" : params.get("view") || "personal";
+    if (personaPage) { document.querySelector(".market-header .eyebrow").textContent = "Your collection"; document.querySelector("h1").textContent = "My personas"; document.title = "My personas - Elsewhere"; document.querySelector(".settings-nav").hidden = true; document.querySelector(".settings-layout").style.gridTemplateColumns = "1fr"; }
     const profileOk = await loadProfile();
     setSettingsView(view);
     const personasOk = await loadPersonas();
-    if (profileOk && personasOk && view !== "diagnostics") setNotice("Settings loaded.");
+    if (profileOk && personasOk && view !== "diagnostics") setNotice(personaPage ? "Personas loaded." : "Settings loaded.");
 
     const create = params.get("create");
     if (create === "assistant") {

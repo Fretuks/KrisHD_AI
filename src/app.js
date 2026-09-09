@@ -257,11 +257,6 @@ export function createApp(options = {}) {
 
     app.use(observability.middleware);
     app.use(express.json({limit: "1mb"}));
-    app.use(express.static(config.publicDir, {
-        maxAge: config.staticMaxAge,
-        etag: config.staticEtag,
-        fallthrough: config.staticFallthrough
-    }));
     app.use(session({
         store: options.sessionStore || (config.testMode ? undefined : new FileStore({path: config.sessionsDir, reapInterval: 3600})),
         secret: config.sessionSecret,
@@ -284,12 +279,17 @@ export function createApp(options = {}) {
     app.locals.observability = observability;
     app.locals.close = createCloseHandler(closeHandlers);
 
+    app.use(createPagesRouter(config));
+    app.use(express.static(config.publicDir, {
+        maxAge: config.staticMaxAge,
+        etag: config.staticEtag,
+        fallthrough: config.staticFallthrough
+    }));
     app.use(createAuthRouter({repositories, authRateLimiters, config}));
     app.use(createSettingsRouter({repositories}));
     app.use(createChatsRouter({repositories, chatService, modelService, config, chatRateLimiters}));
     app.use(createPersonasRouter({repositories, chatService, modelService, config}));
     app.use(createSystemRouter({modelService, config}));
-    app.use(createPagesRouter(config));
     app.use(notFoundHandler);
     app.use(errorHandler);
 

@@ -27,6 +27,8 @@ export function createAuthRouter({repositories, authRateLimiters, config}) {
 
         const hashed = await bcrypt.hash(password, 10);
         repositories.insertUser(username, hashed);
+        req.session.user = username;
+        req.session.sessionVersion = 0;
         return res.json({message: "Registration successful"});
     });
 

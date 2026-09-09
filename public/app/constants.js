@@ -1,4 +1,4 @@
-export const requestedChatId = Number(new URLSearchParams(window.location.search).get("chat")) || null;
+export const requestedChatId = Number(window.location.pathname.match(/^\/app\/chats\/(\d+)$/)?.[1] || new URLSearchParams(window.location.search).get("chat")) || null;
 
 export const onboardingPrompts = {
     ask: ["Explain this topic in simple terms.", "Compare these options and recommend one."],

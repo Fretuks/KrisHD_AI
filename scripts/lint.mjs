@@ -3,6 +3,7 @@ import {execFileSync} from "node:child_process";
 const files = [
     "server.js",
     "src/app.js",
+    "src/pageLayout.js",
     "src/config.js",
     "src/db/index.js",
     "src/db/repositories.js",
@@ -21,6 +22,10 @@ const files = [
     "src/services/modelService.js",
     "src/services/personaService.js",
     "public/script.js",
+    "public/pages.js",
+    "public/app/workspaceNavigation.js",
+    "public/settings.js",
+    "public/market.js",
     "public/app/api.js",
     "public/app/chatDrawer.js",
     "public/app/constants.js",

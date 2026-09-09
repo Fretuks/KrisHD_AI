@@ -91,3 +91,20 @@ Pure chat message, retry, memory, summary, and persona-state formatting lives in
 
 - [Privacy Policy](PRIVACY_POLICY.md)
 - [Terms of Service](TERMS_OF_SERVICE.md)
+
+## Page navigation
+
+- `/` is the public landing page, even for signed-in visitors.
+- `/login` and `/register` provide dedicated account forms. Registration starts a session automatically.
+- `/app` is workspace home, with recent chats and optional starters.
+- `/app/chats/new` opens an empty composer; sending the first message creates the conversation.
+- `/app/chats/:id` opens a conversation. Legacy `/?chat=:id` links redirect here.
+- `/app/personas` provides persona management, using the shared settings editor module.
+- `/app/settings` contains account and appearance settings. `/settings` redirects here.
+- `/market` allows visitors to browse public summaries and signed-in users to use the full persona market.
+
+Protected pages redirect to sign-in with a local return destination. Public discovery only returns published persona summaries; using a persona requires an account.
+
+All page routes render the same navigation from `src/pageLayout.js` into the `<!-- site-header -->` placeholder. `public/shell.css` owns the shared header, page spacing, and mobile navigation; `public/app/workspaceNavigation.js` owns sign-out. Page-specific headers contain only local titles and actions. The chat sidebar is reserved for conversation history. Public and home content share `public/pages.css` and `public/pages.js`. Page routes run before static assets and authenticated API routers; rendered pages use private, non-cacheable responses.
+
+For environments that block child-process test workers, run `node --test --test-isolation=none`.

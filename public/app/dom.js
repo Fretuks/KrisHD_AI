@@ -1,9 +1,6 @@
 const $ = (id) => document.getElementById(id);
 
-const authDiv = $("auth");
 const chatDiv = $("chat");
-const authMsg = $("authMsg");
-const logoutButton = $("logout");
 const messagesDiv = $("messages");
 const modelSelect = $("model");
 const modelPanel = $("modelPanel");
@@ -20,18 +17,8 @@ const chatResponseLengthInput = $("chatResponseLength");
 const chatSystemInstructionInput = $("chatSystemInstruction");
 const saveGenerationSettingsBtn = $("saveGenerationSettings");
 const chatDrawerPersonaValue = $("chatDrawerPersonaValue");
-const loginForm = $("loginForm");
-const registerForm = $("registerForm");
 const msgInput = $("msgInput");
 const sendBtn = $("send");
-const loginUsernameInput = $("loginUsername");
-const loginPasswordInput = $("loginPassword");
-const registerUsernameInput = $("registerUsername");
-const registerPasswordInput = $("registerPassword");
-const registerInviteField = $("registerInviteField");
-const registerInviteCodeInput = $("registerInviteCode");
-const loginSubmit = $("loginSubmit");
-const registerSubmit = $("registerSubmit");
 const chatList = $("chatList");
 const chatSearchInput = $("chatSearch");
 const chatSidebar = $("chatSidebar");
@@ -54,7 +41,6 @@ const backupWorkspaceBtn = $("backupWorkspace");
 const importWorkspaceBtn = $("importWorkspace");
 const importWorkspaceFileInput = $("importWorkspaceFile");
 const activeChatTitle = $("activeChatTitle");
-const sessionUser = $("sessionUser");
 const chatActivityOverlay = $("chatActivityOverlay");
 const chatActivityEyebrow = $("chatActivityEyebrow");
 const chatActivityTitle = $("chatActivityTitle");
@@ -110,8 +96,6 @@ const onboardingChoices = $("onboardingChoices");
 const onboardingBack = $("onboardingBack");
 const onboardingContinue = $("onboardingContinue");
 const onboardingSkip = $("onboardingSkip");
-const authScreens = document.querySelectorAll(".auth-screen");
-const toggleButtons = document.querySelectorAll(".auth-toggle .toggle");
 const brandNameTargets = document.querySelectorAll("[data-brand-name]");
 const brandLogoTargets = document.querySelectorAll("[data-brand-logo]");
 const modelSection = document.querySelector(".chat-drawer-section--model");
@@ -121,9 +105,6 @@ export {
     $,
     activeChatTitle,
     activeUserPersonaStatus,
-    authDiv,
-    authMsg,
-    authScreens,
     chatActivityDetail,
     chatActivityEyebrow,
     chatActivityOverlay,
@@ -156,11 +137,6 @@ export {
     backupWorkspaceBtn,
     importWorkspaceBtn,
     importWorkspaceFileInput,
-    loginForm,
-    loginPasswordInput,
-    loginSubmit,
-    loginUsernameInput,
-    logoutButton,
     messagesDiv,
     modelBadgeName,
     headerModelName,
@@ -206,12 +182,6 @@ export {
     popupInputLabel,
     popupModal,
     popupTitle,
-    registerForm,
-    registerInviteCodeInput,
-    registerInviteField,
-    registerPasswordInput,
-    registerSubmit,
-    registerUsernameInput,
     renameChatBtn,
     roleplayCharacterSelect,
     roleplayNewPersonaBtn,
@@ -230,9 +200,7 @@ export {
     roleplayUserPersonaSelect,
     sendBtn,
     saveGenerationSettingsBtn,
-    sessionUser,
     brandLogoTargets,
     brandNameTargets,
-    toggleButtons,
     userPersonaList
 };

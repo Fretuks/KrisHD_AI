@@ -3,26 +3,24 @@
 <head>
     <meta charset="UTF-8"/>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-    <title>Elsewhere Market</title>
+    <title>Elsewhere Discover</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <script src="app/theme-bootstrap.js"></script>
-    <link rel="stylesheet" href="style.css?v=20260909-elsewhere"/>
+    <script src="/app/theme-bootstrap.js"></script>
+    <link rel="stylesheet" href="/style.css?v=20260909-elsewhere"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="/shell.css">
 </head>
-<body data-theme="fakegpt" data-theme-mode="light">
-<div class="market-shell card market-shell-simple">
+<body class="site-page market-page" data-theme="fakegpt" data-theme-mode="light">
+<!-- site-header -->
+<main id="main" class="market-shell page-content">
     <header class="market-header market-header-simple">
         <div>
             <p class="eyebrow">Shared personas</p>
-            <h1><span class="brand-wordmark" data-brand-name>elsewhere</span> Market</h1>
+            <h1>Discover</h1>
         </div>
-        <div class="market-header-actions">
-            <button id="refreshMarket" class="secondary-action" type="button">Refresh</button>
-            <a href="/settings" class="secondary-action">Settings</a>
-            <a href="/" class="secondary-action">Back to chat</a>
-        </div>
+        <div class="market-header-actions"><button id="refreshMarket" class="secondary-action" type="button">Refresh</button></div>
     </header>
 
     <div class="market-search">
@@ -92,7 +90,7 @@
             </section>
         </div>
     </section>
-</div>
+</main>
 
 <div id="marketPreviewModal" class="modal-overlay hidden">
     <div class="modal-card market-preview-card">
@@ -239,6 +237,6 @@
         </div>
     </div>
 </div>
-<script type="module" src="market.js"></script>
-</body>
+<script type="module" src="/market.js"></script>
+<script type="module" src="/app/workspaceNavigation.js"></script></body>
 </html>

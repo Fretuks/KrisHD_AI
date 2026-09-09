@@ -7,20 +7,18 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <script src="app/theme-bootstrap.js"></script>
-    <link rel="stylesheet" href="style.css?v=20260909-elsewhere"/>
+    <script src="/app/theme-bootstrap.js"></script>
+    <link rel="stylesheet" href="/style.css?v=20260909-elsewhere"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="/shell.css">
 </head>
-<body data-theme="fakegpt" data-theme-mode="light">
-<div class="settings-shell card">
+<body class="site-page settings-page" data-theme="fakegpt" data-theme-mode="light">
+<!-- site-header -->
+<main id="main" class="settings-shell page-content">
     <header class="market-header market-header-simple">
         <div>
             <p class="eyebrow">Elsewhere settings</p>
             <h1>Preferences</h1>
-        </div>
-        <div class="market-header-actions">
-            <a href="/" class="secondary-action">Back to chat</a>
-            <a href="/market" class="secondary-action">Market</a>
         </div>
     </header>
 
@@ -29,7 +27,7 @@
     <section class="settings-layout">
         <aside class="settings-nav" aria-label="Settings sections" role="tablist">
             <button class="settings-nav-item active" type="button" role="tab" aria-selected="true" data-settings-view="personal">Account</button>
-            <button class="settings-nav-item" type="button" role="tab" aria-selected="false" data-settings-view="my-roleplay-companions">Personas</button>
+
             <button class="settings-nav-item" type="button" role="tab" aria-selected="false" data-settings-view="design">Appearance</button>
             <button id="diagnosticsNavItem" class="settings-nav-item hidden" type="button" role="tab" aria-selected="false" data-settings-view="diagnostics">Diagnostics</button>
         </aside>
@@ -216,7 +214,7 @@
             </section>
         </div>
     </section>
-</div>
+</main>
 
 <div id="settingsPersonaModal" class="modal-overlay hidden">
     <div class="modal-card persona-modal-card">
@@ -300,6 +298,6 @@
         </div>
     </div>
 </div>
-<script type="module" src="settings.js"></script>
-</body>
+<script type="module" src="/settings.js"></script>
+<script type="module" src="/app/workspaceNavigation.js"></script></body>
 </html>
